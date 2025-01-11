@@ -36,29 +36,27 @@ dependencies {
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-security', version: "${springBootVersion}"
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web-services', version: "${springBootVersion}"
-    implementation group: 'org.springframework.session', name: 'spring-session-core', version: "3.3.2"
-    // https://mvnrepository.com/artifact/org.flywaydb/flyway-core
+	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
+	developmentOnly group: 'org.springframework.boot', name: 'spring-boot-docker-compose', version: "${springBootVersion}"
+	testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
+    implementation group: 'org.springframework.session', name: 'spring-session-core', version: "${springBootVersion}"
     implementation group: 'org.flywaydb', name: 'flyway-core', version: "${flywayVersion}"
+	runtimeOnly group: 'org.flywaydb', name: 'flyway-database-postgresql', version: "${flywayVersion}"
 	// https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api
 	implementation group: 'jakarta.xml.bind', name: 'jakarta.xml.bind-api', version: '4.0.2'
 	// https://mvnrepository.com/artifact/jakarta.annotation/jakarta.annotation-api
 	implementation group: 'jakarta.annotation', name: 'jakarta.annotation-api', version: '3.0.0'
-	implementation group: 'commons-codec', name: 'commons-codec', version: '1.17.1'
-	// https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-jpa
-	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
-    developmentOnly group: 'org.springframework.boot', name: 'spring-boot-docker-compose', version: "${springBootVersion}"
-	// https://mvnrepository.com/artifact/org.flywaydb/flyway-database-postgresql
-	runtimeOnly group: 'org.flywaydb', name: 'flyway-database-postgresql', version: "${flywayVersion}"
+	// https://mvnrepository.com/artifact/commons-codec/commons-codec
+	implementation group: 'commons-codec', name: 'commons-codec', version: '1.17.2'
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.4'
     // developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
-    testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
-	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.3.3'
+	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.4.2'
 	// https://mvnrepository.com/artifact/org.junit.platform/junit-platform-launcher
-	testImplementation group: 'org.junit.platform', name: 'junit-platform-launcher', version: '1.11.2'
+	testImplementation group: 'org.junit.platform', name: 'junit-platform-launcher', version: '1.11.4'
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
-	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.13.0'
+	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.15.2'
 }
 
 dependencyManagement {

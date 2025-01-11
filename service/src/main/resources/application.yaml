@@ -1,0 +1,103 @@
+spring:
+  application:
+  docker:
+    compose:
+      enabled: false
+  name: Vempain File
+  servlet:
+    session:
+      timeout: 600
+  session:
+    store-type: jdbc
+    jdbc:
+      table-name: server_sessions
+      cleanup-cron: "5 * * * * *"
+      initialize-schema: always
+  datasource:
+    url: jdbc:postgresql://localhost:5432/vempain_file?currentSchema=vempain_file&useSSL=false
+    driver-class-name: org.postgresql.Driver
+    username: vempain_file
+    password: vempain_file_password
+  jpa:
+    show-sql: false
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    default-schema: vempain_file
+
+server:
+  port: 8080
+  forward-headers-strategy: native
+  servlet:
+    context-path: /api
+
+actuator:
+  enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: [ "*", "openapi", "swagger-ui" ]
+    enabled-by-default: true
+
+springdoc:
+  show-login-endpoint: true
+  swagger-ui:
+    operationsSorter: alpha
+    tagsSorter: alpha
+  show-actuator: true
+  api-docs:
+    enabled: true
+    resolve-schema-properties: true
+  use-management-port: true
+
+logging:
+  level:
+    root: WARN
+    fi:
+      poltsi: INFO
+
+vempain:
+  developer:
+    name: "Paul-Erik Törrönen"
+    url: "https://poltsi.fi/"
+    email: "poltsi@poltsi.fi"
+  type: "Vempain File backend service"
+  description: "Vempain File backend serves the REST API for the frontend"
+  version: 0.1.0
+  license: "GPL 2.0"
+  license-url: "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
+  app:
+    frontend-url: override-me
+    jwtSecret: override-me
+    jwtExpirationMs: 86400000
+  test: true
+  cors:
+    allowed-origins: ${vempain.app.frontend-url}
+    cors-pattern: '/**'
+    max-age: 3600
+---
+### Local machine ###
+
+spring:
+  config:
+    activate:
+      on-profile: local
+    import: classpath:local.yaml
+
+---
+### Production server ###
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+    import: classpath:prod.yaml

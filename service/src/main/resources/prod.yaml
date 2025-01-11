@@ -1,0 +1,16 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  # This need to be in place so that application can find the drivers
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+logging:
+  level:
+    root: INFO
+    org:
+      springframework:
+        web: WARN
+      hibernate:
+        SQL: WARN

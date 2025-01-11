@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+    id "io.freefair.lombok" version "${ioFreeFairLombok}"
+}
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    archiveFileName = "vempain-file-api-${version}.jar"
+}
+
+dependencies {
+    // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
+    implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.23'
+    // https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
+    implementation group: 'jakarta.validation', name: 'jakarta.validation-api', version: '3.1.0'
+    // https://mvnrepository.com/artifact/org.springframework.data/spring-data-jpa
+    api group: 'org.springframework.data', name: 'spring-data-jpa', version: "${springBootVersion}"
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations
+    api group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: "${jacksonVersion}"
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+    api group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: "${jacksonVersion}"
+    // https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-jpa
+    api group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
+    // https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-web
+    api  group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
+}

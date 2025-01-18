@@ -5,7 +5,10 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.servers.Server;
 import lombok.experimental.UtilityClass;
 
-@OpenAPIDefinition(info = @Info(version = "${info.build.version}", title = "Vempain File Service REST endpoints"),
+@OpenAPIDefinition(info = @Info(version = "${vempain.version}",
+								title = "${vempain.description}",
+								license = @io.swagger.v3.oas.annotations.info.License(name = "${vempain.license}",
+																					  url = "${vempain.license-url}")),
 				   servers = @Server(url = "http://localhost:8080/api", description = "current server"))
 @UtilityClass
 public class VempainServiceApiDefinition {

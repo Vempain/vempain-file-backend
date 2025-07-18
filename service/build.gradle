@@ -40,27 +40,29 @@ dependencies {
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
 	developmentOnly group: 'org.springframework.boot', name: 'spring-boot-docker-compose', version: "${springBootVersion}"
 	testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
-    implementation group: 'org.springframework.session', name: 'spring-session-core', version: "${springBootVersion}"
+    implementation group: 'org.springframework.session', name: 'spring-session-core', version: "3.5.1"
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: "${springBootVersion}"
 	implementation group: 'org.flywaydb', name: 'flyway-core', version: "${flywayVersion}"
 	runtimeOnly group: 'org.flywaydb', name: 'flyway-database-postgresql', version: "${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
-	implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '2.8.3'
+	implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '2.8.9'
 	// https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api
 	implementation group: 'jakarta.xml.bind', name: 'jakarta.xml.bind-api', version: '4.0.2'
 	// https://mvnrepository.com/artifact/jakarta.annotation/jakarta.annotation-api
 	implementation group: 'jakarta.annotation', name: 'jakarta.annotation-api', version: '3.0.0'
 	// https://mvnrepository.com/artifact/commons-codec/commons-codec
-	implementation group: 'commons-codec', name: 'commons-codec', version: '1.17.2'
+	implementation group: 'commons-codec', name: 'commons-codec', version: '1.18.0'
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
-	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.4'
+	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.7'
     // developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
-	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.4.2'
-	// https://mvnrepository.com/artifact/org.junit.platform/junit-platform-launcher
-	testImplementation group: 'org.junit.platform', name: 'junit-platform-launcher', version: '1.11.4'
+	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.5.1'
+	// https://mvnrepository.com/artifact/org.junit/junit-bom
+	testImplementation platform("org.junit:junit-bom:$junitVersion")
+	// https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter
+	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: "$junitVersion"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
-	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.15.2'
+	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.18.0'
 }
 
 dependencyManagement {
@@ -69,8 +71,8 @@ dependencyManagement {
     }
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+test {
+	useJUnitPlatform()
 }
 
 processResources {

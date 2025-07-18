@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.response.ScanResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
@@ -42,46 +43,89 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class FileScannerService {
 
-	private final FileGroupRepository fileGroupRepository;
-	private final FileRepository      fileRepository;
-	private final ImageFileRepository imageFileRepository;
+	private final FileGroupRepository    fileGroupRepository;
+	private final FileRepository         fileRepository;
+	private final ImageFileRepository    imageFileRepository;
 	private final VideoFileRepository    videoFileRepository;
 	private final AudioFileRepository    audioFileRepository;
 	private final DocumentFileRepository documentFileRepository;
-	private final VectorFileRepository vectorFileRepository;
-	private final IconFileRepository    iconFileRepository;
-	private final FontFileRepository    fontFileRepository;
-	private final ArchiveFileRepository archiveFileRepository;
-	private final MetadataRepository    metadataRepository;
+	private final VectorFileRepository   vectorFileRepository;
+	private final IconFileRepository     iconFileRepository;
+	private final FontFileRepository     fontFileRepository;
+	private final ArchiveFileRepository  archiveFileRepository;
+	private final MetadataRepository     metadataRepository;
 
 	@Transactional
-	public void scanDirectory(String rootDirectory) throws IOException {
-		Files.walk(Path.of(rootDirectory))
-			 .filter(Files::isDirectory)
-			 .filter(this::isLeafDirectory)
-			 .forEach(this::processLeafDirectory);
+	public ScanResponse scanDirectory(String rootDirectory) {
+		long scannedFilesCount = 0;
+		long newFilesCount     = 0;
+
+		try {
+			var leafDirectories = Files.walk(Path.of(rootDirectory))
+									   .filter(Files::isDirectory)
+									   .filter(this::isLeafDirectory)
+									   .toList();
+
+			for (Path leafDir : leafDirectories) {
+				File[] files = leafDir.toFile()
+									  .listFiles();
+				if (files == null || files.length == 0) {
+					log.warn("Directory is empty: {}", leafDir);
+					continue;
+				}
+
+				FileGroupEntity fileGroup = fileGroupRepository.save(
+						FileGroupEntity.builder()
+									   .path(leafDir.toString())
+									   .groupName(leafDir.getFileName()
+														 .toString())
+									   .build()
+				);
+
+				for (File file : files) {
+					scannedFilesCount++;
+					try {
+						boolean saved = processFile(file, fileGroup);
+						if (saved) {
+							newFilesCount++;
+						}
+					} catch (IOException e) {
+						log.error("Error processing file: {}", file.getAbsolutePath(), e);
+					}
+				}
+			}
+
+			return new ScanResponse(true, null, scannedFilesCount, newFilesCount);
+
+		} catch (Exception e) {
+			log.error("Directory scan failed for '{}': {}", rootDirectory, e.getMessage(), e);
+			return new ScanResponse(false, e.getMessage(), scannedFilesCount, newFilesCount);
+		}
 	}
 
 	private boolean isLeafDirectory(Path path) {
 		try {
-			return Files.list(path).noneMatch(Files::isDirectory);
+			return Files.list(path)
+						.noneMatch(Files::isDirectory);
 		} catch (IOException e) {
-			log.error("Error checking if directory is leaf: " + path, e);
+			log.error("Error checking if directory is leaf: {}", path, e);
 			return false;
 		}
 	}
 
 	private void processLeafDirectory(Path leafDirectory) {
-		File[] files = leafDirectory.toFile().listFiles();
+		File[] files = leafDirectory.toFile()
+									.listFiles();
 		if (files == null || files.length == 0) {
-			log.warn("Directory is empty: " + leafDirectory);
+			log.warn("Directory is empty: {}", leafDirectory);
 			return;
 		}
 
 		FileGroupEntity fileGroup = fileGroupRepository.save(
 				FileGroupEntity.builder()
 							   .path(leafDirectory.toString())
-							   .groupName(leafDirectory.getFileName().toString())
+							   .groupName(leafDirectory.getFileName()
+													   .toString())
 							   .build()
 		);
 
@@ -89,34 +133,37 @@ public class FileScannerService {
 			try {
 				processFile(file, fileGroup);
 			} catch (IOException e) {
-				log.error("Error processing file: " + file.getAbsolutePath(), e);
+				log.error("Error processing file: {}", file.getAbsolutePath(), e);
 			}
 		}
 	}
 
-	private void processFile(File file, FileGroupEntity fileGroup) throws IOException {
+	private boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
 		String mimetype = Files.probeContentType(file.toPath());
 		FileTypeEnum fileType = determineFileType(mimetype);
 
-		// Common fields for all file entities
+		if (fileType == FileTypeEnum.OTHER) {
+			log.warn("Unsupported file type: {}", file.getName());
+			return false;
+		}
+
 		FileEntity fileEntity = createFileEntity(fileType, file, fileGroup, mimetype);
 
-		// Handle type-specific fields and save the specialized entity
 		switch (fileType) {
 			case IMAGE -> {
-				ImageFileEntity imageFile  = (ImageFileEntity) fileEntity;
-				Dimension       resolution = MetadataTool.extractImageResolution(file);
-				imageFile.setWidth(resolution.width);
-				imageFile.setHeight(resolution.height);
+				ImageFileEntity imageFile = (ImageFileEntity) fileEntity;
+				Dimension res = MetadataTool.extractImageResolution(file);
+				imageFile.setWidth(res.width);
+				imageFile.setHeight(res.height);
 				imageFile.setColorDepth(MetadataTool.extractImageColorDepth(file));
 				imageFile.setDpi(MetadataTool.extractImageDpi(file));
 				fileRepository.save(imageFile);
 			}
 			case VIDEO -> {
 				VideoFileEntity videoFile = (VideoFileEntity) fileEntity;
-				Dimension resolution = MetadataTool.extractVideoResolution(file);
-				videoFile.setWidth(resolution.width);
-				videoFile.setHeight(resolution.height);
+				Dimension res = MetadataTool.extractVideoResolution(file);
+				videoFile.setWidth(res.width);
+				videoFile.setHeight(res.height);
 				videoFile.setFrameRate(MetadataTool.extractFrameRate(file));
 				videoFile.setDuration(MetadataTool.extractVideoDuration(file));
 				videoFile.setCodec(MetadataTool.extractVideoCodec(file));
@@ -139,17 +186,17 @@ public class FileScannerService {
 			}
 			case VECTOR -> {
 				VectorFileEntity vectorFile = (VectorFileEntity) fileEntity;
-				Dimension resolution = MetadataTool.extractVectorResolution(file);
-				vectorFile.setWidth(resolution.width);
-				vectorFile.setHeight(resolution.height);
+				Dimension res = MetadataTool.extractVectorResolution(file);
+				vectorFile.setWidth(res.width);
+				vectorFile.setHeight(res.height);
 				vectorFile.setLayersCount(MetadataTool.extractVectorLayersCount(file));
 				fileRepository.save(vectorFile);
 			}
 			case ICON -> {
 				IconFileEntity iconFile = (IconFileEntity) fileEntity;
-				Dimension resolution = MetadataTool.extractIconResolution(file);
-				iconFile.setWidth(resolution.width);
-				iconFile.setHeight(resolution.height);
+				Dimension res = MetadataTool.extractIconResolution(file);
+				iconFile.setWidth(res.width);
+				iconFile.setHeight(res.height);
 				iconFile.setIsScalable(MetadataTool.extractIconIsScalable(file));
 				fileRepository.save(iconFile);
 			}
@@ -168,14 +215,13 @@ public class FileScannerService {
 				archiveFile.setIsEncrypted(MetadataTool.extractArchiveIsEncrypted(file));
 				fileRepository.save(archiveFile);
 			}
-			case OTHER -> {
-				log.warn("Unsupported file type: " + file.getName());
-				return;
+			default -> {
+				return false;
 			}
 		}
 
-		// Process metadata for the file
 		processMetadata(file, fileEntity);
+		return true;
 	}
 
 	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype) {
@@ -249,15 +295,33 @@ public class FileScannerService {
 	}
 
 	private FileTypeEnum determineFileType(String mimetype) {
-		if (mimetype == null) return FileTypeEnum.OTHER;
-		if (mimetype.startsWith("image/")) return FileTypeEnum.IMAGE;
-		if (mimetype.startsWith("video/")) return FileTypeEnum.VIDEO;
-		if (mimetype.startsWith("audio/")) return FileTypeEnum.AUDIO;
-		if (mimetype.startsWith("application/pdf")) return FileTypeEnum.DOCUMENT;
-		if (mimetype.startsWith("application/postscript")) return FileTypeEnum.VECTOR;
-		if (mimetype.startsWith("image/vnd.microsoft.icon") || mimetype.startsWith("image/x-icon")) return FileTypeEnum.ICON;
-		if (mimetype.startsWith("font/")) return FileTypeEnum.FONT;
-		if (mimetype.startsWith("application/zip") || mimetype.startsWith("application/x-tar")) return FileTypeEnum.ARCHIVE;
+		if (mimetype == null) {
+			return FileTypeEnum.OTHER;
+		}
+		if (mimetype.startsWith("image/")) {
+			return FileTypeEnum.IMAGE;
+		}
+		if (mimetype.startsWith("video/")) {
+			return FileTypeEnum.VIDEO;
+		}
+		if (mimetype.startsWith("audio/")) {
+			return FileTypeEnum.AUDIO;
+		}
+		if (mimetype.startsWith("application/pdf")) {
+			return FileTypeEnum.DOCUMENT;
+		}
+		if (mimetype.startsWith("application/postscript")) {
+			return FileTypeEnum.VECTOR;
+		}
+		if (mimetype.startsWith("image/vnd.microsoft.icon") || mimetype.startsWith("image/x-icon")) {
+			return FileTypeEnum.ICON;
+		}
+		if (mimetype.startsWith("font/")) {
+			return FileTypeEnum.FONT;
+		}
+		if (mimetype.startsWith("application/zip") || mimetype.startsWith("application/x-tar")) {
+			return FileTypeEnum.ARCHIVE;
+		}
 		return FileTypeEnum.OTHER;
 	}
 

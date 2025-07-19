@@ -36,7 +36,8 @@ ext {
 dependencies {
 	implementation project(':api')
 	// This needs to be built first in vempain-auth
-	implementation group: 'fi.poltsi.vempain.auth', name: 'vempain-auth-core', version: "${vempainAuthVersion}"
+	implementation group: 'fi.poltsi.vempain', name: 'vempain-auth-core', version: "${vempainAuthVersion}"
+	implementation group: 'fi.poltsi.vempain', name: 'vempain-auth-api', version: "${vempainAuthVersion}"
 	// Spring
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-security', version: "${springBootVersion}"
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"

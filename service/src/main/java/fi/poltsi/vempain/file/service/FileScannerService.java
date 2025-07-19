@@ -139,8 +139,11 @@ public class FileScannerService {
 	}
 
 	private boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
+		log.info("Processing file: {}", file.getAbsolutePath());
 		String mimetype = Files.probeContentType(file.toPath());
+		log.info("Probed MIME type: {}", mimetype);
 		FileTypeEnum fileType = determineFileType(mimetype);
+		log.info("Determined file type: {}", fileType);
 
 		if (fileType == FileTypeEnum.OTHER) {
 			log.warn("Unsupported file type: {}", file.getName());
@@ -151,8 +154,9 @@ public class FileScannerService {
 
 		switch (fileType) {
 			case IMAGE -> {
-				ImageFileEntity imageFile = (ImageFileEntity) fileEntity;
-				Dimension res = MetadataTool.extractImageResolution(file);
+				var imageFile = (ImageFileEntity) fileEntity;
+				log.info("Extracting resolution and metadata for image file: {}", file);
+				var res = MetadataTool.extractImageResolution(file);
 				imageFile.setWidth(res.width);
 				imageFile.setHeight(res.height);
 				imageFile.setColorDepth(MetadataTool.extractImageColorDepth(file));

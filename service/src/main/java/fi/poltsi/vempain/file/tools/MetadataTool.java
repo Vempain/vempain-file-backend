@@ -1,16 +1,23 @@
 package fi.poltsi.vempain.file.tools;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Scanner;
 
+@Slf4j
 public class MetadataTool {
 
 	public static Dimension extractImageResolution(File file) throws IOException {
 		String output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		int width = Integer.parseInt(getTagValue(output, "ImageWidth"));
+		log.info("Image resolution output: {}", output);
+		int width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
 		int height = Integer.parseInt(getTagValue(output, "ImageHeight"));
 		return new Dimension(width, height);
 	}
@@ -27,8 +34,8 @@ public class MetadataTool {
 
 	public static Dimension extractVideoResolution(File file) throws IOException {
 		String output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		int width = Integer.parseInt(getTagValue(output, "ImageWidth"));
-		int height = Integer.parseInt(getTagValue(output, "ImageHeight"));
+		int    width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
+		int    height = Integer.parseInt(getTagValue(output, "ImageHeight"));
 		return new Dimension(width, height);
 	}
 
@@ -84,8 +91,8 @@ public class MetadataTool {
 
 	public static Dimension extractVectorResolution(File file) throws IOException {
 		String output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		int width = Integer.parseInt(getTagValue(output, "ImageWidth"));
-		int height = Integer.parseInt(getTagValue(output, "ImageHeight"));
+		int    width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
+		int    height = Integer.parseInt(getTagValue(output, "ImageHeight"));
 		return new Dimension(width, height);
 	}
 
@@ -96,8 +103,8 @@ public class MetadataTool {
 
 	public static Dimension extractIconResolution(File file) throws IOException {
 		String output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		int width = Integer.parseInt(getTagValue(output, "ImageWidth"));
-		int height = Integer.parseInt(getTagValue(output, "ImageHeight"));
+		int    width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
+		int    height = Integer.parseInt(getTagValue(output, "ImageHeight"));
 		return new Dimension(width, height);
 	}
 
@@ -142,19 +149,37 @@ public class MetadataTool {
 	}
 
 	private static String runExifTool(File file, String... tags) throws IOException {
-		ProcessBuilder processBuilder = new ProcessBuilder();
-		processBuilder.command("exiftool", String.join(" ", tags));
-		processBuilder.redirectInput(file);
-		Process process = processBuilder.start();
+		log.info("Running exiftool on file {} with tags: {}", file, String.join(", ", tags));
+
+		// Prepare command: exiftool -tag1 -tag2 ... file
+		var command = new ArrayList<String>();
+		command.add("exiftool");
+		command.add("-j"); // Output in JSON so we get the correct field names
+		Collections.addAll(command, tags);
+		command.add(file.getAbsolutePath());
+
+		log.info("Running exiftool with command: {}", command);
+
+		ProcessBuilder processBuilder = new ProcessBuilder(command);
+		Process        process        = processBuilder.start();
+
 		Scanner scanner = new Scanner(process.getInputStream()).useDelimiter("\\A");
 		return scanner.hasNext() ? scanner.next() : "";
 	}
 
-	private static String getTagValue(String output, String tag) {
-		for (String line : output.split("\n")) {
-			if (line.contains(tag)) {
-				return line.split(":")[1].trim();
+	private static String getTagValue(String jsonOutput, String tag) {
+		try {
+			var mapper = new ObjectMapper();
+			var root   = mapper.readTree(jsonOutput);
+
+			if (root.isArray()
+				&& !root.isEmpty()) {
+				var first     = root.get(0);
+				var valueNode = first.get(tag);
+				return valueNode != null ? valueNode.asText() : "";
 			}
+		} catch (Exception e) {
+			log.error("Failed to parse exiftool JSON output", e);
 		}
 		return "";
 	}

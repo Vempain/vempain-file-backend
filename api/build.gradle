@@ -4,8 +4,12 @@ plugins {
 }
 
 repositories {
-    mavenCentral()
+	mavenLocal()
+	mavenCentral()
 }
+
+group = 'fi.poltsi.vempain'
+version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
 jar {
     archiveFileName = "vempain-file-api-${version}.jar"
@@ -17,6 +21,8 @@ dependencies {
 	api group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: "${jacksonVersion}"
 	api group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
 	api  group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
+	// This needs to be built first in vempain-auth
+	implementation group: 'fi.poltsi.vempain.auth', name: 'vempain-auth-api', version: "${vempainAuthVersion}"
     // https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
     implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.34'
     // https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api

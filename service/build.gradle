@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'fi.poltsi.vempain'
-version = '0.1.0-SNAPSHOT'
+version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
@@ -24,6 +24,7 @@ configurations {
 }
 
 repositories {
+	mavenLocal()
     mavenCentral()
     maven { url = 'https://repo.spring.io/milestone' }
 }
@@ -34,6 +35,9 @@ ext {
 
 dependencies {
 	implementation project(':api')
+	// This needs to be built first in vempain-auth
+	implementation group: 'fi.poltsi.vempain.auth', name: 'vempain-auth-core', version: "${vempainAuthVersion}"
+	// Spring
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-security', version: "${springBootVersion}"
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web-services', version: "${springBootVersion}"
@@ -52,8 +56,14 @@ dependencies {
 	implementation group: 'jakarta.annotation', name: 'jakarta.annotation-api', version: '3.0.0'
 	// https://mvnrepository.com/artifact/commons-codec/commons-codec
 	implementation group: 'commons-codec', name: 'commons-codec', version: '1.18.0'
+	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api
+	implementation group: 'io.jsonwebtoken', name: 'jjwt-api', version: "${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.7'
+	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-impl
+	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-impl', version: "${jjwtVersion}"
+	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-jackson
+	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: "${jjwtVersion}"
     // developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
 	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.5.1'

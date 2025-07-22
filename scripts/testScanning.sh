@@ -1,4 +1,20 @@
 #!/bin/bash
+
+SOURCE_DIR=${1}
+
+# Make sure the source directory is provided
+
+if [[ -z "${SOURCE_DIR}" ]]; then
+  echo "Usage: $0 <source_directory>"
+  exit 1
+fi
+
+# Then make sure the source directory exists
+if [[ ! -d "${SOURCE_DIR}" ]]; then
+  echo "Source directory '${SOURCE_DIR}' does not exist."
+  exit 1
+fi
+
 set -euo pipefail
 
 # Step 1: Restart the PostgreSQL container
@@ -47,8 +63,8 @@ curl -s -X 'POST' 'http://localhost:8080/api/scan-files' \
   -H 'accept: application/json' \
   -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "directory_name": "/data/original/Autot/Autot-Sekalaiset"
-  }' | jq
+  -d "{
+    \"directory_name\": \"${SOURCE_DIR}\"
+  }" | jq
 
 echo "🎉 All steps completed!"

@@ -29,19 +29,19 @@ public class TagEntity {
 	@Column(name = "tag_name", nullable = false, unique = true, length = 128)
 	private String tagName;
 
-	@Column(name = "tag_name_de", nullable = false, unique = true, length = 128)
+	@Column(name = "tag_name_de", length = 128)
 	private String tagNameDe;
 
-	@Column(name = "tag_name_en", nullable = false, unique = true, length = 128)
+	@Column(name = "tag_name_en", length = 128)
 	private String tagNameEn;
 
-	@Column(name = "tag_name_es", nullable = false, unique = true, length = 128)
+	@Column(name = "tag_name_es", length = 128)
 	private String tagNameEs;
 
-	@Column(name = "tag_name_fi", nullable = false, unique = true, length = 128)
+	@Column(name = "tag_name_fi", length = 128)
 	private String tagNameFi;
 
-	@Column(name = "tag_name_sv", nullable = false, unique = true, length = 128)
+	@Column(name = "tag_name_sv", length = 128)
 	private String tagNameSv;
 
 	@ManyToMany(mappedBy = "tags")

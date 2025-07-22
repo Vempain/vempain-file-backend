@@ -1,5 +1,10 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.auth.exception.VempainAclException;
+import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
+import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
+import fi.poltsi.vempain.auth.service.AclService;
+import fi.poltsi.vempain.auth.tools.AuthTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.response.ScanResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
@@ -7,10 +12,12 @@ import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
+import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.ArchiveFileRepository;
@@ -18,16 +25,20 @@ import fi.poltsi.vempain.file.repository.AudioFileRepository;
 import fi.poltsi.vempain.file.repository.DocumentFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileRepository;
+import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.FontFileRepository;
 import fi.poltsi.vempain.file.repository.IconFileRepository;
 import fi.poltsi.vempain.file.repository.ImageFileRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
+import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.VectorFileRepository;
 import fi.poltsi.vempain.file.repository.VideoFileRepository;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +48,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
+import java.util.ArrayList;
+import java.util.Objects;
+
+import static fi.poltsi.vempain.file.tools.MetadataTool.getDescriptionFromJson;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDateTimeFromJson;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDocumentId;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalSecondFraction;
 
 @Slf4j
 @Service
@@ -54,53 +76,81 @@ public class FileScannerService {
 	private final FontFileRepository     fontFileRepository;
 	private final ArchiveFileRepository  archiveFileRepository;
 	private final MetadataRepository     metadataRepository;
+	private final AclService             aclService;
+	private final TagRepository          tagRepository;
+	private final FileTagRepository      fileTagRepository;
 
 	@Transactional
 	public ScanResponse scanDirectory(String rootDirectory) {
-		long scannedFilesCount = 0;
-		long newFilesCount     = 0;
+		var scannedFilesCount = 0L;
+		var newFilesCount     = 0L;
+		var errorMessage      = new StringBuilder();
+		var successfulFiles   = new ArrayList<String>();
+		var failedFiles       = new ArrayList<String>();
+		var leafDirectories   = new ArrayList<Path>();
 
 		try {
-			var leafDirectories = Files.walk(Path.of(rootDirectory))
-									   .filter(Files::isDirectory)
-									   .filter(this::isLeafDirectory)
-									   .toList();
+			leafDirectories.addAll(Files.walk(Path.of(rootDirectory))
+										.filter(Files::isDirectory)
+										.filter(this::isLeafDirectory)
+										.toList());
+		} catch (IOException e) {
+			log.error("Error scanning directory: {}", rootDirectory, e);
+			errorMessage.append("Error scanning directory: ")
+						.append(rootDirectory);
+		}
 
-			for (Path leafDir : leafDirectories) {
-				File[] files = leafDir.toFile()
-									  .listFiles();
-				if (files == null || files.length == 0) {
-					log.warn("Directory is empty: {}", leafDir);
-					continue;
-				}
+		for (Path leafDir : leafDirectories) {
+			File[] files = leafDir.toFile()
+								  .listFiles();
 
-				FileGroupEntity fileGroup = fileGroupRepository.save(
-						FileGroupEntity.builder()
-									   .path(leafDir.toString())
-									   .groupName(leafDir.getFileName()
-														 .toString())
-									   .build()
-				);
-
-				for (File file : files) {
-					scannedFilesCount++;
-					try {
-						boolean saved = processFile(file, fileGroup);
-						if (saved) {
-							newFilesCount++;
-						}
-					} catch (IOException e) {
-						log.error("Error processing file: {}", file.getAbsolutePath(), e);
-					}
-				}
+			if (files == null || files.length == 0) {
+				log.warn("Directory is empty: {}", leafDir);
+				continue;
 			}
 
-			return new ScanResponse(true, null, scannedFilesCount, newFilesCount);
+			FileGroupEntity fileGroup = fileGroupRepository.save(
+					FileGroupEntity.builder()
+								   .path(leafDir.toString())
+								   .groupName(leafDir.getFileName()
+													 .toString())
+								   .build()
+			);
 
-		} catch (Exception e) {
-			log.error("Directory scan failed for '{}': {}", rootDirectory, e.getMessage(), e);
-			return new ScanResponse(false, e.getMessage(), scannedFilesCount, newFilesCount);
+			for (File file : files) {
+				scannedFilesCount++;
+
+				try {
+					var saved = processFile(file, fileGroup);
+
+					if (saved != null) {
+						if (saved) {
+							newFilesCount++;
+							successfulFiles.add(file.getName());
+						} else {
+							failedFiles.add(file.getName());
+						}
+					}
+				} catch (IOException e) {
+					log.error("Error processing file: {}", file.getAbsolutePath(), e);
+					errorMessage.append("Error processing file: ")
+								.append(file.getAbsolutePath())
+								.append(" - ")
+								.append(e.getMessage())
+								.append("\n");
+				}
+			}
 		}
+
+		return ScanResponse.builder()
+						   .success(failedFiles.isEmpty())
+						   .scannedFilesCount(scannedFilesCount)
+						   .newFilesCount(newFilesCount)
+						   .failedFiles(failedFiles)
+						   .successfulFiles(successfulFiles)
+						   .errorMessage(errorMessage.toString())
+						   .build();
+
 	}
 
 	private boolean isLeafDirectory(Path path) {
@@ -113,36 +163,70 @@ public class FileScannerService {
 		}
 	}
 
-	private void processLeafDirectory(Path leafDirectory) {
-		File[] files = leafDirectory.toFile()
-									.listFiles();
-		if (files == null || files.length == 0) {
-			log.warn("Directory is empty: {}", leafDirectory);
-			return;
+	@Transactional
+	protected Boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
+		log.info("Processing file: {}", file.getAbsolutePath());
+
+		var sha256sum = computeSha256(file);
+		// Check first if it already exists in the database
+		var existingFile = fileRepository.findByFilename(file.getName());
+
+		if (existingFile != null) {
+			// Next check if the sha256sum matches
+			if (sha256sum != null
+				&& sha256sum.isBlank()
+				&& existingFile.getSha256sum()
+							   .equals(sha256sum)) {
+				log.info("Identical file already exists in the database: {}", file.getName());
+				return null;
+			}
+
+			// TODO Consider updating the existing file entity
 		}
 
-		FileGroupEntity fileGroup = fileGroupRepository.save(
-				FileGroupEntity.builder()
-							   .path(leafDirectory.toString())
-							   .groupName(leafDirectory.getFileName()
-													   .toString())
-							   .build()
-		);
+		// Get the metadata in JSON format of the file
+		var metadataString = MetadataTool.extractMetadataJson(file);
+		// Get all metadata entries using exiftool
+		log.info("Extracting metadata for file: {}", file.getAbsolutePath());
 
-		for (File file : files) {
-			try {
-				processFile(file, fileGroup);
-			} catch (IOException e) {
-				log.error("Error processing file: {}", file.getAbsolutePath(), e);
+		String metadata = null;
+
+		try {
+			metadata = MetadataTool.extractMetadataJson(file);
+		} catch (IOException e) {
+			log.error("Failed to extract metadata for file: {}", file.getAbsolutePath(), e);
+		}
+
+		if (metadataString == null
+			|| metadataString.isBlank()) {
+			log.error("Failed to extract metadata from file: {}", file.getAbsolutePath());
+			return false;
+		}
+
+		// Convert the metadata string to a JSON object
+		var jsonObject = metadataToJsonObject(metadata);
+
+		if (jsonObject == null) {
+			log.error("Failed to convert metadata from string to JSON object: {}", metadata);
+			return false;
+		}
+
+		log.debug("Extracted JSON object\n{}", jsonObject);
+
+		var mimetype = Files.probeContentType(file.toPath());
+		log.info("Probed MIME type: {}", mimetype);
+
+		if (mimetype == null) {
+			log.warn("Could not determine MIME type for file: {} by probing. Using exiftool to probe it", file.getName());
+			mimetype = MetadataTool.extractMimetype(jsonObject);
+
+			if (mimetype == null) {
+				log.error("Failed to determine MIME type for file: {}", file.getName());
+				return false;
 			}
 		}
-	}
 
-	private boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
-		log.info("Processing file: {}", file.getAbsolutePath());
-		String mimetype = Files.probeContentType(file.toPath());
-		log.info("Probed MIME type: {}", mimetype);
-		FileTypeEnum fileType = determineFileType(mimetype);
+		var fileType = determineFileType(mimetype);
 		log.info("Determined file type: {}", fileType);
 
 		if (fileType == FileTypeEnum.OTHER) {
@@ -150,22 +234,26 @@ public class FileScannerService {
 			return false;
 		}
 
-		FileEntity fileEntity = createFileEntity(fileType, file, fileGroup, mimetype);
+		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata);
 
 		switch (fileType) {
 			case IMAGE -> {
 				var imageFile = (ImageFileEntity) fileEntity;
 				log.info("Extracting resolution and metadata for image file: {}", file);
-				var res = MetadataTool.extractImageResolution(file);
-				imageFile.setWidth(res.width);
-				imageFile.setHeight(res.height);
-				imageFile.setColorDepth(MetadataTool.extractImageColorDepth(file));
-				imageFile.setDpi(MetadataTool.extractImageDpi(file));
+				var res = MetadataTool.extractImageResolution(jsonObject);
+
+				if (res != null) {
+					imageFile.setWidth(res.width);
+					imageFile.setHeight(res.height);
+				}
+
+				imageFile.setColorDepth(MetadataTool.extractImageColorDepth(jsonObject));
+				imageFile.setDpi(MetadataTool.extractImageDpi(jsonObject));
 				fileRepository.save(imageFile);
 			}
 			case VIDEO -> {
 				VideoFileEntity videoFile = (VideoFileEntity) fileEntity;
-				Dimension res = MetadataTool.extractVideoResolution(file);
+				Dimension       res       = MetadataTool.extractVideoResolution(file);
 				videoFile.setWidth(res.width);
 				videoFile.setHeight(res.height);
 				videoFile.setFrameRate(MetadataTool.extractFrameRate(file));
@@ -190,7 +278,7 @@ public class FileScannerService {
 			}
 			case VECTOR -> {
 				VectorFileEntity vectorFile = (VectorFileEntity) fileEntity;
-				Dimension res = MetadataTool.extractVectorResolution(file);
+				Dimension        res        = MetadataTool.extractVectorResolution(file);
 				vectorFile.setWidth(res.width);
 				vectorFile.setHeight(res.height);
 				vectorFile.setLayersCount(MetadataTool.extractVectorLayersCount(file));
@@ -198,7 +286,7 @@ public class FileScannerService {
 			}
 			case ICON -> {
 				IconFileEntity iconFile = (IconFileEntity) fileEntity;
-				Dimension res = MetadataTool.extractIconResolution(file);
+				Dimension      res      = MetadataTool.extractIconResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
 				iconFile.setIsScalable(MetadataTool.extractIconIsScalable(file));
@@ -224,75 +312,223 @@ public class FileScannerService {
 			}
 		}
 
-		processMetadata(file, fileEntity);
+		saveTags(jsonObject, fileEntity);
+		processMetadata(jsonObject, fileEntity);
 		return true;
 	}
 
-	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype) {
+	@Transactional
+	protected void saveTags(JSONObject jsonObject, FileEntity fileEntity) {
+		var subjects = MetadataTool.getSubjects(jsonObject);
+
+		if (subjects.isEmpty()) {
+			return;
+		}
+
+		for (String subject : subjects) {
+			if (subject == null || subject.isBlank()) {
+				continue;
+			}
+
+			// Find or create tag
+			TagEntity tag = tagRepository.findByTagName(subject)
+										 .orElseGet(() -> {
+											 TagEntity newTag = TagEntity.builder()
+																		 .tagName(subject)
+																		 .tagNameDe(null)
+																		 .tagNameEn(null)
+																		 .tagNameEs(null)
+																		 .tagNameFi(null)
+																		 .tagNameSv(null)
+																		 .build();
+											 return tagRepository.save(newTag);
+										 });
+
+			// Check if FileTag already exists
+			boolean exists = fileTagRepository.findByFile(fileEntity)
+											  .stream()
+											  .anyMatch(ft -> ft.getTag()
+																.getId()
+																.equals(tag.getId()));
+			if (!exists) {
+				FileTag fileTag = FileTag.builder()
+										 .file(fileEntity)
+										 .tag(tag)
+										 .build();
+				fileTagRepository.save(fileTag);
+			}
+		}
+	}
+
+	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata) {
+		var userId = 0L;
+
+		try {
+			userId = AuthTools.getCurrentUserId();
+		} catch (VempainAuthenticationException e) {
+			log.error("Failed to get current user ID, cannot create file entity for file: {}", file.getName(), e);
+			return null;
+		}
+
+		if (userId < 1) {
+			log.error("Retrieved user ID is illegal: {}", file.getName());
+			return null;
+		}
+
+		var sha256sum = computeSha256(file);
+
+		// Extract comment from metadata, it may not exist
+		var description = getDescriptionFromJson(jsonObject);
+
+		var originalDateTimeString = getOriginalDateTimeFromJson(jsonObject);
+		var originalDateTime       = dateTimeParser(originalDateTimeString);
+		var originalSecondFraction = getOriginalSecondFraction(jsonObject);
+		var originalDocumentId     = getOriginalDocumentId(jsonObject);
+
+		// Create a new ACL entry for the file
+		var aclId = 0L;
+		try {
+			aclId = aclService.createNewAcl(userId, null, true, true, true, true);
+		} catch (VempainAclException e) {
+			throw new VempainRuntimeException();
+		}
+
 		return switch (fileType) {
 			case IMAGE -> ImageFileEntity.builder()
+										 .aclId(aclId)
 										 .fileGroup(fileGroup)
+										 .externalFileId(fileType + "-" + sha256sum)
 										 .filename(file.getName())
 										 .mimetype(mimetype)
 										 .filesize(file.length())
-										 .sha256sum(computeSha256(file))
-										 .createdAt(Instant.now())
+										 .fileType(fileType.name())
+										 .sha256sum(sha256sum)
+										 .creator(userId)
+										 .created(Instant.now())
+										 .originalDatetime(originalDateTime)
+										 .originalSecondFraction(originalSecondFraction)
+										 .originalDocumentId(originalDocumentId)
+										 .description(description)
+										 .metadataRaw(metadata)
 										 .build();
 			case VIDEO -> VideoFileEntity.builder()
+										 .aclId(aclId)
 										 .fileGroup(fileGroup)
+										 .externalFileId(fileType + sha256sum)
 										 .filename(file.getName())
 										 .mimetype(mimetype)
 										 .filesize(file.length())
-										 .sha256sum(computeSha256(file))
-										 .createdAt(Instant.now())
+										 .fileType(fileType.name())
+										 .sha256sum(sha256sum)
+										 .creator(userId)
+										 .created(Instant.now())
+										 .originalDatetime(originalDateTime)
+										 .originalSecondFraction(originalSecondFraction)
+										 .originalDocumentId(originalDocumentId)
+										 .description(description)
+										 .metadataRaw(metadata)
 										 .build();
 			case AUDIO -> AudioFileEntity.builder()
+										 .aclId(aclId)
 										 .fileGroup(fileGroup)
+										 .externalFileId(fileType + sha256sum)
 										 .filename(file.getName())
 										 .mimetype(mimetype)
 										 .filesize(file.length())
-										 .sha256sum(computeSha256(file))
-										 .createdAt(Instant.now())
+										 .fileType(fileType.name())
+										 .sha256sum(sha256sum)
+										 .creator(userId)
+										 .created(Instant.now())
+										 .originalDatetime(originalDateTime)
+										 .originalSecondFraction(originalSecondFraction)
+										 .originalDocumentId(originalDocumentId)
+										 .description(description)
+										 .metadataRaw(metadata)
 										 .build();
 			case DOCUMENT -> DocumentFileEntity.builder()
+											   .aclId(aclId)
 											   .fileGroup(fileGroup)
+											   .externalFileId(fileType + sha256sum)
 											   .filename(file.getName())
 											   .mimetype(mimetype)
 											   .filesize(file.length())
-											   .sha256sum(computeSha256(file))
-											   .createdAt(Instant.now())
+											   .fileType(fileType.name())
+											   .sha256sum(sha256sum)
+											   .creator(userId)
+											   .created(Instant.now())
+											   .originalDatetime(originalDateTime)
+											   .originalSecondFraction(originalSecondFraction)
+											   .originalDocumentId(originalDocumentId)
+											   .description(description)
+											   .metadataRaw(metadata)
 											   .build();
 			case VECTOR -> VectorFileEntity.builder()
+										   .aclId(aclId)
 										   .fileGroup(fileGroup)
+										   .externalFileId(fileType + sha256sum)
 										   .filename(file.getName())
 										   .mimetype(mimetype)
 										   .filesize(file.length())
-										   .sha256sum(computeSha256(file))
-										   .createdAt(Instant.now())
+										   .fileType(fileType.name())
+										   .sha256sum(sha256sum)
+										   .creator(userId)
+										   .created(Instant.now())
+										   .originalDatetime(originalDateTime)
+										   .originalSecondFraction(originalSecondFraction)
+										   .originalDocumentId(originalDocumentId)
+										   .description(description)
+										   .metadataRaw(metadata)
 										   .build();
 			case ICON -> IconFileEntity.builder()
+									   .aclId(aclId)
 									   .fileGroup(fileGroup)
+									   .externalFileId(fileType + sha256sum)
 									   .filename(file.getName())
 									   .mimetype(mimetype)
 									   .filesize(file.length())
-									   .sha256sum(computeSha256(file))
-									   .createdAt(Instant.now())
+									   .fileType(fileType.name())
+									   .sha256sum(sha256sum)
+									   .creator(userId)
+									   .created(Instant.now())
+									   .originalDatetime(originalDateTime)
+									   .originalSecondFraction(originalSecondFraction)
+									   .originalDocumentId(originalDocumentId)
+									   .description(description)
+									   .metadataRaw(metadata)
 									   .build();
 			case FONT -> FontFileEntity.builder()
+									   .aclId(aclId)
 									   .fileGroup(fileGroup)
+									   .externalFileId(fileType + sha256sum)
 									   .filename(file.getName())
 									   .mimetype(mimetype)
 									   .filesize(file.length())
-									   .sha256sum(computeSha256(file))
-									   .createdAt(Instant.now())
+									   .fileType(fileType.name())
+									   .sha256sum(sha256sum)
+									   .creator(userId)
+									   .created(Instant.now())
+									   .originalDatetime(originalDateTime)
+									   .originalSecondFraction(originalSecondFraction)
+									   .originalDocumentId(originalDocumentId)
+									   .description(description)
+									   .metadataRaw(metadata)
 									   .build();
 			case ARCHIVE -> ArchiveFileEntity.builder()
+											 .aclId(aclId)
 											 .fileGroup(fileGroup)
+											 .externalFileId(fileType + sha256sum)
 											 .filename(file.getName())
 											 .mimetype(mimetype)
 											 .filesize(file.length())
-											 .sha256sum(computeSha256(file))
-											 .createdAt(Instant.now())
+											 .fileType(fileType.name())
+											 .sha256sum(sha256sum)
+											 .creator(userId)
+											 .created(Instant.now())
+											 .originalDatetime(originalDateTime)
+											 .originalSecondFraction(originalSecondFraction)
+											 .originalDocumentId(originalDocumentId)
+											 .description(description)
+											 .metadataRaw(metadata)
 											 .build();
 			case OTHER -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
 		};
@@ -337,15 +573,48 @@ public class FileScannerService {
 		}
 	}
 
-	private void processMetadata(File file, FileEntity fileEntity) {
-		// Simulate metadata extraction (e.g., using exiftool)
-		MetadataEntity metadata = MetadataEntity.builder()
-												.file(fileEntity)
-												.metadataGroup("sample-group")
-												.metadataKey("sample-key")
-												.metadataValue("sample-value")
-												.build();
-		metadataRepository.save(metadata);
+	@Transactional
+	protected void processMetadata(JSONObject jsonObject, FileEntity fileEntity) {
+		var metadataEntities = new ArrayList<MetadataEntity>();
+
+		for (String group : jsonObject.keySet()) {
+			var groupValue = jsonObject.get(group);
+
+			if (!(groupValue instanceof JSONObject groupObject)) {
+				// Skip non-JSONObject entries (e.g., "SourceFile": "/path/to/file")
+				continue;
+			}
+			for (var key : groupObject.keySet()) {
+				var value    = groupObject.get(key);
+				var valueStr = Objects.toString(value, null);
+				var entity = MetadataEntity.builder()
+										   .file(fileEntity)
+										   .metadataGroup(group)
+										   .metadataKey(key)
+										   .metadataValue(valueStr)
+										   .build();
+				metadataEntities.add(entity);
+			}
+		}
+		metadataRepository.saveAll(metadataEntities);
+	}
+
+	private Instant dateTimeParser(String dateTimeString) {
+		if (dateTimeString == null || dateTimeString.isBlank()) {
+			return null;
+		}
+
+		DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+				// Try: yyyy:MM:dd HH:mm:ss.SSS[S...] (allows up to 9 digits)
+				.appendPattern("yyyy:MM:dd HH:mm:ss")
+				.optionalStart()
+				.appendLiteral('.')
+				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, false)
+				.optionalEnd()
+				.toFormatter()
+				.withZone(ZoneId.systemDefault());
+
+		return Instant.from(formatter.parse(dateTimeString, Instant::from));
 	}
 
 	private void processImageFile(File file, FileEntity fileEntity) {
@@ -431,5 +700,16 @@ public class FileScannerService {
 														 .isEncrypted(false)
 														 .build();
 		archiveFileRepository.save(archiveFile);
+	}
+
+	private static JSONObject metadataToJsonObject(String metadata) {
+		var jsonArray = new JSONArray(metadata);
+
+		if (jsonArray.isEmpty()) {
+			log.error("Failed to parse the metadata JSON from\n{}", metadata);
+			return null;
+		}
+
+		return jsonArray.getJSONObject(0);
 	}
 }

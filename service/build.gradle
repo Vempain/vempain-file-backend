@@ -59,6 +59,8 @@ dependencies {
 	implementation group: 'commons-codec', name: 'commons-codec', version: '1.18.0'
 	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api
 	implementation group: 'io.jsonwebtoken', name: 'jjwt-api', version: "${jjwtVersion}"
+	// https://mvnrepository.com/artifact/org.json/json
+	implementation group: 'org.json', name: 'json', version: '20250107'
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.7'
 	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-impl

@@ -1,10 +1,9 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.auth.entity.AbstractVempainEntity;
+import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
@@ -15,7 +14,9 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
@@ -24,16 +25,14 @@ import java.util.Set;
 
 @SuperBuilder
 @Data
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
 @Entity
 @AllArgsConstructor
 @RequiredArgsConstructor
-@Table(name = "files")
 @Inheritance(strategy = InheritanceType.JOINED)
-public abstract class FileEntity {
-
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+@Table(name = "files")
+public abstract class FileEntity extends AbstractVempainEntity {
 
 	@ManyToOne
 	@JoinColumn(name = "file_group_id", nullable = false)
@@ -41,6 +40,9 @@ public abstract class FileEntity {
 
 	@Column(nullable = false)
 	private String filename;
+
+	@Column(nullable = false)
+	private String externalFileId;
 
 	@Column(nullable = false)
 	private String mimetype;
@@ -51,11 +53,27 @@ public abstract class FileEntity {
 	@Column(nullable = false, length = 64)
 	private String sha256sum;
 
-	@Column(name = "created_at", nullable = false)
-	private Instant createdAt;
+	@Basic
+	@Column(name = "original_datetime")
+	protected Instant originalDatetime;
+
+	@Basic
+	@Column(name = "original_second_fraction")
+	protected Integer originalSecondFraction;
+
+	@Basic
+	@Column(name = "original_document_id")
+	protected String  originalDocumentId;
+
+	@Basic
+	@Column(name = "description")
+	protected String  description;
 
 	@Column(name = "file_type", nullable = false)
 	private String fileType;
+
+	@Column(name = "metadata_raw", nullable = false)
+	private String metadataRaw;
 
 	@ManyToMany
 	@JoinTable(

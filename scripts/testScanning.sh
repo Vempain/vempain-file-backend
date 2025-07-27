@@ -31,8 +31,21 @@ if ! eval "${GNOME_TERMINAL_CMD}"; then
   exit 1
 fi
 
-echo "⏳ Waiting 30 seconds for service to initialize..."
-sleep 30
+echo "⏳ Waiting for service to initialize..."
+
+MAX_WAIT=60
+WAITED=0
+until curl -sf 'http://localhost:8081/actuator/health' > /dev/null; do
+  sleep 2
+  WAITED=$((WAITED + 2))
+
+  if [ $WAITED -ge $MAX_WAIT ]; then
+    echo "❌ Service did not start within $MAX_WAIT seconds."
+    exit 1
+  fi
+done
+
+echo "✅ Service is up (${WAITED})."
 
 # Step 3: Update admin password in PostgreSQL
 echo "🔐 Setting admin password in the database..."

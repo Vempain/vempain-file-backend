@@ -85,6 +85,17 @@ public class FileScannerService {
 	@Value("${vempain.file-root-directory}")
 	private String rootDirectory;
 
+	private static JSONObject metadataToJsonObject(String metadata) {
+		var jsonArray = new JSONArray(metadata);
+
+		if (jsonArray.isEmpty()) {
+			log.error("Failed to parse the metadata JSON from\n{}", metadata);
+			return null;
+		}
+
+		return jsonArray.getJSONObject(0);
+	}
+
 	@Transactional
 	public ScanResponse scanDirectory(String selectedDirectory) {
 		var scannedFilesCount       = 0L;
@@ -99,7 +110,9 @@ public class FileScannerService {
 		try {
 			leafDirectories.addAll(Files.walk(scanDirectory)
 										.filter(Files::isDirectory)
-										.filter(path -> !path.getFileName().toString().startsWith("."))
+										.filter(path -> !path.getFileName()
+															 .toString()
+															 .startsWith("."))
 										.filter(this::isLeafDirectory)
 										.toList());
 		} catch (IOException e) {
@@ -713,16 +726,5 @@ public class FileScannerService {
 														 .isEncrypted(false)
 														 .build();
 		archiveFileRepository.save(archiveFile);
-	}
-
-	private static JSONObject metadataToJsonObject(String metadata) {
-		var jsonArray = new JSONArray(metadata);
-
-		if (jsonArray.isEmpty()) {
-			log.error("Failed to parse the metadata JSON from\n{}", metadata);
-			return null;
-		}
-
-		return jsonArray.getJSONObject(0);
 	}
 }

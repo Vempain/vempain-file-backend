@@ -1,17 +1,28 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.response.DocumentFileResponse;
+import fi.poltsi.vempain.file.entity.DocumentFileEntity;
+import fi.poltsi.vempain.file.repository.DocumentFileRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 
+@RequiredArgsConstructor
 @Service
 public class DocumentFileService {
 
+	private final DocumentFileRepository documentFileRepository;
+
+	@Transactional(readOnly = true)
 	public ResponseEntity<List<DocumentFileResponse>> findAll() {
-		return ResponseEntity.ok(Collections.emptyList());
+		var fileList = documentFileRepository.findAll();
+		var response = fileList.stream()
+							   .map(DocumentFileEntity::toResponse)
+							   .toList();
+		return ResponseEntity.ok(response);
 	}
 
 	public ResponseEntity<DocumentFileResponse> findById(long id) {

@@ -12,5 +12,6 @@ import java.util.List;
 @Repository
 public interface FileTagRepository extends JpaRepository<FileTag, FileTagId> {
 	List<FileTag> findByFile(FileEntity file);
+
 	List<FileTag> findByTag(TagEntity tag);
 }

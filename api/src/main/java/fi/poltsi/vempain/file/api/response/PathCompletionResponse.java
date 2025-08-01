@@ -16,6 +16,6 @@ import java.util.List;
 @Schema(description = "Response DTO containing path completions")
 public class PathCompletionResponse {
 
-    @Schema(description = "List of completed paths", example = "[\"/one\",\"/two\",\"/three\"]")
-    private List<String> completions;
+	@Schema(description = "List of completed paths", example = "[\"/one\",\"/two\",\"/three\"]")
+	private List<String> completions;
 }

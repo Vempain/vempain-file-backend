@@ -43,6 +43,7 @@ public class TagController implements TagAPI {
 	@Override
 	public ResponseEntity<Void> deleteTag(Long id) {
 		tagService.deleteTag(id);
-		return ResponseEntity.noContent().build();
+		return ResponseEntity.noContent()
+							 .build();
 	}
 }

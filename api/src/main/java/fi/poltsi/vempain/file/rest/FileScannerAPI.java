@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface FileScannerAPI {
 	String BASE_PATH = "/scan-files";
 
-	@Operation(summary = "Scan directory for new files", description = "Initiates a scan of the specified directory to find new files and update their metadata")
+	@Operation(summary = "Scan directory for new files",
+			   description = "Initiates a scan of the specified directory to find new files and update their metadata")
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<ScanResponse> scan(@Valid @RequestBody ScanRequest scanRequest);

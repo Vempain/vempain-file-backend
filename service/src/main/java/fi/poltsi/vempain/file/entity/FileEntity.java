@@ -37,47 +37,39 @@ import java.util.stream.Collectors;
 @Table(name = "files")
 public abstract class FileEntity extends AbstractVempainEntity {
 
-	@ManyToOne
-	@JoinColumn(name = "file_group_id", nullable = false)
-	private FileGroupEntity fileGroup;
-
-	@Column(name = "filename", nullable = false)
-	private String filename;
-
-	@Column(name = "external_file_id", nullable = false)
-	private String externalFileId;
-
-	@Column(name = "mimetype", nullable = false)
-	private String mimetype;
-
-	@Column(name = "filesize", nullable = false)
-	private long filesize;
-
-	@Column(name = "sha256sum", nullable = false, length = 64)
-	private String sha256sum;
-
 	@Basic
 	@Column(name = "original_datetime")
-	protected Instant originalDatetime;
-
+	protected Instant         originalDatetime;
 	@Basic
 	@Column(name = "original_second_fraction")
-	protected Integer originalSecondFraction;
-
+	protected Integer         originalSecondFraction;
 	@Basic
 	@Column(name = "original_document_id")
-	protected String  originalDocumentId;
-
+	protected String          originalDocumentId;
 	@Basic
 	@Column(name = "description")
-	protected String  description;
-
+	protected String          description;
+	@ManyToOne
+	@JoinColumn(name = "file_group_id", nullable = false)
+	private   FileGroupEntity fileGroup;
+	@Column(name = "filename", nullable = false)
+	private   String          filename;
+	@Column(name = "external_file_id", nullable = false)
+	private   String          externalFileId;
+	@Column(name = "mimetype", nullable = false)
+	private   String          mimetype;
+	@Column(name = "filesize", nullable = false)
+	private   long            filesize;
+	@Column(name = "sha256sum", nullable = false, length = 64)
+	private   String          sha256sum;
 	@Column(name = "file_type", nullable = false)
-	private String fileType;
+	private   String          fileType;
 
+	@EqualsAndHashCode.Exclude
 	@Column(name = "metadata_raw", nullable = false)
 	private String metadataRaw;
 
+	@EqualsAndHashCode.Exclude
 	@ManyToMany
 	@JoinTable(
 			name = "file_tags",
@@ -88,22 +80,23 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	private Set<TagEntity> tags = new HashSet<>();
 
 	public FileResponse toResponse() {
-	    List<String> tagNames = this.tags.stream()
+		List<String> tagNames = this.tags.stream()
 										 .map(TagEntity::getTagName)
 										 .collect(Collectors.toList());
-	    return FileResponse.builder()
-	        .filename(this.filename)
-	        .externalFileId(this.externalFileId)
-	        .mimetype(this.mimetype)
-	        .filesize(this.filesize)
-	        .sha256sum(this.sha256sum)
-	        .originalDatetime(this.originalDatetime)
-	        .originalSecondFraction(this.originalSecondFraction)
-	        .originalDocumentId(this.originalDocumentId)
-	        .description(this.description)
-	        .fileType(this.fileType)
-	        .metadataRaw(this.metadataRaw)
-	        .tags(tagNames)
-	        .build();
+		return FileResponse.builder()
+						   .id(this.id)
+						   .filename(this.filename)
+						   .externalFileId(this.externalFileId)
+						   .mimetype(this.mimetype)
+						   .filesize(this.filesize)
+						   .sha256sum(this.sha256sum)
+						   .originalDatetime(this.originalDatetime)
+						   .originalSecondFraction(this.originalSecondFraction)
+						   .originalDocumentId(this.originalDocumentId)
+						   .description(this.description)
+						   .fileType(this.fileType)
+						   .metadataRaw(this.metadataRaw)
+						   .tags(tagNames)
+						   .build();
 	}
 }

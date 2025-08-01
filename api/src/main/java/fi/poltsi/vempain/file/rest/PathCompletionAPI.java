@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Tag(name = "Path Completion API", description = "API for completing directory paths")
 public interface PathCompletionAPI {
 
-    String BASE_PATH = "/path-completion";
+	String BASE_PATH = "/path-completion";
 
-    @Operation(summary = "Complete a path", description = "Returns possible completions for a directory path")
-    @SecurityRequirement(name = "Bearer Authentication")
-    @PostMapping(value = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    ResponseEntity<PathCompletionResponse> completePath(@Valid @RequestBody PathCompletionRequest request);
+	@Operation(summary = "Complete a path", description = "Returns possible completions for a directory path")
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(value = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<PathCompletionResponse> completePath(@Valid @RequestBody PathCompletionRequest request);
 }

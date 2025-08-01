@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Request DTO for completing a directory path")
 public class PathCompletionRequest {
 
-    @NotBlank
-    @Pattern(regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$", message = "Path must start with a slash and contain valid characters")
-    @Schema(description = "Path prefix to complete", example = "/three", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String path;
+	@NotBlank
+	@Pattern(regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$", message = "Path must start with a slash and contain valid characters")
+	@Schema(description = "Path prefix to complete", example = "/three", requiredMode = Schema.RequiredMode.REQUIRED)
+	private String path;
 }

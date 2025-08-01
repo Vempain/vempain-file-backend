@@ -4,33 +4,33 @@ plugins {
 	id 'application'
 	id 'org.springframework.boot' version "${springBootVersion}"
 	id "io.freefair.lombok" version "${ioFreeFairLombok}"
-    id 'io.spring.dependency-management' version '1.1.7'
-    id 'org.graalvm.buildtools.native' version '0.10.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.graalvm.buildtools.native' version '0.10.4'
 }
 
 group = 'fi.poltsi.vempain'
 version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
 }
 
 configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
 }
 
 repositories {
 	mavenLocal()
-    mavenCentral()
-    maven { url = 'https://repo.spring.io/milestone' }
+	mavenCentral()
+	maven { url = 'https://repo.spring.io/milestone' }
 }
 
 ext {
-    set('springAiVersion', "1.0.0-M5")
+	set('springAiVersion', "1.0.0-M5")
 }
 
 dependencies {
@@ -40,12 +40,12 @@ dependencies {
 	implementation group: 'fi.poltsi.vempain', name: 'vempain-auth-api', version: "${vempainAuthVersion}"
 	// Spring
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-security', version: "${springBootVersion}"
-    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
-    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web-services', version: "${springBootVersion}"
+	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: "${springBootVersion}"
+	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web-services', version: "${springBootVersion}"
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
 	developmentOnly group: 'org.springframework.boot', name: 'spring-boot-docker-compose', version: "${springBootVersion}"
 	testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
-    implementation group: 'org.springframework.session', name: 'spring-session-core', version: "3.5.1"
+	implementation group: 'org.springframework.session', name: 'spring-session-core', version: "3.5.1"
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: "${springBootVersion}"
 	implementation group: 'org.flywaydb', name: 'flyway-core', version: "${flywayVersion}"
 	runtimeOnly group: 'org.flywaydb', name: 'flyway-database-postgresql', version: "${flywayVersion}"
@@ -67,7 +67,7 @@ dependencies {
 	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-impl', version: "${jjwtVersion}"
 	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-jackson
 	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: "${jjwtVersion}"
-    // developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
+	// developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
 	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.5.1'
 	// https://mvnrepository.com/artifact/org.junit/junit-bom
@@ -79,9 +79,9 @@ dependencies {
 }
 
 dependencyManagement {
-    imports {
-        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-    }
+	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
 }
 
 test {

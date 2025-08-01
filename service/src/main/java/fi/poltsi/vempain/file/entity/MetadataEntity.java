@@ -37,4 +37,5 @@ public class MetadataEntity {
 	private String metadataKey;
 
 	@Column(name = "metadata_value", nullable = false, columnDefinition = "TEXT")
-	private String metadataValue;}
+	private String metadataValue;
+}

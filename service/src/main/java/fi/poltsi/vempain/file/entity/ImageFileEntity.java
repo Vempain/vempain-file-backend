@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.api.response.ImageFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -9,6 +10,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+
+import java.util.stream.Collectors;
 
 @SuperBuilder
 @Data
@@ -20,10 +23,10 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "image_files")
 public class ImageFileEntity extends FileEntity {
 
-	@Column(name="width", nullable = false)
+	@Column(name = "width", nullable = false)
 	private int width;
 
-	@Column(name="height", nullable = false)
+	@Column(name = "height", nullable = false)
 	private int height;
 
 	@Column(name = "color_depth")
@@ -31,4 +34,32 @@ public class ImageFileEntity extends FileEntity {
 
 	@Column
 	private int dpi; // Optional: Dots per inch
+
+	@Override
+	public ImageFileResponse toResponse() {
+		// Build the response using the properties from FileEntity
+		var builder = ImageFileResponse.builder()
+									   .filename(getFilename())
+									   .externalFileId(getExternalFileId())
+									   .mimetype(getMimetype())
+									   .filesize(getFilesize())
+									   .sha256sum(getSha256sum())
+									   .originalDatetime(getOriginalDatetime())
+									   .originalSecondFraction(getOriginalSecondFraction())
+									   .originalDocumentId(getOriginalDocumentId())
+									   .description(getDescription())
+									   .fileType(getFileType())
+									   .metadataRaw(getMetadataRaw())
+									   .tags(getTags().stream()
+													  .map(TagEntity::getTagName)
+													  .collect(Collectors.toList()));
+
+		// Populate ImageFileEntity-specific fields
+		builder.width(getWidth())
+			   .height(getHeight())
+			   .colorDepth(getColorDepth())
+			   .dpi(getDpi());
+
+		return builder.build();
+	}
 }

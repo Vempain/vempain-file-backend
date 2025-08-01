@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.api.response.IconFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -9,6 +10,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+
+import java.util.stream.Collectors;
 
 @SuperBuilder
 @Data
@@ -20,12 +23,35 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "icon_files")
 public class IconFileEntity extends FileEntity {
 
-	@Column(name="width", nullable = false)
+	@Column(name = "width", nullable = false)
 	private int width;
 
-	@Column(name="height", nullable = false)
+	@Column(name = "height", nullable = false)
 	private int height;
 
 	@Column(name = "is_scalable", nullable = false)
 	private Boolean isScalable; // True if the icon is vector-based
+
+	@Override
+	public IconFileResponse toResponse() {
+		var builder = IconFileResponse.builder()
+									  .filename(getFilename())
+									  .externalFileId(getExternalFileId())
+									  .mimetype(getMimetype())
+									  .filesize(getFilesize())
+									  .sha256sum(getSha256sum())
+									  .originalDatetime(getOriginalDatetime())
+									  .originalSecondFraction(getOriginalSecondFraction())
+									  .originalDocumentId(getOriginalDocumentId())
+									  .description(getDescription())
+									  .fileType(getFileType())
+									  .metadataRaw(getMetadataRaw())
+									  .tags(getTags().stream()
+													 .map(TagEntity::getTagName)
+													 .collect(Collectors.toList()));
+		builder.width(getWidth())
+			   .height(getHeight())
+			   .isScalable(getIsScalable());
+		return builder.build();
+	}
 }

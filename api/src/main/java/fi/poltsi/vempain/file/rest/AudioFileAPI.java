@@ -3,6 +3,6 @@ package fi.poltsi.vempain.file.rest;
 import fi.poltsi.vempain.file.api.response.AudioFileResponse;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-@RequestMapping("/api/files/audio")
+@RequestMapping("/files/audio")
 public interface AudioFileAPI extends BaseRestAPI<AudioFileResponse> {
 }

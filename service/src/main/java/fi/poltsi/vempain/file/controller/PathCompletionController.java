@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PathCompletionController implements PathCompletionAPI {
 
-    private final PathCompletionService pathCompletionService;
+	private final PathCompletionService pathCompletionService;
 
-    @Override
-    public ResponseEntity<PathCompletionResponse> completePath(PathCompletionRequest request) {
-        PathCompletionResponse response = pathCompletionService.completePath(request);
-        return ResponseEntity.ok(response);
-    }
+	@Override
+	public ResponseEntity<PathCompletionResponse> completePath(PathCompletionRequest request) {
+		PathCompletionResponse response = pathCompletionService.completePath(request);
+		return ResponseEntity.ok(response);
+	}
 }

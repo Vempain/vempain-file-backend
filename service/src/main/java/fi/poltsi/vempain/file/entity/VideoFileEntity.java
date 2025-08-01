@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.api.response.VideoFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -9,6 +10,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+
+import java.util.stream.Collectors;
 
 @SuperBuilder
 @Data
@@ -20,10 +23,10 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "video_files")
 public class VideoFileEntity extends FileEntity {
 
-	@Column(name="width", nullable = false)
+	@Column(name = "width", nullable = false)
 	private int width;
 
-	@Column(name="height", nullable = false)
+	@Column(name = "height", nullable = false)
 	private int height;
 
 	@Column(name = "frame_rate", precision = 5)
@@ -34,4 +37,29 @@ public class VideoFileEntity extends FileEntity {
 
 	@Column
 	private String codec;
+
+	@Override
+	public VideoFileResponse toResponse() {
+		var builder = VideoFileResponse.builder()
+									   .filename(getFilename())
+									   .externalFileId(getExternalFileId())
+									   .mimetype(getMimetype())
+									   .filesize(getFilesize())
+									   .sha256sum(getSha256sum())
+									   .originalDatetime(getOriginalDatetime())
+									   .originalSecondFraction(getOriginalSecondFraction())
+									   .originalDocumentId(getOriginalDocumentId())
+									   .description(getDescription())
+									   .fileType(getFileType())
+									   .metadataRaw(getMetadataRaw())
+									   .tags(getTags().stream()
+													  .map(TagEntity::getTagName)
+													  .collect(Collectors.toList()));
+		builder.width(getWidth())
+			   .height(getHeight())
+			   .frameRate(getFrameRate())
+			   .duration(getDuration())
+			   .codec(getCodec());
+		return builder.build();
+	}
 }

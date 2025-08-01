@@ -30,7 +30,7 @@ public class ScanResponse {
 	private long newFilesCount;
 
 	@Schema(description = "List of files successfully scanned", example = "/some/file.png")
-	private List<String> successfulFiles;
+	private List<FileResponse> successfulFiles;
 
 	@Schema(description = "List of files failed to be scanned", example = "/some/other.png")
 	private List<String> failedFiles;

@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.entity;
 
 import fi.poltsi.vempain.auth.entity.AbstractVempainEntity;
+import fi.poltsi.vempain.file.api.response.FileResponse;
 import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,7 +22,9 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @SuperBuilder
 @Data
@@ -38,19 +41,19 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@JoinColumn(name = "file_group_id", nullable = false)
 	private FileGroupEntity fileGroup;
 
-	@Column(nullable = false)
+	@Column(name = "filename", nullable = false)
 	private String filename;
 
-	@Column(nullable = false)
+	@Column(name = "external_file_id", nullable = false)
 	private String externalFileId;
 
-	@Column(nullable = false)
+	@Column(name = "mimetype", nullable = false)
 	private String mimetype;
 
-	@Column(nullable = false)
+	@Column(name = "filesize", nullable = false)
 	private long filesize;
 
-	@Column(nullable = false, length = 64)
+	@Column(name = "sha256sum", nullable = false, length = 64)
 	private String sha256sum;
 
 	@Basic
@@ -83,4 +86,24 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	)
 	@Builder.Default
 	private Set<TagEntity> tags = new HashSet<>();
+
+	public FileResponse toResponse() {
+	    List<String> tagNames = this.tags.stream()
+										 .map(TagEntity::getTagName)
+										 .collect(Collectors.toList());
+	    return FileResponse.builder()
+	        .filename(this.filename)
+	        .externalFileId(this.externalFileId)
+	        .mimetype(this.mimetype)
+	        .filesize(this.filesize)
+	        .sha256sum(this.sha256sum)
+	        .originalDatetime(this.originalDatetime)
+	        .originalSecondFraction(this.originalSecondFraction)
+	        .originalDocumentId(this.originalDocumentId)
+	        .description(this.description)
+	        .fileType(this.fileType)
+	        .metadataRaw(this.metadataRaw)
+	        .tags(tagNames)
+	        .build();
+	}
 }

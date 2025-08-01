@@ -6,6 +6,7 @@ import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.tools.AuthTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.response.FileResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
@@ -86,17 +87,19 @@ public class FileScannerService {
 
 	@Transactional
 	public ScanResponse scanDirectory(String selectedDirectory) {
-		var scannedFilesCount = 0L;
-		var newFilesCount     = 0L;
-		var success           = true;
-		var errorMessage      = new StringBuilder();
-		var successfulFiles   = new ArrayList<String>();
-		var failedFiles       = new ArrayList<String>();
-		var leafDirectories   = new ArrayList<Path>();
-		var scanDirectory     = Path.of(rootDirectory, selectedDirectory);
+		var scannedFilesCount       = 0L;
+		var newFilesCount           = 0L;
+		var success                 = true;
+		var errorMessage            = new StringBuilder();
+		var failedFiles             = new ArrayList<String>();
+		var successfulFileResponses = new ArrayList<FileResponse>();
+		var leafDirectories         = new ArrayList<Path>();
+		var scanDirectory           = Path.of(rootDirectory, selectedDirectory);
+
 		try {
 			leafDirectories.addAll(Files.walk(scanDirectory)
 										.filter(Files::isDirectory)
+										.filter(path -> !path.getFileName().toString().startsWith("."))
 										.filter(this::isLeafDirectory)
 										.toList());
 		} catch (IOException e) {
@@ -127,16 +130,19 @@ public class FileScannerService {
 				scannedFilesCount++;
 
 				try {
-					var saved = processFile(file, fileGroup);
+					var processed = processFile(file, fileGroup);
 
-					if (saved != null) {
-						if (saved) {
-							newFilesCount++;
-							successfulFiles.add(file.getName());
-						} else {
-							failedFiles.add(file.getName());
-							success = false;
+					if (processed != null && processed) {
+						newFilesCount++;
+						// Retrieve the saved FileEntity and convert it to FileResponse.
+						var fileEntity = fileRepository.findByFilename(file.getName());
+
+						if (fileEntity != null) {
+							successfulFileResponses.add(fileEntity.toResponse());
 						}
+					} else if (processed != null && !processed) {
+						failedFiles.add(file.getName());
+						success = false;
 					}
 				} catch (IOException e) {
 					log.error("Error processing file: {}", file.getAbsolutePath(), e);
@@ -155,7 +161,7 @@ public class FileScannerService {
 						   .scannedFilesCount(scannedFilesCount)
 						   .newFilesCount(newFilesCount)
 						   .failedFiles(failedFiles)
-						   .successfulFiles(successfulFiles)
+						   .successfulFiles(successfulFileResponses)
 						   .errorMessage(errorMessage.toString())
 						   .build();
 	}

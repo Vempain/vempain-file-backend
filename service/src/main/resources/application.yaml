@@ -1,5 +1,7 @@
 ---
 spring:
+  profiles:
+    default: local
   docker:
     compose:
       enabled: false
@@ -84,6 +86,7 @@ vempain:
     allowed-origins: ${vempain.app.frontend-url}
     cors-pattern: '/**'
     max-age: 3600
+  file-root-directory: override-me
 ---
 ### Local machine ###
 

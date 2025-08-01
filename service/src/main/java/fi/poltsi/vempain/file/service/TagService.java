@@ -35,7 +35,12 @@ public class TagService {
 		return mapToResponseDTO(tag);
 	}
 
-	public TagResponse updateTag(Long id, TagRequest requestDTO) {
+	public TagResponse updateTag(TagRequest requestDTO) {
+		Long id = requestDTO.getId();
+		if (id == null) {
+			throw new IllegalArgumentException("Tag ID must be provided for update");
+		}
+
 		TagEntity tag = tagRepository.findById(id)
 									 .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
 		tag.setTagName(requestDTO.getTagName());

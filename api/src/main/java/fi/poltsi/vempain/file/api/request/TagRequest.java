@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.api.request;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,6 +15,10 @@ import lombok.NoArgsConstructor;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 @Schema(description = "Request DTO for creating or updating a tag")
 public class TagRequest {
+	@Nullable
+	@Schema(description = "Tag ID, for new this should be left as empty, when updating it must be populated", example = "123", requiredMode =
+			Schema.RequiredMode.NOT_REQUIRED)
+	private Long id;
 
 	@NotBlank
 	@Schema(description = "Tag name (default language)", example = "example-tag", requiredMode = Schema.RequiredMode.REQUIRED)

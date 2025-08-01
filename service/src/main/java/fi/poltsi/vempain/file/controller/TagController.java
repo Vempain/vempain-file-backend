@@ -35,8 +35,8 @@ public class TagController implements TagAPI {
 	}
 
 	@Override
-	public ResponseEntity<TagResponse> updateTag(Long id, TagRequest tagRequest) {
-		TagResponse tag = tagService.updateTag(id, tagRequest);
+	public ResponseEntity<TagResponse> updateTag(TagRequest tagRequest) {
+		TagResponse tag = tagService.updateTag(tagRequest);
 		return ResponseEntity.ok(tag);
 	}
 

@@ -16,7 +16,7 @@ jar {
 }
 
 dependencies {
-	api group: 'org.springframework.data', name: 'spring-data-jpa', version: "3.5.1"
+	api group: 'org.springframework.data', name: 'spring-data-jpa', version: "3.5.2"
 	api group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: "${jacksonVersion}"
 	api group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: "${jacksonVersion}"
 	api group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"

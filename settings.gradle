@@ -1,2 +1,2 @@
-rootProject.name = 'vempain-file-service'
+rootProject.name = 'vempain-file-backend'
 include 'api', 'service'

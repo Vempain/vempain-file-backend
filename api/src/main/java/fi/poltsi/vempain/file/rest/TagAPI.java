@@ -39,8 +39,8 @@ public interface TagAPI {
 
 	@Operation(summary = "Update a tag", description = "Update the details of an existing tag")
 	@SecurityRequirement(name = "Bearer Authentication")
-	@PutMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<TagResponse> updateTag(@PathVariable(name = "id") Long id, @Valid @RequestBody TagRequest tagRequest
+	@PutMapping(path = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<TagResponse> updateTag(@Valid @RequestBody TagRequest tagRequest
 	);
 
 	@Operation(summary = "Delete a tag", description = "Remove a tag from the system")

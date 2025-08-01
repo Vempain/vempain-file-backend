@@ -24,7 +24,8 @@ public class ScanRequest {
 			@Size(min = 2, message = "String length must be at least 2 characters"),
 			@Size(max = 4096, message = "String length must be at most 4096 characters")
 	})
-	@Pattern(message = "Directory name must start with a slash and contain only valid characters", regexp = "^(/[-_\\p{L}\\p{N}]+)+$")
+	@Pattern(message = "Directory name must start with a slash and contain only valid characters",
+			 regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$")
 	@Schema(description = "Directory path, relative to the configured main directory of files, must begin with a slash-character",
 			example = "/images/vacation-2025",
 			requiredMode = Schema.RequiredMode.REQUIRED)

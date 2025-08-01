@@ -39,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,24 +81,29 @@ public class FileScannerService {
 	private final TagRepository          tagRepository;
 	private final FileTagRepository      fileTagRepository;
 
+	@Value("${vempain.file-root-directory}")
+	private String rootDirectory;
+
 	@Transactional
-	public ScanResponse scanDirectory(String rootDirectory) {
+	public ScanResponse scanDirectory(String selectedDirectory) {
 		var scannedFilesCount = 0L;
 		var newFilesCount     = 0L;
+		var success           = true;
 		var errorMessage      = new StringBuilder();
 		var successfulFiles   = new ArrayList<String>();
 		var failedFiles       = new ArrayList<String>();
 		var leafDirectories   = new ArrayList<Path>();
-
+		var scanDirectory     = Path.of(rootDirectory, selectedDirectory);
 		try {
-			leafDirectories.addAll(Files.walk(Path.of(rootDirectory))
+			leafDirectories.addAll(Files.walk(scanDirectory)
 										.filter(Files::isDirectory)
 										.filter(this::isLeafDirectory)
 										.toList());
 		} catch (IOException e) {
-			log.error("Error scanning directory: {}", rootDirectory, e);
+			log.error("Error scanning directory: {}", scanDirectory, e);
 			errorMessage.append("Error scanning directory: ")
-						.append(rootDirectory);
+						.append(scanDirectory);
+			success = false;
 		}
 
 		for (Path leafDir : leafDirectories) {
@@ -129,6 +135,7 @@ public class FileScannerService {
 							successfulFiles.add(file.getName());
 						} else {
 							failedFiles.add(file.getName());
+							success = false;
 						}
 					}
 				} catch (IOException e) {
@@ -138,19 +145,19 @@ public class FileScannerService {
 								.append(" - ")
 								.append(e.getMessage())
 								.append("\n");
+					success = false;
 				}
 			}
 		}
 
 		return ScanResponse.builder()
-						   .success(failedFiles.isEmpty())
+						   .success(success)
 						   .scannedFilesCount(scannedFilesCount)
 						   .newFilesCount(newFilesCount)
 						   .failedFiles(failedFiles)
 						   .successfulFiles(successfulFiles)
 						   .errorMessage(errorMessage.toString())
 						   .build();
-
 	}
 
 	private boolean isLeafDirectory(Path path) {

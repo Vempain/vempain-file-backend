@@ -36,6 +36,7 @@ public class VectorFileEntity extends FileEntity {
 	public VectorFileResponse toResponse() {
 		var builder = VectorFileResponse.builder()
 										.filename(getFilename())
+										.filePath(getFilePath())
 										.externalFileId(getExternalFileId())
 										.mimetype(getMimetype())
 										.filesize(getFilesize())

@@ -42,6 +42,7 @@ public class AudioFileEntity extends FileEntity {
 	public AudioFileResponse toResponse() {
 		var builder = AudioFileResponse.builder()
 									   .filename(getFilename())
+									   .filePath(getFilePath())
 									   .externalFileId(getExternalFileId())
 									   .mimetype(getMimetype())
 									   .filesize(getFilesize())

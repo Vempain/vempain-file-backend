@@ -33,7 +33,8 @@ class SetupVerification implements ApplicationContextAware {
 
 	private final String[][] requiredKeys = {
 			{"vempain.app.frontend-url", TYPE_STRING},
-			{"vempain.file-root-directory", TYPE_PATH}
+			{"vempain.file-root-directory", TYPE_PATH},
+			{"vempain.export-root-directory", TYPE_PATH}
 	};
 
 	private ApplicationContext applicationContext;

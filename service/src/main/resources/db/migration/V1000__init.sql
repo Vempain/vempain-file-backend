@@ -12,6 +12,7 @@ CREATE TABLE files
 	external_file_id         VARCHAR(255) NOT NULL,
 	file_group_id            BIGINT       NOT NULL,
 	filename                 VARCHAR(255) NOT NULL,
+	file_path VARCHAR(255) NOT NULL,
 	mimetype                 VARCHAR(255) NOT NULL,
 	filesize                 BIGINT       NOT NULL,
 	original_datetime        TIMESTAMP,
@@ -135,6 +136,14 @@ CREATE TABLE archive_files
 	uncompressed_size  BIGINT      NOT NULL,
 	content_count      INT         NOT NULL,
 	is_encrypted       BOOLEAN DEFAULT FALSE,
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE exported_files
+(
+	id          BIGINT PRIMARY KEY,
+	export_type VARCHAR(50) NOT NULL,
+	export_date TIMESTAMP   NOT NULL,
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 

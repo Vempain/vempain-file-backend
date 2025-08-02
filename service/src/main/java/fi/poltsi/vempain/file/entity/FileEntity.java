@@ -54,6 +54,8 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	private   FileGroupEntity fileGroup;
 	@Column(name = "filename", nullable = false)
 	private   String          filename;
+	@Column(name = "file_path", nullable = false)
+	private String filePath;
 	@Column(name = "external_file_id", nullable = false)
 	private   String          externalFileId;
 	@Column(name = "mimetype", nullable = false)
@@ -86,6 +88,7 @@ public abstract class FileEntity extends AbstractVempainEntity {
 		return FileResponse.builder()
 						   .id(this.id)
 						   .filename(this.filename)
+						   .filePath(this.filePath)
 						   .externalFileId(this.externalFileId)
 						   .mimetype(this.mimetype)
 						   .filesize(this.filesize)

@@ -40,6 +40,7 @@ public class ImageFileEntity extends FileEntity {
 		// Build the response using the properties from FileEntity
 		var builder = ImageFileResponse.builder()
 									   .filename(getFilename())
+									   .filePath(getFilePath())
 									   .externalFileId(getExternalFileId())
 									   .mimetype(getMimetype())
 									   .filesize(getFilesize())

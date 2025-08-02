@@ -87,6 +87,7 @@ vempain:
     cors-pattern: '/**'
     max-age: 3600
   file-root-directory: override-me
+  export-root-directory: override-me
 ---
 ### Local machine ###
 

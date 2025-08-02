@@ -25,6 +25,9 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Name of the file", example = "image.png")
 	private String filename;
 
+	@Schema(description = "Path of the file, relative to the root directory", example = "/some/path")
+	private String filePath;
+
 	@Schema(description = "External file identifier", example = "ext12345")
 	private String externalFileId;
 

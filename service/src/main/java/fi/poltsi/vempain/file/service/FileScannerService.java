@@ -260,7 +260,10 @@ public class FileScannerService {
 			return false;
 		}
 
-		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata);
+		// Compute relative file path
+		String relativeFilePath = computeRelativeFilePath(file);
+
+		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
 
 		switch (fileType) {
 			case IMAGE -> {
@@ -386,7 +389,25 @@ public class FileScannerService {
 		}
 	}
 
-	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata) {
+	// Helper to compute relative file path
+	private String computeRelativeFilePath(File file) {
+		Path rootPath = Path.of(rootDirectory)
+							.toAbsolutePath()
+							.normalize();
+		Path filePath = file.toPath()
+							.toAbsolutePath()
+							.normalize();
+		// Remove the filename from the file path
+		if (filePath.getFileName() != null) {
+			filePath = filePath.getParent();
+		}
+		Path relPath = rootPath.relativize(filePath);
+		return "/" + relPath.toString()
+							.replace(File.separatorChar, '/');
+	}
+
+	// Add relativeFilePath parameter
+	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata, String relativeFilePath) {
 		var userId = 0L;
 
 		try {
@@ -436,6 +457,7 @@ public class FileScannerService {
 										 .originalDocumentId(originalDocumentId)
 										 .description(description)
 										 .metadataRaw(metadata)
+										 .filePath(relativeFilePath)
 										 .build();
 			case VIDEO -> VideoFileEntity.builder()
 										 .aclId(aclId)
@@ -453,6 +475,7 @@ public class FileScannerService {
 										 .originalDocumentId(originalDocumentId)
 										 .description(description)
 										 .metadataRaw(metadata)
+										 .filePath(relativeFilePath)
 										 .build();
 			case AUDIO -> AudioFileEntity.builder()
 										 .aclId(aclId)
@@ -470,6 +493,7 @@ public class FileScannerService {
 										 .originalDocumentId(originalDocumentId)
 										 .description(description)
 										 .metadataRaw(metadata)
+										 .filePath(relativeFilePath)
 										 .build();
 			case DOCUMENT -> DocumentFileEntity.builder()
 											   .aclId(aclId)
@@ -487,6 +511,7 @@ public class FileScannerService {
 											   .originalDocumentId(originalDocumentId)
 											   .description(description)
 											   .metadataRaw(metadata)
+											   .filePath(relativeFilePath)
 											   .build();
 			case VECTOR -> VectorFileEntity.builder()
 										   .aclId(aclId)
@@ -504,6 +529,7 @@ public class FileScannerService {
 										   .originalDocumentId(originalDocumentId)
 										   .description(description)
 										   .metadataRaw(metadata)
+										   .filePath(relativeFilePath)
 										   .build();
 			case ICON -> IconFileEntity.builder()
 									   .aclId(aclId)
@@ -521,6 +547,7 @@ public class FileScannerService {
 									   .originalDocumentId(originalDocumentId)
 									   .description(description)
 									   .metadataRaw(metadata)
+									   .filePath(relativeFilePath)
 									   .build();
 			case FONT -> FontFileEntity.builder()
 									   .aclId(aclId)
@@ -538,6 +565,7 @@ public class FileScannerService {
 									   .originalDocumentId(originalDocumentId)
 									   .description(description)
 									   .metadataRaw(metadata)
+									   .filePath(relativeFilePath)
 									   .build();
 			case ARCHIVE -> ArchiveFileEntity.builder()
 											 .aclId(aclId)
@@ -555,6 +583,7 @@ public class FileScannerService {
 											 .originalDocumentId(originalDocumentId)
 											 .description(description)
 											 .metadataRaw(metadata)
+											 .filePath(relativeFilePath)
 											 .build();
 			case OTHER -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
 		};

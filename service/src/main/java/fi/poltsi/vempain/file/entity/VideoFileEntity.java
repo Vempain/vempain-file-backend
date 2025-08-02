@@ -42,6 +42,7 @@ public class VideoFileEntity extends FileEntity {
 	public VideoFileResponse toResponse() {
 		var builder = VideoFileResponse.builder()
 									   .filename(getFilename())
+									   .filePath(getFilePath())
 									   .externalFileId(getExternalFileId())
 									   .mimetype(getMimetype())
 									   .filesize(getFilesize())

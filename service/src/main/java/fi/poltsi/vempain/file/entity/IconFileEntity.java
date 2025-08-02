@@ -36,6 +36,7 @@ public class IconFileEntity extends FileEntity {
 	public IconFileResponse toResponse() {
 		var builder = IconFileResponse.builder()
 									  .filename(getFilename())
+									  .filePath(getFilePath())
 									  .externalFileId(getExternalFileId())
 									  .mimetype(getMimetype())
 									  .filesize(getFilesize())

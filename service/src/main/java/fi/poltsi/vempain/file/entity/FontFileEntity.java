@@ -36,6 +36,7 @@ public class FontFileEntity extends FileEntity {
 	public FontFileResponse toResponse() {
 		var builder = FontFileResponse.builder()
 									  .filename(getFilename())
+									  .filePath(getFilePath())
 									  .externalFileId(getExternalFileId())
 									  .mimetype(getMimetype())
 									  .filesize(getFilesize())

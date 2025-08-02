@@ -33,6 +33,7 @@ public class DocumentFileEntity extends FileEntity {
 	public DocumentFileResponse toResponse() {
 		var builder = DocumentFileResponse.builder()
 										  .filename(getFilename())
+										  .filePath(getFilePath())
 										  .externalFileId(getExternalFileId())
 										  .mimetype(getMimetype())
 										  .filesize(getFilesize())

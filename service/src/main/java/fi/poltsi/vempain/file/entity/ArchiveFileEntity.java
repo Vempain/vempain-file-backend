@@ -39,6 +39,7 @@ public class ArchiveFileEntity extends FileEntity {
 	public ArchiveFileResponse toResponse() {
 		var builder = ArchiveFileResponse.builder()
 										 .filename(getFilename())
+										 .filePath(getFilePath())
 										 .externalFileId(getExternalFileId())
 										 .mimetype(getMimetype())
 										 .filesize(getFilesize())

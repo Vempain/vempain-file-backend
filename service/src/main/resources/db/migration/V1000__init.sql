@@ -141,9 +141,10 @@ CREATE TABLE archive_files
 
 CREATE TABLE exported_files
 (
-	id          BIGINT PRIMARY KEY,
-	export_type VARCHAR(50) NOT NULL,
-	export_date TIMESTAMP   NOT NULL,
+	id               BIGINT PRIMARY KEY,
+	export_filename  VARCHAR(255) NOT NULL,
+	export_file_path VARCHAR(255) NOT NULL,
+	export_date      TIMESTAMP    NOT NULL,
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 

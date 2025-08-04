@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.api.request;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import fi.poltsi.vempain.file.api.PathCompletionEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -20,4 +21,7 @@ public class PathCompletionRequest {
 	@Pattern(regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$", message = "Path must start with a slash and contain valid characters")
 	@Schema(description = "Path prefix to complete", example = "/three", requiredMode = Schema.RequiredMode.REQUIRED)
 	private String path;
+
+	@Schema(description = "Which type of path is sought after", example = "ORIGINAL", requiredMode = Schema.RequiredMode.REQUIRED)
+	private PathCompletionEnum type;
 }

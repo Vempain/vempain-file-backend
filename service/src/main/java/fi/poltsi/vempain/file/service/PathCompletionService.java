@@ -14,13 +14,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
+import static fi.poltsi.vempain.file.api.PathCompletionEnum.ORIGINAL;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PathCompletionService {
 
-	@Value("${vempain.file-root-directory}")
-	private String rootDirectory;
+	@Value("${vempain.original-root-directory}")
+	private String originalRootDirectory;
+
+	@Value("${vempain.export-root-directory}")
+	private String exportedRootDirectory;
 
 	public PathCompletionResponse completePath(PathCompletionRequest request) {
 		// Normalize request path: expected to start with '/'
@@ -30,6 +35,9 @@ public class PathCompletionService {
 		}
 
 		var completions = new ArrayList<String>();
+
+		var rootDirectory = request.getType()
+								   .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
 
 		try {
 			// Determine the working directory by joining the configured root with the request path.

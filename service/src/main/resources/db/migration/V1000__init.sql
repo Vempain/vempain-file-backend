@@ -139,13 +139,18 @@ CREATE TABLE archive_files
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 
-CREATE TABLE exported_files
+CREATE TABLE export_files
 (
-	id               BIGINT PRIMARY KEY,
-	export_filename  VARCHAR(255) NOT NULL,
-	export_file_path VARCHAR(255) NOT NULL,
-	export_date      TIMESTAMP    NOT NULL,
-	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+	id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	file_id              BIGINT       NOT NULL,
+	filename             VARCHAR(255) NOT NULL,
+	file_path            VARCHAR(255) NOT NULL,
+	mimetype             VARCHAR(255) NOT NULL,
+	filesize             BIGINT       NOT NULL,
+	sha256sum            VARCHAR(64)  NOT NULL,
+	original_document_id VARCHAR(128),
+	created              TIMESTAMP    NOT NULL,
+	FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
 );
 
 -- Data

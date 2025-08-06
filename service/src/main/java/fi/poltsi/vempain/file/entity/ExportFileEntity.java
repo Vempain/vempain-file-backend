@@ -3,68 +3,68 @@ package fi.poltsi.vempain.file.entity;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.PrimaryKeyJoinColumn;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "exported_files")
-@PrimaryKeyJoinColumn(name = "id")
+@Table(name = "export_files")
 @Data
-@SuperBuilder
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ExportFileEntity extends FileEntity {
-	@Column(name = "export_filename", nullable = false)
-	private String  exportFilename;
+public class ExportFileEntity {
 
-	@Column(name = "export_file_path", nullable = false)
-	private String  exportFilePath;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	@Column(name = "id", nullable = false)
+	private Long id;
 
-	@Column(name = "export_mimetype", nullable = false)
-	private String exportMimetype;
+	@OneToOne(optional = false)
+	@JoinColumn(name = "file_id", unique = true)
+	private FileEntity file;
 
-	@Column(name = "export_filesize", nullable = false)
-	private long exportFilesize;
+	@Column(name = "filename", nullable = false)
+	private String filename;
 
-	@Column(name = "export_sha256sum", nullable = false, length = 64)
-	private String exportSha256sum;
+	@Column(name = "file_path", nullable = false)
+	private String filePath;
 
-	@Column(name = "original_document_id", length = 128)
+	@Column(name = "mimetype", nullable = false)
+	private String mimetype;
+
+	@Column(name = "filesize", nullable = false)
+	private long filesize;
+
+	@Column(name = "original_document_id", nullable = true)
 	private String originalDocumentId;
 
-	@Column(name = "export_date", nullable = false)
-	private Instant exportDate;
+	@Column(name = "sha256sum", nullable = false, length = 64)
+	private String sha256sum;
+
+	@Column(name = "created", nullable = false)
+	private Instant created;
 
 	public ExportFileResponse toResponse() {
 		return ExportFileResponse.builder()
-								 // FileResponse fields
-								 .id(getId())
-								 .filename(getFilename())
-								 .filePath(getFilePath())
-								 .externalFileId(getExternalFileId())
-								 .mimetype(getMimetype())
-								 .filesize(getFilesize())
-								 .sha256sum(getSha256sum())
-								 .originalDatetime(getOriginalDatetime())
-								 .originalSecondFraction(getOriginalSecondFraction())
-								 .originalDocumentId(getOriginalDocumentId())
-								 .description(getDescription())
-								 .fileType(getFileType())
-								 .metadataRaw(getMetadataRaw())
-								 // ExportFileResponse fields
-								 .exportFilename(exportFilename)
-								 .exportFilePath(exportFilePath)
-								 .exportMimetype(exportMimetype)
-								 .exportFilesize(exportFilesize)
-								 .exportSha256sum(exportSha256sum)
+								 .id(id)
+								 .file_id(file.getId())
+								 .filename(filename)
+								 .filePath(filePath)
+								 .mimetype(mimetype)
+								 .filesize(filesize)
+								 .sha256sum(sha256sum)
 								 .originalDocumentId(originalDocumentId)
-								 .exportDate(exportDate)
+								 .created(created)
 								 .build();
 	}
 }

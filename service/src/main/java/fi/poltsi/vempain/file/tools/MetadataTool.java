@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -55,6 +56,17 @@ public class MetadataTool {
 
 	public static String extractMetadataJson(File file) throws IOException {
 		return runExifTool(file, "-a", "-u", "-ee", "-api", "RequestAll=3", "-g1", "-J");
+	}
+
+	public static JSONObject extractMetadataJsonObject(File file) throws IOException {
+		var metadata = extractMetadataJson(file);
+
+		if (metadata == null || metadata.isBlank()) {
+			log.warn("No metadata found for file: {}", file.getAbsolutePath());
+			return null;
+		}
+
+		return metadataToJsonObject(metadata);
 	}
 
 	public static Dimension extractImageResolution(JSONObject jsonObject) throws IOException {
@@ -452,5 +464,16 @@ public class MetadataTool {
 		}
 
 		return "";
+	}
+
+	public static JSONObject metadataToJsonObject(String metadata) {
+		var jsonArray = new JSONArray(metadata);
+
+		if (jsonArray.isEmpty()) {
+			log.error("Failed to parse the metadata JSON from\n{}", metadata);
+			return null;
+		}
+
+		return jsonArray.getJSONObject(0);
 	}
 }

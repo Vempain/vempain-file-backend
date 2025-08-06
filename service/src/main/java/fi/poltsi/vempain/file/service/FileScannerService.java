@@ -6,11 +6,14 @@ import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.tools.AuthTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.response.FileResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponse;
+import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
+import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.FileTag;
@@ -38,29 +41,28 @@ import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Objects;
 
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getDescriptionFromJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDateTimeFromJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDocumentId;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalSecondFraction;
+import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
 @Service
@@ -78,34 +80,45 @@ public class FileScannerService {
 	private final FontFileRepository     fontFileRepository;
 	private final ArchiveFileRepository  archiveFileRepository;
 	private final MetadataRepository     metadataRepository;
-	private final AclService             aclService;
 	private final TagRepository          tagRepository;
 	private final FileTagRepository      fileTagRepository;
 
-	@Value("${vempain.file-root-directory}")
-	private String rootDirectory;
+	private final AclService              aclService;
+	private final DerivativeLookupService derivativeLookupService;
+	private final ExportedFilesService    exportedFilesService;
 
-	private static JSONObject metadataToJsonObject(String metadata) {
-		var jsonArray = new JSONArray(metadata);
+	@Value("${vempain.original-root-directory}")
+	private String originalRootDirectory;
 
-		if (jsonArray.isEmpty()) {
-			log.error("Failed to parse the metadata JSON from\n{}", metadata);
-			return null;
-		}
-
-		return jsonArray.getJSONObject(0);
-	}
+	@Value("${vempain.export-root-directory}")
+	private String exportRootDirectory;
 
 	@Transactional
-	public ScanResponse scanDirectory(String selectedDirectory) {
+	public ScanResponses scanDirectories(ScanRequest scanRequest) {
+		var scanResponses = new ScanResponses();
+
+		if (scanRequest.getOriginalDirectory() != null) {
+			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory());
+			log.info("Result of scanning original directory {}: {}", scanRequest.getOriginalDirectory(), originalResult);
+		}
+
+		if (scanRequest.getExportDirectory() != null) {
+			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory());
+			log.info("Result of scanning exported directory {}: {}", scanRequest.getExportDirectory(), exportedResult);
+		}
+
+		return scanResponses;
+	}
+
+	private ScanResponse scanExportDirectory(String exportedDirectory) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
 		var errorMessage            = new StringBuilder();
-		var failedFiles             = new ArrayList<String>();
+		var orphanedFiles = new ArrayList<String>();
 		var successfulFileResponses = new ArrayList<FileResponse>();
 		var leafDirectories         = new ArrayList<Path>();
-		var scanDirectory           = Path.of(rootDirectory, selectedDirectory);
+		var scanDirectory = Path.of(exportRootDirectory, exportedDirectory);
 
 		try {
 			leafDirectories.addAll(Files.walk(scanDirectory)
@@ -123,15 +136,119 @@ public class FileScannerService {
 		}
 
 		for (Path leafDir : leafDirectories) {
-			File[] files = leafDir.toFile()
-								  .listFiles();
+			var files = leafDir.toFile()
+							   .listFiles();
+
+			if (files == null || files.length == 0) {
+				log.warn("Derivative directory is empty: {}", leafDir);
+				continue;
+			}
+
+			for (var file : files) {
+				scannedFilesCount++;
+
+				JSONObject metadataObject;
+
+				try {
+					metadataObject = MetadataTool.extractMetadataJsonObject(file);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+
+				var originalDocumentId = MetadataTool.getOriginalDocumentId(metadataObject);
+
+				if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
+					|| exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
+					log.info("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
+					continue;
+				}
+
+				newFilesCount++;
+
+				// Search for the original file using the document ID
+				var originalFileEntity = fileRepository.findByOriginalDocumentId(originalDocumentId);
+
+				if (originalFileEntity == null) {
+					log.warn("No original file found for exported file: {}", file.getName());
+					orphanedFiles.add(file.getName());
+					success = false;
+					continue; // Skip processing this file
+				}
+
+				successfulFileResponses.add(originalFileEntity.toResponse());
+
+				// Finally save the exported file entity
+				// First get the sha256sum of the exported file
+				var sha256sum        = computeSha256(file);
+				var mimetype         = MetadataTool.extractMimetype(metadataObject);
+				var relativeFilePath = computeRelativeFilePath(exportRootDirectory, file);
+
+				var exportFileEntity = ExportFileEntity.builder()
+													   .file(originalFileEntity)
+													   .filename(file.getName())
+													   .filePath(relativeFilePath)
+													   .originalDocumentId(originalDocumentId)
+													   .mimetype(mimetype)
+													   .filesize(file.length())
+													   .sha256sum(sha256sum)
+													   .created(Instant.now())
+													   .build();
+
+// Save the exported file entity onto the database.
+				var storedExportFile = exportedFilesService.save(exportFileEntity);
+				log.info("Successfully registered exported file: {}", storedExportFile.getFilename());
+				// If there is no existing file entity, we may not create a new one
+				// So the order is: The FileEntity must always exist in the database before we can process the exported file
+			}
+		}
+
+		return ScanResponse.builder()
+						   .success(success)
+						   .scannedFilesCount(scannedFilesCount)
+						   .newFilesCount(newFilesCount)
+						   .failedFiles(orphanedFiles)
+						   .successfulFiles(successfulFileResponses)
+						   .errorMessage(errorMessage.toString())
+						   .build();
+
+	}
+
+	@Transactional
+	protected ScanResponse scanOriginalDirectory(String selectedDirectory) {
+		var scannedFilesCount       = 0L;
+		var newFilesCount           = 0L;
+		var success                 = true;
+		var errorMessage            = new StringBuilder();
+		var failedFiles             = new ArrayList<String>();
+		var successfulFileResponses = new ArrayList<FileResponse>();
+		var leafDirectories         = new ArrayList<Path>();
+		var scanDirectory           = Path.of(originalRootDirectory, selectedDirectory);
+
+		try {
+			leafDirectories.addAll(Files.walk(scanDirectory)
+										.filter(Files::isDirectory)
+										.filter(path -> !path.getFileName()
+															 .toString()
+															 .startsWith("."))
+										.filter(this::isLeafDirectory)
+										.toList());
+		} catch (IOException e) {
+			log.error("Error scanning directory: {}", scanDirectory, e);
+			errorMessage.append("Error scanning directory: ")
+						.append(scanDirectory);
+			success = false;
+		}
+
+		for (var leafDir : leafDirectories) {
+			var files = leafDir.toFile()
+							   .listFiles();
 
 			if (files == null || files.length == 0) {
 				log.warn("Directory is empty: {}", leafDir);
 				continue;
 			}
 
-			FileGroupEntity fileGroup = fileGroupRepository.save(
+			var fileGroup = fileGroupRepository.save(
 					FileGroupEntity.builder()
 								   .path(leafDir.toString())
 								   .groupName(leafDir.getFileName()
@@ -139,7 +256,7 @@ public class FileScannerService {
 								   .build()
 			);
 
-			for (File file : files) {
+			for (var file : files) {
 				scannedFilesCount++;
 
 				try {
@@ -210,21 +327,19 @@ public class FileScannerService {
 			// TODO Consider updating the existing file entity
 		}
 
-		// Get the metadata in JSON format of the file
-		var metadataString = MetadataTool.extractMetadataJson(file);
 		// Get all metadata entries using exiftool
 		log.info("Extracting metadata for file: {}", file.getAbsolutePath());
 
 		String metadata = null;
 
 		try {
-			metadata = MetadataTool.extractMetadataJson(file);
+			metadata = extractMetadataJson(file);
 		} catch (IOException e) {
 			log.error("Failed to extract metadata for file: {}", file.getAbsolutePath(), e);
 		}
 
-		if (metadataString == null
-			|| metadataString.isBlank()) {
+		if (metadata == null
+			|| metadata.isBlank()) {
 			log.error("Failed to extract metadata from file: {}", file.getAbsolutePath());
 			return false;
 		}
@@ -261,7 +376,7 @@ public class FileScannerService {
 		}
 
 		// Compute relative file path
-		String relativeFilePath = computeRelativeFilePath(file);
+		String relativeFilePath = computeRelativeFilePath(originalRootDirectory, file);
 
 		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
 
@@ -281,8 +396,8 @@ public class FileScannerService {
 				fileRepository.save(imageFile);
 			}
 			case VIDEO -> {
-				VideoFileEntity videoFile = (VideoFileEntity) fileEntity;
-				Dimension       res       = MetadataTool.extractVideoResolution(file);
+				var videoFile = (VideoFileEntity) fileEntity;
+				var res       = MetadataTool.extractVideoResolution(file);
 				videoFile.setWidth(res.width);
 				videoFile.setHeight(res.height);
 				videoFile.setFrameRate(MetadataTool.extractFrameRate(file));
@@ -291,7 +406,7 @@ public class FileScannerService {
 				fileRepository.save(videoFile);
 			}
 			case AUDIO -> {
-				AudioFileEntity audioFile = (AudioFileEntity) fileEntity;
+				var audioFile = (AudioFileEntity) fileEntity;
 				audioFile.setDuration(MetadataTool.extractAudioDuration(file));
 				audioFile.setBitRate(MetadataTool.extractAudioBitRate(file));
 				audioFile.setSampleRate(MetadataTool.extractAudioSampleRate(file));
@@ -300,36 +415,36 @@ public class FileScannerService {
 				fileRepository.save(audioFile);
 			}
 			case DOCUMENT -> {
-				DocumentFileEntity documentFile = (DocumentFileEntity) fileEntity;
+				var documentFile = (DocumentFileEntity) fileEntity;
 				documentFile.setPageCount(MetadataTool.extractDocumentPageCount(file));
 				documentFile.setFormat(MetadataTool.extractDocumentFormat(file));
 				fileRepository.save(documentFile);
 			}
 			case VECTOR -> {
-				VectorFileEntity vectorFile = (VectorFileEntity) fileEntity;
-				Dimension        res        = MetadataTool.extractVectorResolution(file);
+				var vectorFile = (VectorFileEntity) fileEntity;
+				var res        = MetadataTool.extractVectorResolution(file);
 				vectorFile.setWidth(res.width);
 				vectorFile.setHeight(res.height);
 				vectorFile.setLayersCount(MetadataTool.extractVectorLayersCount(file));
 				fileRepository.save(vectorFile);
 			}
 			case ICON -> {
-				IconFileEntity iconFile = (IconFileEntity) fileEntity;
-				Dimension      res      = MetadataTool.extractIconResolution(file);
+				var iconFile = (IconFileEntity) fileEntity;
+				var res      = MetadataTool.extractIconResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
 				iconFile.setIsScalable(MetadataTool.extractIconIsScalable(file));
 				fileRepository.save(iconFile);
 			}
 			case FONT -> {
-				FontFileEntity fontFile = (FontFileEntity) fileEntity;
+				var fontFile = (FontFileEntity) fileEntity;
 				fontFile.setFontFamily(MetadataTool.extractFontFamily(file));
 				fontFile.setWeight(MetadataTool.extractFontWeight(file));
 				fontFile.setStyle(MetadataTool.extractFontStyle(file));
 				fileRepository.save(fontFile);
 			}
 			case ARCHIVE -> {
-				ArchiveFileEntity archiveFile = (ArchiveFileEntity) fileEntity;
+				var archiveFile = (ArchiveFileEntity) fileEntity;
 				archiveFile.setCompressionMethod(MetadataTool.extractArchiveCompressionMethod(file));
 				archiveFile.setUncompressedSize(MetadataTool.extractArchiveUncompressedSize(file));
 				archiveFile.setContentCount(MetadataTool.extractArchiveContentCount(file));
@@ -354,54 +469,54 @@ public class FileScannerService {
 			return;
 		}
 
-		for (String subject : subjects) {
+		for (var subject : subjects) {
 			if (subject == null || subject.isBlank()) {
 				continue;
 			}
 
 			// Find or create tag
-			TagEntity tag = tagRepository.findByTagName(subject)
-										 .orElseGet(() -> {
-											 TagEntity newTag = TagEntity.builder()
-																		 .tagName(subject)
-																		 .tagNameDe(null)
-																		 .tagNameEn(null)
-																		 .tagNameEs(null)
-																		 .tagNameFi(null)
-																		 .tagNameSv(null)
-																		 .build();
-											 return tagRepository.save(newTag);
-										 });
+			var tag = tagRepository.findByTagName(subject)
+								   .orElseGet(() -> {
+									   TagEntity newTag = TagEntity.builder()
+																   .tagName(subject)
+																   .tagNameDe(null)
+																   .tagNameEn(null)
+																   .tagNameEs(null)
+																   .tagNameFi(null)
+																   .tagNameSv(null)
+																   .build();
+									   return tagRepository.save(newTag);
+								   });
 
 			// Check if FileTag already exists
-			boolean exists = fileTagRepository.findByFile(fileEntity)
-											  .stream()
-											  .anyMatch(ft -> ft.getTag()
-																.getId()
-																.equals(tag.getId()));
+			var exists = fileTagRepository.findByFile(fileEntity)
+										  .stream()
+										  .anyMatch(ft -> ft.getTag()
+															.getId()
+															.equals(tag.getId()));
 			if (!exists) {
-				FileTag fileTag = FileTag.builder()
-										 .file(fileEntity)
-										 .tag(tag)
-										 .build();
+				var fileTag = FileTag.builder()
+									 .file(fileEntity)
+									 .tag(tag)
+									 .build();
 				fileTagRepository.save(fileTag);
 			}
 		}
 	}
 
 	// Helper to compute relative file path
-	private String computeRelativeFilePath(File file) {
-		Path rootPath = Path.of(rootDirectory)
-							.toAbsolutePath()
-							.normalize();
-		Path filePath = file.toPath()
-							.toAbsolutePath()
-							.normalize();
+	private String computeRelativeFilePath(String rootDir, File file) {
+		var rootPath = Path.of(rootDir)
+						   .toAbsolutePath()
+						   .normalize();
+		var filePath = file.toPath()
+						   .toAbsolutePath()
+						   .normalize();
 		// Remove the filename from the file path
 		if (filePath.getFileName() != null) {
 			filePath = filePath.getParent();
 		}
-		Path relPath = rootPath.relativize(filePath);
+		var relPath = rootPath.relativize(filePath);
 		return "/" + relPath.toString()
 							.replace(File.separatorChar, '/');
 	}
@@ -659,7 +774,7 @@ public class FileScannerService {
 			return null;
 		}
 
-		DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+		var formatter = new DateTimeFormatterBuilder()
 				// Try: yyyy:MM:dd HH:mm:ss.SSS[S...] (allows up to 9 digits)
 				.appendPattern("yyyy:MM:dd HH:mm:ss")
 				.optionalStart()
@@ -673,87 +788,87 @@ public class FileScannerService {
 	}
 
 	private void processImageFile(File file, FileEntity fileEntity) {
-		ImageFileEntity imageFile = ImageFileEntity.builder()
-												   .id(fileEntity.getId())
-												   .width(1920)
-												   .height(1080)
-												   .colorDepth(24)
-												   .dpi(300)
-												   .build();
+		var imageFile = ImageFileEntity.builder()
+									   .id(fileEntity.getId())
+									   .width(1920)
+									   .height(1080)
+									   .colorDepth(24)
+									   .dpi(300)
+									   .build();
 		imageFileRepository.save(imageFile);
 	}
 
 	private void processVideoFile(File file, FileEntity fileEntity) {
-		VideoFileEntity videoFile = VideoFileEntity.builder()
-												   .id(fileEntity.getId())
-												   .width(1920)
-												   .height(1080)
-												   .frameRate(30.0)
-												   .duration(120.5)
-												   .codec("H.264")
-												   .build();
+		var videoFile = VideoFileEntity.builder()
+									   .id(fileEntity.getId())
+									   .width(1920)
+									   .height(1080)
+									   .frameRate(30.0)
+									   .duration(120.5)
+									   .codec("H.264")
+									   .build();
 		videoFileRepository.save(videoFile);
 	}
 
 	private void processAudioFile(File file, FileEntity fileEntity) {
-		AudioFileEntity audioFile = AudioFileEntity.builder()
-												   .id(fileEntity.getId())
-												   .duration(200.5)
-												   .bitRate(320)
-												   .sampleRate(44100)
-												   .codec("MP3")
-												   .channels(2)
-												   .build();
+		var audioFile = AudioFileEntity.builder()
+									   .id(fileEntity.getId())
+									   .duration(200.5)
+									   .bitRate(320)
+									   .sampleRate(44100)
+									   .codec("MP3")
+									   .channels(2)
+									   .build();
 		audioFileRepository.save(audioFile);
 	}
 
 	private void processDocumentFile(File file, FileEntity fileEntity) {
-		DocumentFileEntity documentFile = DocumentFileEntity.builder()
-															.id(fileEntity.getId())
-															.pageCount(10)
-															.format("PDF")
-															.build();
+		var documentFile = DocumentFileEntity.builder()
+											 .id(fileEntity.getId())
+											 .pageCount(10)
+											 .format("PDF")
+											 .build();
 		documentFileRepository.save(documentFile);
 	}
 
 	private void processVectorFile(File file, FileEntity fileEntity) {
-		VectorFileEntity vectorFile = VectorFileEntity.builder()
-													  .id(fileEntity.getId())
-													  .width(1024)
-													  .height(768)
-													  .layersCount(5)
-													  .build();
+		var vectorFile = VectorFileEntity.builder()
+										 .id(fileEntity.getId())
+										 .width(1024)
+										 .height(768)
+										 .layersCount(5)
+										 .build();
 		vectorFileRepository.save(vectorFile);
 	}
 
 	private void processIconFile(File file, FileEntity fileEntity) {
-		IconFileEntity iconFile = IconFileEntity.builder()
-												.id(fileEntity.getId())
-												.width(256)
-												.height(256)
-												.isScalable(true)
-												.build();
+		var iconFile = IconFileEntity.builder()
+									 .id(fileEntity.getId())
+									 .width(256)
+									 .height(256)
+									 .isScalable(true)
+									 .build();
 		iconFileRepository.save(iconFile);
 	}
 
 	private void processFontFile(File file, FileEntity fileEntity) {
-		FontFileEntity fontFile = FontFileEntity.builder()
-												.id(fileEntity.getId())
-												.fontFamily("Arial")
-												.weight("Bold")
-												.style("Italic")
-												.build();
+		var fontFile = FontFileEntity.builder()
+									 .id(fileEntity.getId())
+									 .fontFamily("Arial")
+									 .weight("Bold")
+									 .style("Italic")
+									 .build();
 		fontFileRepository.save(fontFile);
 	}
 
 	private void processArchiveFile(File file, FileEntity fileEntity) {
-		ArchiveFileEntity archiveFile = ArchiveFileEntity.builder()
-														 .id(fileEntity.getId())
-														 .compressionMethod("ZIP")
-														 .uncompressedSize(10485760L)
-														 .contentCount(100)
-														 .isEncrypted(false)
-														 .build();
+		var archiveFile = ArchiveFileEntity.builder()
+										   .id(fileEntity.getId())
+										   .compressionMethod("ZIP")
+										   .uncompressedSize(10485760L)
+										   .contentCount(100)
+										   .isEncrypted(false)
+										   .build();
 		archiveFileRepository.save(archiveFile);
 	}
 }

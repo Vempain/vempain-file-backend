@@ -10,5 +10,5 @@ import java.util.Optional;
 public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Long> {
 	ExportFileEntity findByOriginalDocumentId(String originalDocumentId);
 
-	Optional<ExportFileEntity> findByExportFilePathAndExportFilename(String path, String filename);
+	Optional<ExportFileEntity> findByFilePathAndFilename(String path, String filename);
 }

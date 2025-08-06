@@ -1,5 +1,10 @@
+// File: `service/src/main/java/fi/poltsi/vempain/file/service/DerivativeLookupService.java`
 package fi.poltsi.vempain.file.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import fi.poltsi.vempain.file.entity.ExportFileEntity;
+import fi.poltsi.vempain.file.repository.ExportFileRepository;
+import fi.poltsi.vempain.file.repository.FileRepository;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,10 +24,53 @@ public class DerivativeLookupService {
 	@Value("${vempain.export-root-directory}")
 	private String exportDirectory;
 
-	public File findDerivative(String filename, String documentId) {
-		String baseName = stripExtension(filename);
+	private final ExportFileRepository exportFileRepository;
+	private final FileRepository       fileRepository;
+
+	public File findOriginal(String subPath, String filename, String documentId) {
+		var baseName = stripExtension(filename);
+
+		// First, check the database for a matching exported file
+		var match = fileRepository.findByOriginalDocumentId(documentId);
+
+		if (match != null) {
+			var originalFile = exportDirectory + File.pathSeparator + match.getFilePath() + File.separator + match.getFilename();
+			return new File(originalFile);
+		}
+
+		// Fallback to filesystem scan if not found in DB
+		var searchDir = Path.of(exportDirectory, subPath);
+
 		try {
-			return Files.walk(Path.of(exportDirectory))
+			return Files.walk(searchDir)
+						.filter(Files::isRegularFile)
+						.filter(path -> stripExtension(path.getFileName()
+														   .toString()).equals(baseName))
+						.map(Path::toFile)
+						.filter(file -> hasMatchingDocumentId(file, documentId))
+						.findFirst()
+						.orElse(null);
+		} catch (IOException e) {
+			log.error("Error searching for original file", e);
+			return null;
+		}
+	}
+
+	public File findDerivative(String subPath, String filename, String documentId) {
+		String baseName = stripExtension(filename);
+
+		// First, check the database for a matching exported file
+		ExportFileEntity match = exportFileRepository.findByOriginalDocumentId(documentId);
+
+		if (match != null) {
+			return new File(exportDirectory, match.getFilePath());
+		}
+
+		// Fallback to filesystem scan if not found in DB
+		var searchDir = Path.of(exportDirectory, subPath);
+
+		try {
+			return Files.walk(searchDir)
 						.filter(Files::isRegularFile)
 						.filter(path -> stripExtension(path.getFileName()
 														   .toString()).equals(baseName))
@@ -38,17 +86,27 @@ public class DerivativeLookupService {
 
 	private boolean hasMatchingDocumentId(File file, String documentId) {
 		try {
-			var xmpSection = MetadataTool.extractSection(file, "XMP-xmpMM");
-			if (xmpSection == null) {
-				return false;
+			var metaJson = MetadataTool.extractMetadataJson(file);
+			var mapper   = new ObjectMapper();
+			var root     = mapper.readTree(metaJson);
+			if (root.isArray() && root.size() > 0) {
+				var xmpSection = root.get(0)
+									 .get("XMP-xmpMM");
+				if (xmpSection == null) {
+					return false;
+				}
+				var derived = xmpSection.has("DerivedFromOriginalDocumentID")
+							  ? xmpSection.get("DerivedFromOriginalDocumentID")
+										  .asText() : null;
+				var original = xmpSection.has("OriginalDocumentID")
+							   ? xmpSection.get("OriginalDocumentID")
+										   .asText() : null;
+				return Objects.equals(documentId, derived) || Objects.equals(documentId, original);
 			}
-			String derived  = xmpSection.get("DerivedFromOriginalDocumentID");
-			String original = xmpSection.get("OriginalDocumentID");
-			return Objects.equals(documentId, derived) || Objects.equals(documentId, original);
 		} catch (Exception e) {
 			log.warn("Failed to extract metadata from file: {}", file.getAbsolutePath(), e);
-			return false;
 		}
+		return false;
 	}
 
 	private String stripExtension(String name) {

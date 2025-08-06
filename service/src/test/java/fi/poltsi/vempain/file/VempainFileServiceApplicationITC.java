@@ -5,7 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest(properties = {
 		"vempain.app.frontend-url=http://localhost:3000",
-		"vempain.file-root-directory=/tmp",
+		"vempain.original-root-directory=/tmp",
 		"vempain.export-root-directory=/tmp"
 })
 class VempainFileServiceApplicationITC {

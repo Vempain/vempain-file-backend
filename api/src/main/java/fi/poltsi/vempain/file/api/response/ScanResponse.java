@@ -15,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@Schema(description = "Response DTO for scanning a directory for new files")
+@Schema(description = "Response DTO for scanning a directory for files")
 public class ScanResponse {
 	@Schema(description = "Indicates whether the scan was successful", example = "true")
 	private boolean success;

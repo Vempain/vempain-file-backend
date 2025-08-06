@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.file.api.request.ScanRequest;
-import fi.poltsi.vempain.file.api.response.ScanResponse;
+import fi.poltsi.vempain.file.api.response.ScanResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,5 +19,5 @@ public interface FileScannerAPI {
 			   description = "Initiates a scan of the specified directory to find new files and update their metadata")
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<ScanResponse> scan(@Valid @RequestBody ScanRequest scanRequest);
+	ResponseEntity<ScanResponses> scan(@Valid @RequestBody ScanRequest scanRequest);
 }

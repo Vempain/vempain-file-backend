@@ -7,8 +7,10 @@ import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.tools.AuthTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
+import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.api.response.FileResponse;
-import fi.poltsi.vempain.file.api.response.ScanResponse;
+import fi.poltsi.vempain.file.api.response.ScanExportResponse;
+import fi.poltsi.vempain.file.api.response.ScanOriginalResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
@@ -100,39 +102,109 @@ public class FileScannerService {
 		if (scanRequest.getOriginalDirectory() != null) {
 			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory());
 			log.info("Result of scanning original directory {}: {}", scanRequest.getOriginalDirectory(), originalResult);
+			scanResponses.setScanOriginalResponse(originalResult);
 		}
 
 		if (scanRequest.getExportDirectory() != null) {
 			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory());
 			log.info("Result of scanning exported directory {}: {}", scanRequest.getExportDirectory(), exportedResult);
+			scanResponses.setScanExportResponse(exportedResult);
 		}
 
 		return scanResponses;
 	}
 
-	private ScanResponse scanExportDirectory(String exportedDirectory) {
+	@Transactional
+	protected ScanOriginalResponse scanOriginalDirectory(String selectedDirectory) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
 		var errorMessage            = new StringBuilder();
-		var orphanedFiles = new ArrayList<String>();
+		var failedFiles             = new ArrayList<String>();
 		var successfulFileResponses = new ArrayList<FileResponse>();
 		var leafDirectories         = new ArrayList<Path>();
-		var scanDirectory = Path.of(exportRootDirectory, exportedDirectory);
+		var scanDirectory           = Path.of(originalRootDirectory, selectedDirectory);
 
-		try {
-			leafDirectories.addAll(Files.walk(scanDirectory)
-										.filter(Files::isDirectory)
-										.filter(path -> !path.getFileName()
-															 .toString()
-															 .startsWith("."))
-										.filter(this::isLeafDirectory)
-										.toList());
-		} catch (IOException e) {
-			log.error("Error scanning directory: {}", scanDirectory, e);
-			errorMessage.append("Error scanning directory: ")
-						.append(scanDirectory);
-			success = false;
+		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
+
+		for (var leafDir : leafDirectories) {
+			var files = leafDir.toFile()
+							   .listFiles();
+
+			if (files == null || files.length == 0) {
+				log.warn("Directory is empty: {}", leafDir);
+				continue;
+			}
+
+			var fileGroup = fileGroupRepository.save(
+					FileGroupEntity.builder()
+								   .path(leafDir.toString())
+								   .groupName(leafDir.getFileName()
+													 .toString())
+								   .build()
+			);
+
+			for (var file : files) {
+				scannedFilesCount++;
+
+				try {
+					var processed = processFile(file, fileGroup);
+
+					if (processed != null && processed) {
+						newFilesCount++;
+						// Retrieve the saved FileEntity and convert it to FileResponse.
+						var fileEntity = fileRepository.findByFilename(file.getName());
+
+						if (fileEntity != null) {
+							// First we reset the metadataRaw field to null so that it slims down the response size.
+							var fileResponse = fileEntity.toResponse();
+							fileResponse.setMetadataRaw(null);
+							successfulFileResponses.add(fileResponse);
+						}
+					} else if (processed != null && !processed) {
+						failedFiles.add(file.getName());
+						success = false;
+					}
+				} catch (IOException e) {
+					log.error("Error processing file: {}", file.getAbsolutePath(), e);
+					errorMessage.append("Error processing file: ")
+								.append(file.getAbsolutePath())
+								.append(" - ")
+								.append(e.getMessage())
+								.append("\n");
+					success = false;
+				}
+			}
+		}
+
+		return ScanOriginalResponse.builder()
+								   .success(success)
+								   .scannedFilesCount(scannedFilesCount)
+								   .newFilesCount(newFilesCount)
+								   .failedFiles(failedFiles)
+								   .successfulFiles(successfulFileResponses)
+								   .errorMessage(errorMessage.toString())
+								   .build();
+	}
+
+	@Transactional
+	protected ScanExportResponse scanExportDirectory(String exportedDirectory) {
+		var scannedFilesCount       = 0L;
+		var newFilesCount           = 0L;
+		var success                 = true;
+		var errorMessage            = new StringBuilder();
+		var orphanedFiles           = new ArrayList<String>();
+		var successfulFileResponses = new ArrayList<ExportFileResponse>();
+		var leafDirectories         = new ArrayList<Path>();
+		var scanDirectory           = Path.of(exportRootDirectory, exportedDirectory);
+
+		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
+
+		if (!success) {
+			return ScanExportResponse.builder()
+									 .success(false)
+									 .errorMessage(errorMessage.toString())
+									 .build();
 		}
 
 		for (Path leafDir : leafDirectories) {
@@ -175,8 +247,6 @@ public class FileScannerService {
 					continue; // Skip processing this file
 				}
 
-				successfulFileResponses.add(originalFileEntity.toResponse());
-
 				// Finally save the exported file entity
 				// First get the sha256sum of the exported file
 				var sha256sum        = computeSha256(file);
@@ -197,103 +267,22 @@ public class FileScannerService {
 // Save the exported file entity onto the database.
 				var storedExportFile = exportedFilesService.save(exportFileEntity);
 				log.info("Successfully registered exported file: {}", storedExportFile.getFilename());
+				successfulFileResponses.add(storedExportFile.toResponse());
+
 				// If there is no existing file entity, we may not create a new one
 				// So the order is: The FileEntity must always exist in the database before we can process the exported file
 			}
 		}
 
-		return ScanResponse.builder()
-						   .success(success)
-						   .scannedFilesCount(scannedFilesCount)
-						   .newFilesCount(newFilesCount)
-						   .failedFiles(orphanedFiles)
-						   .successfulFiles(successfulFileResponses)
-						   .errorMessage(errorMessage.toString())
-						   .build();
+		return ScanExportResponse.builder()
+								 .success(success)
+								 .scannedFilesCount(scannedFilesCount)
+								 .newFilesCount(newFilesCount)
+								 .failedFiles(orphanedFiles)
+								 .successfulFiles(successfulFileResponses)
+								 .errorMessage(errorMessage.toString())
+								 .build();
 
-	}
-
-	@Transactional
-	protected ScanResponse scanOriginalDirectory(String selectedDirectory) {
-		var scannedFilesCount       = 0L;
-		var newFilesCount           = 0L;
-		var success                 = true;
-		var errorMessage            = new StringBuilder();
-		var failedFiles             = new ArrayList<String>();
-		var successfulFileResponses = new ArrayList<FileResponse>();
-		var leafDirectories         = new ArrayList<Path>();
-		var scanDirectory           = Path.of(originalRootDirectory, selectedDirectory);
-
-		try {
-			leafDirectories.addAll(Files.walk(scanDirectory)
-										.filter(Files::isDirectory)
-										.filter(path -> !path.getFileName()
-															 .toString()
-															 .startsWith("."))
-										.filter(this::isLeafDirectory)
-										.toList());
-		} catch (IOException e) {
-			log.error("Error scanning directory: {}", scanDirectory, e);
-			errorMessage.append("Error scanning directory: ")
-						.append(scanDirectory);
-			success = false;
-		}
-
-		for (var leafDir : leafDirectories) {
-			var files = leafDir.toFile()
-							   .listFiles();
-
-			if (files == null || files.length == 0) {
-				log.warn("Directory is empty: {}", leafDir);
-				continue;
-			}
-
-			var fileGroup = fileGroupRepository.save(
-					FileGroupEntity.builder()
-								   .path(leafDir.toString())
-								   .groupName(leafDir.getFileName()
-													 .toString())
-								   .build()
-			);
-
-			for (var file : files) {
-				scannedFilesCount++;
-
-				try {
-					var processed = processFile(file, fileGroup);
-
-					if (processed != null && processed) {
-						newFilesCount++;
-						// Retrieve the saved FileEntity and convert it to FileResponse.
-						var fileEntity = fileRepository.findByFilename(file.getName());
-
-						if (fileEntity != null) {
-							successfulFileResponses.add(fileEntity.toResponse());
-						}
-					} else if (processed != null && !processed) {
-						failedFiles.add(file.getName());
-						success = false;
-					}
-				} catch (IOException e) {
-					log.error("Error processing file: {}", file.getAbsolutePath(), e);
-					errorMessage.append("Error processing file: ")
-								.append(file.getAbsolutePath())
-								.append(" - ")
-								.append(e.getMessage())
-								.append("\n");
-					success = false;
-				}
-			}
-		}
-
-		return ScanResponse.builder()
-						   .success(success)
-						   .scannedFilesCount(scannedFilesCount)
-						   .newFilesCount(newFilesCount)
-						   .failedFiles(failedFiles)
-						   .successfulFiles(successfulFileResponses)
-						   .errorMessage(errorMessage.toString())
-						   .build();
 	}
 
 	private boolean isLeafDirectory(Path path) {
@@ -870,5 +859,24 @@ public class FileScannerService {
 										   .isEncrypted(false)
 										   .build();
 		archiveFileRepository.save(archiveFile);
+	}
+
+	private boolean populateLeafDirectory(ArrayList<Path> leafDirectories, StringBuilder errorMessage, Path scanDirectory) {
+		try {
+			leafDirectories.addAll(Files.walk(scanDirectory)
+										.filter(Files::isDirectory)
+										.filter(path -> !path.getFileName()
+															 .toString()
+															 .startsWith("."))
+										.filter(this::isLeafDirectory)
+										.toList());
+		} catch (IOException e) {
+			log.error("Error scanning directory: {}", scanDirectory, e);
+			errorMessage.append("Error scanning directory: ")
+						.append(scanDirectory);
+			return false;
+		}
+
+		return true;
 	}
 }

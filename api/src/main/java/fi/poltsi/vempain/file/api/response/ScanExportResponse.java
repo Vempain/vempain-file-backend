@@ -15,8 +15,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@Schema(description = "Response DTO for scanning a directory for files")
-public class ScanResponse {
+@Schema(description = "Response DTO for scanning a directory for export files")
+public class ScanExportResponse {
 	@Schema(description = "Indicates whether the scan was successful", example = "true")
 	private boolean success;
 
@@ -29,8 +29,8 @@ public class ScanResponse {
 	@Schema(description = "Number of new files found during the scan", example = "5")
 	private long newFilesCount;
 
-	@Schema(description = "List of files successfully scanned", example = "/some/file.png")
-	private List<FileResponse> successfulFiles;
+	@Schema(description = "List of successfully scanned export files", example = "/some/file.png")
+	private List<ExportFileResponse> successfulFiles;
 
 	@Schema(description = "List of files failed to be scanned", example = "/some/other.png")
 	private List<String> failedFiles;

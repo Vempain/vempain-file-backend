@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Response DTO for directory scan results, including original and/or exported files")
 public class ScanResponses {
 	@Schema(description = "Result if the original files were scanned", example = "ScanResponse")
-	private ScanResponse scanResponse;
+	private ScanOriginalResponse scanOriginalResponse;
 	@Schema(description = "Result if the exported files were scanned", example = "ScanResponse")
-	private ScanResponse exportedScanResponse;
+	private ScanExportResponse   scanExportResponse;
 }

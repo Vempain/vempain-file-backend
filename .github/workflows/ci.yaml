@@ -34,10 +34,6 @@ jobs:
       - name: Install exifdata for test setup
         run: sudo apt-get install -y exiftool
 
-      - name: Run test setup
-        shell: bash
-        run: sudo ./testSetup.sh --developer-name $(whoami) --skip-root-check --skip-answers
-
       - name: Run tests with Gradle
         run: ./gradlew clean test
 

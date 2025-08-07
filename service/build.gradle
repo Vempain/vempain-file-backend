@@ -11,6 +11,10 @@ plugins {
 group = 'fi.poltsi.vempain'
 version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
+bootJar {
+	archiveFileName = "${rootProject.name}-${version}.jar"
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)

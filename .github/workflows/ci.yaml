@@ -20,6 +20,9 @@ jobs:
   test:
     name: Run all tests
     runs-on: ubuntu-latest
+    env:
+      GITHUB_ACTOR: ${{ github.actor }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: read
       packages: read  # added permissions to read GitHub Packages

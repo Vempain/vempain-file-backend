@@ -29,6 +29,13 @@ configurations {
 
 repositories {
 	mavenLocal()
+	maven {
+		url "https://maven.pkg.github.com/Vempain/vempain-auth"
+		credentials {
+			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+		}
+	}
 	mavenCentral()
 	maven { url = 'https://repo.spring.io/milestone' }
 }

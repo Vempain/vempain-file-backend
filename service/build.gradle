@@ -87,6 +87,10 @@ dependencies {
 	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: "$junitVersion"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.18.0'
+	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
+	testImplementation group: 'org.testcontainers', name: 'junit-jupiter', version: "${testContainersVersion}"
+	// https://mvnrepository.com/artifact/org.testcontainers/postgresql
+	testImplementation group: 'org.testcontainers', name: 'postgresql', version: "${testContainersVersion}"
 }
 
 dependencyManagement {

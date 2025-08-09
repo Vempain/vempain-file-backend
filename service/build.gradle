@@ -11,6 +11,10 @@ plugins {
 group = 'fi.poltsi.vempain'
 version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
+bootJar {
+	archiveFileName = "${rootProject.name}-${version}.jar"
+}
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -25,6 +29,13 @@ configurations {
 
 repositories {
 	mavenLocal()
+	maven {
+		url "https://maven.pkg.github.com/Vempain/vempain-auth"
+		credentials {
+			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+		}
+	}
 	mavenCentral()
 	maven { url = 'https://repo.spring.io/milestone' }
 }
@@ -76,6 +87,10 @@ dependencies {
 	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: "$junitVersion"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.18.0'
+	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
+	testImplementation group: 'org.testcontainers', name: 'junit-jupiter', version: "${testContainersVersion}"
+	// https://mvnrepository.com/artifact/org.testcontainers/postgresql
+	testImplementation group: 'org.testcontainers', name: 'postgresql', version: "${testContainersVersion}"
 }
 
 dependencyManagement {

@@ -63,7 +63,7 @@ jobs:
       GITHUB_ACTOR: ${{ github.actor }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
-      contents: read
+      contents: write
       packages: write
       id-token: write
 

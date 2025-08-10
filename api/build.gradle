@@ -31,7 +31,7 @@ dependencies {
 	// This needs to be built first in vempain-auth
 	implementation group: 'fi.poltsi.vempain', name: 'vempain-auth-api', version: "${vempainAuthVersion}"
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
-	implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.34'
+	implementation group: 'io.swagger.core.v3', name: 'swagger-annotations', version: '2.2.35'
 	// https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
 	implementation group: 'jakarta.validation', name: 'jakarta.validation-api', version: '3.1.1'
 }

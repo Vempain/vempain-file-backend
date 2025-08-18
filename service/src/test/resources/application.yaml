@@ -13,6 +13,6 @@ vempain:
   original-root-directory: /var/tmp
   export-root-directory: /var/tmp
   cors:
-    allowed-origins: ${vempain.app.frontend-url}
+    allowed-origins: "${vempain.app.frontend-url},http://localhost:8081"
     cors-pattern: '/**'
     max-age: 3600

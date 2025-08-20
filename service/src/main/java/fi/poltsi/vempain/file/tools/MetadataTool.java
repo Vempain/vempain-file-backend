@@ -386,6 +386,22 @@ public class MetadataTool {
 		return new ArrayList<>();
 	}
 
+	public static void copyMetadata(File sourceFile, File destinationFile) throws IOException {
+		var command = new ArrayList<String>();
+
+		command.add("exiftool");
+		command.add("-overwrite_original_in_place");
+		command.add("-TagsFromFile");
+		command.add(sourceFile.getAbsolutePath());
+		command.add("-all:all");
+		command.add(destinationFile.getAbsolutePath());
+
+		log.info("Running exiftool copy with command: {}", command);
+
+		var processBuilder = new ProcessBuilder(command);
+		var process        = processBuilder.start();
+	}
+
 	private static String extractJsonString(JSONObject jsonObject, Map<String, List<String>> locations) {
 		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
 			for (String key : location.getValue()) {

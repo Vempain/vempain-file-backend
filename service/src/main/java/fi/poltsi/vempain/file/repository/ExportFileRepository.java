@@ -11,4 +11,6 @@ public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Lo
 	ExportFileEntity findByOriginalDocumentId(String originalDocumentId);
 
 	Optional<ExportFileEntity> findByFilePathAndFilename(String path, String filename);
+
+	Optional<ExportFileEntity> findByFileId(Long fileId);
 }

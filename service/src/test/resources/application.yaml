@@ -10,9 +10,13 @@ vempain:
     frontend-url: http://localhost:3000
     jwtSecret: some_secret_key
     jwtExpirationMs: 86400000
+  service:
+    admin-backend-url: http://localhost:9090
+    admin-backend-username: vempain-admin
+    admin-backend-password: vempain-admin-password
   original-root-directory: /var/tmp
   export-root-directory: /var/tmp
   cors:
-    allowed-origins: ${vempain.app.frontend-url}
+    allowed-origins: "${vempain.app.frontend-url},http://localhost:8081"
     cors-pattern: '/**'
     max-age: 3600

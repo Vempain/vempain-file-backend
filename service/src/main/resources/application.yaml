@@ -88,6 +88,13 @@ vempain:
     max-age: 3600
   original-root-directory: override-me
   export-root-directory: override-me
+  service:
+    admin-backend-url: override-me
+    admin-backend-username: override-me
+    admin-backend-password: override-me
+  site-image-size: 1400
+  site-video-size: 720p
+
 ---
 ### Local machine ###
 

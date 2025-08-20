@@ -42,7 +42,6 @@ import fi.poltsi.vempain.file.repository.VideoFileRepository;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -59,6 +58,7 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Objects;
 
+import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getDescriptionFromJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDateTimeFromJson;
@@ -722,14 +722,6 @@ public class FileScannerService {
 			return FileTypeEnum.ARCHIVE;
 		}
 		return FileTypeEnum.OTHER;
-	}
-
-	private String computeSha256(File file) {
-		try {
-			return DigestUtils.sha256Hex(Files.readAllBytes(file.toPath()));
-		} catch (IOException e) {
-			return null;
-		}
 	}
 
 	@Transactional

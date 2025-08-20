@@ -72,6 +72,10 @@ dependencies {
 	implementation group: 'io.jsonwebtoken', name: 'jjwt-api', version: "${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.json/json
 	implementation group: 'org.json', name: 'json', version: '20250107'
+	// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-openfeign
+	implementation group: 'org.springframework.cloud', name: 'spring-cloud-starter-openfeign', version: '4.3.0'
+	// https://mvnrepository.com/artifact/net.coobird/thumbnailator
+	implementation group: 'net.coobird', name: 'thumbnailator', version: '0.4.20'
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.7'
 	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-impl
@@ -96,6 +100,8 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+		// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-dependencies
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:2025.0.0"
 	}
 }
 

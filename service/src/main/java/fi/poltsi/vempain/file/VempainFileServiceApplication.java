@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @OpenAPIDefinition(info = @Info(version = "${vempain.version}",
@@ -19,6 +20,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 		"fi.poltsi.vempain.file",
 		"fi.poltsi.vempain.auth",
 })
+@EnableFeignClients(basePackages = "fi.poltsi.vempain.file.feign")
 public class VempainFileServiceApplication {
 
 	public static void main(String[] args) {

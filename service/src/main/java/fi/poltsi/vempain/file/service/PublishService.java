@@ -4,12 +4,14 @@ import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,9 +24,10 @@ import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class FilePublishService {
+public class PublishService {
 	private final VempainAdminService vempainAdminService;
 	private final ImageTool           imageTool;
+	private final FileGroupRepository fileGroupRepository;
 
 	@PersistenceContext
 	private EntityManager entityManager;
@@ -32,6 +35,7 @@ public class FilePublishService {
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
 
+	@Async
 	public void publishFileGroup(PublishFileGroupRequest request) {
 		// Load group and files
 		FileGroupEntity group = entityManager.find(FileGroupEntity.class, request.getFileGroupId());
@@ -98,6 +102,19 @@ public class FilePublishService {
 	}
 
 	// Helpers
+
+	public int countFilesInGroup(long fileGroupId) {
+		var optionalFileGroup = fileGroupRepository.findById(fileGroupId);
+
+		if (optionalFileGroup.isEmpty()) {
+			log.warn("File group with id {} not found", fileGroupId);
+			return 0;
+		}
+
+		return optionalFileGroup.get()
+								.getFiles()
+								.size();
+	}
 
 	private Path resolveSourcePath(FileGroupEntity group, FileEntity fe) {
 		// group.getPath() + fe.getFilePath() + fe.getFilename()

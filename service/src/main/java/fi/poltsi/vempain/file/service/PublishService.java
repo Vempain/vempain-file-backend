@@ -1,18 +1,18 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.admin.api.FileClassEnum;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.entity.FileEntity;
-import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,48 +25,56 @@ import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 @RequiredArgsConstructor
 @Service
 public class PublishService {
-	private final VempainAdminService vempainAdminService;
-	private final ImageTool           imageTool;
-	private final FileGroupRepository fileGroupRepository;
-
-	@PersistenceContext
-	private EntityManager entityManager;
+	private final VempainAdminService  vempainAdminService;
+	private final ImageTool            imageTool;
+	private final FileGroupRepository  fileGroupRepository;
+	private final ExportFileRepository exportFileRepository;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
 
+	@Value("${vempain.export-root-directory}")
+	private String exportRootDirectory;
+
 	@Async
+	@Transactional
 	public void publishFileGroup(PublishFileGroupRequest request) {
 		// Load group and files
-		FileGroupEntity group = entityManager.find(FileGroupEntity.class, request.getFileGroupId());
-		if (group == null) {
+		var optionalGroup = fileGroupRepository.findById(request.getFileGroupId());
+		if (optionalGroup.isEmpty()) {
 			log.warn("File group {} not found", request.getFileGroupId());
 			return;
 		}
-		if (group.getFiles() == null || group.getFiles()
-											 .isEmpty()) {
+
+		var fileGroup = optionalGroup.get();
+
+		if (fileGroup.getFiles() == null
+			|| fileGroup.getFiles()
+						.isEmpty()) {
 			log.info("File group {} has no files to publish", request.getFileGroupId());
 			return;
 		}
 
-		for (FileEntity fileEntity : group.getFiles()) {
-			Path sourcePath = resolveSourcePath(group, fileEntity);
-			if (!Files.exists(sourcePath)) {
-				log.warn("Source file does not exist, skipping: {}", sourcePath);
+		for (FileEntity fileEntity : fileGroup.getFiles()) {
+			var exportFilePath = resolveExportedPath(fileEntity.getId());
+
+			if (exportFilePath == null
+				|| !Files.exists(exportFilePath)) {
+				log.warn("Export file does not exist, skipping: {}", exportFilePath);
 				continue;
 			}
 
 			boolean isImage          = isImageFileType(fileEntity);
-			Path    uploadPath       = sourcePath;
+			Path uploadPath = exportFilePath;
 			Path    tempPathToDelete = null;
 
 			try {
 				if (isImage) {
 					// Create temp file with same extension in system temp dir
-					String ext      = getExtension(fileEntity.getFilename());
+					String ext = getExtension(exportFilePath.toString());
 					Path   tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", ext.isBlank() ? ".tmp" : "." + ext);
 					// Resize: smaller dimension to siteImageSize, keep quality 0.9
-					imageTool.resizeImage(sourcePath, tempFile, siteImageSize, 0.7f);
+					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f);
 					uploadPath       = tempFile;
 					tempPathToDelete = tempFile;
 				}
@@ -103,33 +111,35 @@ public class PublishService {
 
 	// Helpers
 
-	public int countFilesInGroup(long fileGroupId) {
-		var optionalFileGroup = fileGroupRepository.findById(fileGroupId);
-
-		if (optionalFileGroup.isEmpty()) {
-			log.warn("File group with id {} not found", fileGroupId);
-			return 0;
-		}
-
-		return optionalFileGroup.get()
-								.getFiles()
-								.size();
+	public long countFilesInGroup(long fileGroupId) {
+		return fileGroupRepository.countById(fileGroupId);
 	}
 
-	private Path resolveSourcePath(FileGroupEntity group, FileEntity fe) {
-		// group.getPath() + fe.getFilePath() + fe.getFilename()
-		String rel = fe.getFilePath() == null ? "" : fe.getFilePath();
-		if (rel.startsWith("/")) {
-			rel = rel.substring(1);
+	private Path resolveExportedPath(long fileId) {
+		// Look up the exported file from export repository
+		var optionalExportFileEntity = exportFileRepository.findByFileId(fileId);
+
+		if (optionalExportFileEntity.isEmpty()) {
+			log.warn("No exported file found for file entity with ID {}", fileId);
+			return null;
 		}
-		return Path.of(group.getPath())
-				   .resolve(rel)
-				   .resolve(fe.getFilename());
+
+		var exportFileEntity = optionalExportFileEntity.get();
+
+		String relativePath = exportFileEntity.getFilePath() == null ? "" : exportFileEntity.getFilePath();
+
+		if (relativePath.startsWith("/")) {
+			relativePath = relativePath.substring(1);
+		}
+
+		return Path.of(exportRootDirectory)
+				   .resolve(relativePath)
+				   .resolve(exportFileEntity.getFilename());
 	}
 
 	private boolean isImageFileType(FileEntity fe) {
 		String t = fe.getFileType();
-		return t != null && t.equalsIgnoreCase("IMAGE");
+		return t != null && t.equalsIgnoreCase(FileClassEnum.IMAGE.toString());
 	}
 
 	private String getExtension(String filename) {

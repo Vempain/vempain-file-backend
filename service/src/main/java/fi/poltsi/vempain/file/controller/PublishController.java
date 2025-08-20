@@ -20,9 +20,9 @@ public class PublishController implements PublishAPI {
 
 	@Override
 	public ResponseEntity<PublishFileGroupResponse> PublishFileGroup(PublishFileGroupRequest request) {
-		int count = publishService.countFilesInGroup(request.getFileGroupId());
+		var count = publishService.countFilesInGroup(request.getFileGroupId());
 
-		if (count == 0) {
+		if (count == 0L) {
 			return ResponseEntity.notFound()
 								 .build();
 		}

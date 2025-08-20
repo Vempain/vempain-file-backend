@@ -136,9 +136,10 @@ public class FileScannerService {
 				continue;
 			}
 
+			var relativeDirectory = computeRelativeFilePath(originalRootDirectory, leafDir.toFile());
 			var fileGroup = fileGroupRepository.save(
 					FileGroupEntity.builder()
-								   .path(leafDir.toString())
+								   .path(relativeDirectory)
 								   .groupName(leafDir.getFileName()
 													 .toString())
 								   .build()

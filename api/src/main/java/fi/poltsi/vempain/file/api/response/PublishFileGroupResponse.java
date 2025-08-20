@@ -14,5 +14,5 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Response for publishing a file group; contains the number of files that will be published asynchronously")
 public class PublishFileGroupResponse {
 	@Schema(description = "Number of files scheduled for publishing", example = "5")
-	private int filesToPublishCount;
+	private long filesToPublishCount;
 }

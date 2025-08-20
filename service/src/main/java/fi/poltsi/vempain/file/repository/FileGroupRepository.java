@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface FileGroupRepository extends JpaRepository<FileGroupEntity, Long> {
-
+	long countById(Long fileGroupId);
 }

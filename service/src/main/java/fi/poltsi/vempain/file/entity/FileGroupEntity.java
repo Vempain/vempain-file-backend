@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.api.response.FileGroupResponse;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,4 +36,14 @@ public class FileGroupEntity {
 
 	@OneToMany(mappedBy = "fileGroup", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<FileEntity> files;
+
+	public FileGroupResponse toResponse() {
+		return FileGroupResponse.builder()
+								.id(id)
+								.path(path)
+								.files(files != null ? files.stream()
+															.map(FileEntity::toResponse)
+															.toList() : List.of())
+								.build();
+	}
 }

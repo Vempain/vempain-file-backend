@@ -7,6 +7,7 @@ import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
+import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,25 +76,30 @@ public class PublishService {
 					Path   tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", ext.isBlank() ? ".tmp" : "." + ext);
 					// Resize: smaller dimension to siteImageSize, keep quality 0.9
 					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f);
-					uploadPath       = tempFile;
 					tempPathToDelete = tempFile;
+					exportFilePath = tempFile;
 				}
 
 				// Build ingest request
-				FileIngestRequest ingest = new FileIngestRequest();
-				ingest.setFileName(fileEntity.getFilename());
-				ingest.setFilePath(normalizeIngestPath(fileEntity.getFilePath())); // relative and no leading slash
-				ingest.setMimeType(fileEntity.getMimetype());
-				ingest.setComment(""); // optional but not-null in DTO
-				ingest.setMetadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() : "{}");
-				ingest.setSha256sum(computeSha256(uploadPath.toFile()));
-				ingest.setUserId(0L); // service context; adjust if a real user id is available
-				ingest.setGalleryId(null);
-				ingest.setGalleryName(request.getGalleryName());
-				ingest.setGalleryDescription(request.getGalleryDescription());
+				var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
+				var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
+				var ingestRequest = FileIngestRequest.builder()
+													 .fileName(exportFilePath.getFileName()
+																			 .toString())
+													 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
+													 .mimeType(mimetype)
+													 .comment("") // optional but not-null in DTO
+													 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
+															   "{}")
+													 .sha256sum(computeSha256(uploadPath.toFile()))
+													 .userId(0L) // service context; adjust if a real user id is
+													 .galleryId(null)
+													 .galleryName(request.getGalleryName())
+													 .galleryDescription(request.getGalleryDescription())
+													 .build();
 
 				// Upload
-				vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingest);
+				vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingestRequest);
 			} catch (Exception ex) {
 				log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
 			} finally {

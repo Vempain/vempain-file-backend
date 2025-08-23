@@ -101,7 +101,7 @@ public class PublishService {
 				// Upload
 				vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingestRequest);
 			} catch (Exception ex) {
-				log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
+				log.error("Failed to publish file {} from group {}", exportFilePath.getFileName(), request.getFileGroupId(), ex);
 			} finally {
 				// Cleanup temp image if created
 				if (tempPathToDelete != null) {

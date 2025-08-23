@@ -41,6 +41,7 @@ public class FileGroupEntity {
 		return FileGroupResponse.builder()
 								.id(id)
 								.path(path)
+								.groupName(groupName)
 								.files(files != null ? files.stream()
 															.map(FileEntity::toResponse)
 															.toList() : List.of())

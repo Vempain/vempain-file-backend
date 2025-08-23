@@ -16,8 +16,11 @@ public class VempainAdminService {
 	private final VempainAdminFileIngestClient vempainAdminFileIngestClient;
 
 	public void uploadAsSiteFile(File exportedFile, FileIngestRequest fileIngestRequest) {
+		var multiPartFile = VempainMultipartFile.builder()
+												.path(exportedFile.toPath())
+												.contentType(fileIngestRequest.getMimeType())
+												.build();
 
-		var multiPartFile = new VempainMultipartFile(exportedFile.toPath(), fileIngestRequest.getMimeType());
 
 		log.info("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
 		var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequest, multiPartFile);

@@ -55,46 +55,38 @@ dependencies {
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web-services', version: "${springBootVersion}"
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: "${springBootVersion}"
 	developmentOnly group: 'org.springframework.boot', name: 'spring-boot-docker-compose', version: "${springBootVersion}"
-	testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
 	implementation group: 'org.springframework.session', name: 'spring-session-core', version: "3.5.1"
 	implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: "${springBootVersion}"
 	implementation group: 'org.flywaydb', name: 'flyway-core', version: "${flywayVersion}"
+	implementation group: 'io.jsonwebtoken', name: 'jjwt-api', version: "${jjwtVersion}"
+	testImplementation group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: "${springBootVersion}"
 	runtimeOnly group: 'org.flywaydb', name: 'flyway-database-postgresql', version: "${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
-	implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '2.8.9'
+	implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '2.8.10'
 	// https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api
 	implementation group: 'jakarta.xml.bind', name: 'jakarta.xml.bind-api', version: '4.0.2'
 	// https://mvnrepository.com/artifact/jakarta.annotation/jakarta.annotation-api
 	implementation group: 'jakarta.annotation', name: 'jakarta.annotation-api', version: '3.0.0'
 	// https://mvnrepository.com/artifact/commons-codec/commons-codec
-	implementation group: 'commons-codec', name: 'commons-codec', version: '1.18.0'
-	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api
-	implementation group: 'io.jsonwebtoken', name: 'jjwt-api', version: "${jjwtVersion}"
+	implementation group: 'commons-codec', name: 'commons-codec', version: '1.19.0'
 	// https://mvnrepository.com/artifact/org.json/json
-	implementation group: 'org.json', name: 'json', version: '20250107'
+	implementation group: 'org.json', name: 'json', version: '20250517'
 	// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-openfeign
 	implementation group: 'org.springframework.cloud', name: 'spring-cloud-starter-openfeign', version: '4.3.0'
 	// https://mvnrepository.com/artifact/net.coobird/thumbnailator
 	implementation group: 'net.coobird', name: 'thumbnailator', version: '0.4.20'
+	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-impl', version: "${jjwtVersion}"
+	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: "${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly group: 'org.postgresql', name: 'postgresql', version: '42.7.7'
-	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-impl
-	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-impl', version: "${jjwtVersion}"
-	// https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-jackson
-	runtimeOnly group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: "${jjwtVersion}"
-	// developmentOnly group: 'org.springframework.ai', name: 'spring-ai-spring-boot-docker-compose', version: "${springAiVersion}"
-	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
-	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.5.1'
-	// https://mvnrepository.com/artifact/org.junit/junit-bom
 	testImplementation platform("org.junit:junit-bom:$junitVersion")
-	// https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter
 	testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter', version: "$junitVersion"
-	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
-	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.18.0'
-	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
 	testImplementation group: 'org.testcontainers', name: 'junit-jupiter', version: "${testContainersVersion}"
-	// https://mvnrepository.com/artifact/org.testcontainers/postgresql
 	testImplementation group: 'org.testcontainers', name: 'postgresql', version: "${testContainersVersion}"
+	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
+	testImplementation group: 'org.springframework.security', name: 'spring-security-test', version: '6.5.3'
+	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
+	testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.19.0'
 }
 
 dependencyManagement {

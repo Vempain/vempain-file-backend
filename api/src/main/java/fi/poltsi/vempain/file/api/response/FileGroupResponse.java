@@ -23,6 +23,9 @@ public class FileGroupResponse {
 	@Schema(description = "Common path of the file group", example = "/photos/2025/holiday")
 	private String path;
 
+	@Schema(description = "Name of the file group", example = "Firenze Trip 2025")
+	private String groupName;
+
 	@Schema(description = "Files belonging to this group")
 	private List<FileResponse> files;
 }

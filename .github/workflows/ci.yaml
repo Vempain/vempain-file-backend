@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Java temurin 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -100,7 +100,7 @@ jobs:
           baseVersion: ${{ steps.basemain.outputs.baseVersion }}
 
       - name: Set up Java temurin 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'

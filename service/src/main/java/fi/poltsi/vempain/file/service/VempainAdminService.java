@@ -1,5 +1,7 @@
 package fi.poltsi.vempain.file.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
@@ -20,10 +22,19 @@ public class VempainAdminService {
 												.path(exportedFile.toPath())
 												.contentType(fileIngestRequest.getMimeType())
 												.build();
+		// Convert request to JSON string
+		var    mapper = new ObjectMapper();
+		String fileIngestRequestString;
 
+		try {
+			fileIngestRequestString = mapper.writeValueAsString(fileIngestRequest);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
 
 		log.info("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
-		var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequest, multiPartFile);
+		// Pass JSON string instead of object
+		var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequestString, multiPartFile);
 
 		if (responseEntity == null || !responseEntity.getStatusCode()
 													 .is2xxSuccessful()) {

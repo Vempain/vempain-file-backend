@@ -37,6 +37,9 @@ public class PublishService {
 	@Value("${vempain.export-root-directory}")
 	private String exportRootDirectory;
 
+	@Value("${vempain.export-file-type}")
+	private String exportFileType;
+
 	@Async
 	@Transactional
 	public void publishFileGroup(PublishFileGroupRequest request) {
@@ -58,6 +61,7 @@ public class PublishService {
 
 		for (FileEntity fileEntity : fileGroup.getFiles()) {
 			var exportFilePath = resolveExportedPath(fileEntity.getId());
+			var siteFileName = fileEntity.getFilename();
 
 			if (exportFilePath == null
 				|| !Files.exists(exportFilePath)) {
@@ -72,27 +76,32 @@ public class PublishService {
 			try {
 				if (isImage) {
 					// Create temp file with same extension in system temp dir
-					String ext = getExtension(exportFilePath.toString());
-					Path   tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", ext.isBlank() ? ".tmp" : "." + ext);
+					Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
 					// Resize: smaller dimension to siteImageSize, keep quality 0.9
 					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f);
 					tempPathToDelete = tempFile;
 					exportFilePath = tempFile;
+					uploadPath = tempFile;
+
+					// We need to also update the siteFileName to replace the original extension with
+					int suffixIndex = siteFileName.lastIndexOf('.');
+					if (suffixIndex > 0) {
+						siteFileName = siteFileName.substring(0, suffixIndex) + "." + exportFileType;
+					}
 				}
 
 				// Build ingest request
 				var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
 				var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
 				var ingestRequest = FileIngestRequest.builder()
-													 .fileName(exportFilePath.getFileName()
-																			 .toString())
+													 .fileName(siteFileName)
 													 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
 													 .mimeType(mimetype)
 													 .comment("") // optional but not-null in DTO
 													 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
 															   "{}")
 													 .sha256sum(computeSha256(uploadPath.toFile()))
-													 .userId(0L) // service context; adjust if a real user id is
+													 .userId(1L) // service context; adjust if a real user id is
 													 .galleryId(null)
 													 .galleryName(request.getGalleryName())
 													 .galleryDescription(request.getGalleryDescription())
@@ -146,17 +155,6 @@ public class PublishService {
 	private boolean isImageFileType(FileEntity fe) {
 		String t = fe.getFileType();
 		return t != null && t.equalsIgnoreCase(FileClassEnum.IMAGE.toString());
-	}
-
-	private String getExtension(String filename) {
-		if (filename == null) {
-			return "";
-		}
-		int idx = filename.lastIndexOf('.');
-		if (idx < 0 || idx == filename.length() - 1) {
-			return "";
-		}
-		return filename.substring(idx + 1);
 	}
 
 	private String normalizeIngestPath(String filePath) {

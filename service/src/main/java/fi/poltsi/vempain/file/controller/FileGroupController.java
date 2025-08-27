@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.controller;
 
-import fi.poltsi.vempain.file.api.FileGroupAPI;
 import fi.poltsi.vempain.file.api.response.FileGroupResponse;
+import fi.poltsi.vempain.file.rest.FileGroupAPI;
 import fi.poltsi.vempain.file.service.FileGroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

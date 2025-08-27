@@ -48,7 +48,8 @@ management:
     web:
       exposure:
         include: [ "*", "openapi", "swagger-ui" ]
-    enabled-by-default: true
+    access:
+      default: unrestricted
 
 springdoc:
   show-login-endpoint: true
@@ -88,6 +89,7 @@ vempain:
     max-age: 3600
   original-root-directory: override-me
   export-root-directory: override-me
+  export-file-type: jpeg
   service:
     admin-backend-url: override-me
     admin-backend-username: override-me

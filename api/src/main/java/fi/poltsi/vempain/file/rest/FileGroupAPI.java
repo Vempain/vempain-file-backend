@@ -1,4 +1,4 @@
-package fi.poltsi.vempain.file.api;
+package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.file.api.response.FileGroupResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.MediaType;
@@ -32,6 +33,7 @@ public interface FileGroupAPI {
 			@ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
 	})
+	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH, produces = "application/json")
 	ResponseEntity<List<FileGroupResponse>> getFileGroups();
 
@@ -45,6 +47,7 @@ public interface FileGroupAPI {
 			@ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
 	})
+	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH + "/{id}", produces = "application/json")
 	ResponseEntity<FileGroupResponse> getFileGroupById(@PathVariable("id") @Positive Long id);
 }

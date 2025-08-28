@@ -33,9 +33,12 @@ class SetupVerification implements ApplicationContextAware {
 
 	private final String[][] requiredKeys = {
 			{"vempain.app.frontend-url", TYPE_STRING},
+			{"vempain.app.jwt-secret", TYPE_STRING},
 			{"vempain.original-root-directory", TYPE_PATH},
 			{"vempain.export-root-directory", TYPE_PATH},
-			{"vempain.service.admin-backend-url", TYPE_STRING}
+			{"vempain.service.admin-backend-url", TYPE_STRING},
+			{"vempain.service.admin-backend-username", TYPE_STRING},
+			{"vempain.service.admin-backend-password", TYPE_STRING}
 	};
 
 	private ApplicationContext applicationContext;

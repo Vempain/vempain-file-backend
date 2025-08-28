@@ -14,8 +14,8 @@ services:
       - spring.site-datasource.url=jdbc:postgresql://${ENV_VEMPAIN_SITE_DB_ADDRESS}:5432/${ENV_VEMPAIN_SITE_DB_NAME}?useSSL=false
       - spring.site-datasource.username=${ENV_VEMPAIN_SITE_DB_USER}
       - spring.site-datasource.password=${ENV_VEMPAIN_SITE_DB_PASSWORD}
-      - vempain.app.jwtSecret=your_jwt_secret_here
-      - vempain.app.jwtExpirationMs=86400000
+      - vempain.app.jwt-secret=your_jwt_secret_here
+      - vempain.app.jwt-expiration-ms=86400000
       - vempain.test=false
       - vempain.admin.file.converted-directory=/vempain_admin/converted
       - vempain.admin.ssh.user=${ENV_VEMPAIN_SITE_SSH_USER}
@@ -56,8 +56,8 @@ services:
       - spring.datasource.url=jdbc:postgresql://pg-file:5432/${ENV_VEMPAIN_FILE_DB_NAME}?useSSL=false
       - spring.datasource.username=${ENV_VEMPAIN_FILE_DB_NAME}
       - spring.datasource.password=${ENV_VEMPAIN_FILE_DB_PASSWORD}
-      - vempain.app.jwtSecret=your_jwt_secret_here
-      - vempain.app.jwtExpirationMs=86400000
+      - vempain.app.jwt-secret=your_jwt_secret_here
+      - vempain.app.jwt-expiration-ms=86400000
       - vempain.test=false
       - vempain.admin.file.converted-directory=/vempain_admin/converted
       - vempain.admin.ssh.user=${ENV_VEMPAIN_SITE_SSH_USER}

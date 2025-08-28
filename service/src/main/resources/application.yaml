@@ -80,8 +80,8 @@ vempain:
   license-url: "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
   app:
     frontend-url: override-me
-    jwtSecret: override-me
-    jwtExpirationMs: 86400000
+    jwt-secret: override-me
+    jwt-expiration-ms: 86400000
   test: true
   cors:
     allowed-origins: ${vempain.app.frontend-url}

@@ -107,6 +107,13 @@ public class MetadataTool {
 		return null;
 	}
 
+	/**
+	 * Extract the image color depth from the given metadata in JSON format
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
+	 * @return int value retrieved, or 8 if none were found or parsing failed. 8 is a good default for most images.
+	 * @throws IOException If an error occurs during extraction
+	 */
 	public static int extractImageColorDepth(JSONObject jsonObject) throws IOException {
 		Map<String, List<String>> locations = new HashMap<>();
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));

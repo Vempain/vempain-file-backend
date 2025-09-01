@@ -752,18 +752,21 @@ public class FileScannerService {
 		metadataRepository.saveAll(metadataEntities);
 	}
 
-	private Instant dateTimeParser(String dateTimeString) {
+	protected Instant dateTimeParser(String dateTimeString) {
 		if (dateTimeString == null || dateTimeString.isBlank()) {
 			return null;
 		}
 
 		var formatter = new DateTimeFormatterBuilder()
-				// Try: yyyy:MM:dd HH:mm:ss.SSS[S...] (allows up to 9 digits)
+				// Date
 				.appendPattern("yyyy:MM:dd HH:mm:ss")
-				.appendPattern("[yyyy:MM:dd HH:mm:ss[.SSS][.SS][.S]][XXX]")
+				// Optional fractional seconds (from 1 to 9 digits)
 				.optionalStart()
-				.appendLiteral('.')
-				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, false)
+				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+				.optionalEnd()
+				// Optional offset like +02:00
+				.optionalStart()
+				.appendOffset("+HH:mm", "Z")
 				.optionalEnd()
 				.toFormatter()
 				.withZone(ZoneId.systemDefault());

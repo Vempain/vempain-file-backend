@@ -107,24 +107,43 @@ public class MetadataTool {
 		return null;
 	}
 
+	/**
+	 * Extract the image color depth from the given metadata in JSON format
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
+	 * @return int value retrieved, or 8 if none were found or parsing failed. 8 is a good default for most images.
+	 * @throws IOException If an error occurs during extraction
+	 */
 	public static int extractImageColorDepth(JSONObject jsonObject) throws IOException {
 		Map<String, List<String>> locations = new HashMap<>();
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
-		var tagValue = extractJsonString(jsonObject, locations);
 
-		if (tagValue == null) {
-			log.warn("No BitsPerSample found in metadata, returning default 8");
-			return 8;
-		}
-		// The result might be a space separated list of values, we take the first one
-		log.info("Image color depth output: {}", tagValue);
-		// If the output is like "8 8 8", we take the first value
-		if (tagValue.contains(" ")) {
-			tagValue = tagValue.split(" ")[0];
+		var colorDepthNumber = extractJsonNumber(jsonObject, locations);
+
+		if (colorDepthNumber != null) {
+			return colorDepthNumber.intValue();
 		}
 
-		return Integer.parseInt(tagValue);
+		// Let's try to extract it as a string, as sometimes it might be stored as a triplet
+		var colorDepthString = extractJsonString(jsonObject, locations);
+
+		if (colorDepthString != null) {
+			// The result might be a space separated list of values, we take the first one
+			log.info("Image color depth output: {}", colorDepthString);
+			// If the output is like "8 8 8", we take the first value
+			if (colorDepthString.contains(" ")) {
+				colorDepthString = colorDepthString.split(" ")[0];
+			}
+
+			try {
+				return Integer.parseInt(colorDepthString);
+			} catch (Exception e) {
+				log.error("Failed to parse color depth from string: {}", colorDepthString, e);
+			}
+		}
+
+		return 8;
 	}
 
 	public static int extractImageDpi(JSONObject jsonObject) throws IOException {
@@ -140,21 +159,9 @@ public class MetadataTool {
 		return tagValue.intValue();
 	}
 
-	public static Dimension extractVideoResolution(File file) throws IOException {
-		var output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		var width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
-		var height = Integer.parseInt(getTagValue(output, "ImageHeight"));
-		return new Dimension(width, height);
-	}
-
 	public static double extractFrameRate(File file) throws IOException {
 		var output = runExifTool(file, "-VideoFrameRate");
 		return Double.parseDouble(getTagValue(output, "VideoFrameRate"));
-	}
-
-	public static double extractVideoDuration(File file) throws IOException {
-		var output = runExifTool(file, "-Duration");
-		return Double.parseDouble(getTagValue(output, "Duration"));
 	}
 
 	public static String extractVideoCodec(File file) throws IOException {
@@ -162,7 +169,7 @@ public class MetadataTool {
 		return getTagValue(output, "VideoCodec");
 	}
 
-	public static double extractAudioDuration(File file) throws IOException {
+	public static double extractAudioVideoDuration(File file) throws IOException {
 		var output = runExifTool(file, "-Duration");
 		return Double.parseDouble(getTagValue(output, "Duration"));
 	}
@@ -197,19 +204,12 @@ public class MetadataTool {
 		return getTagValue(output, "FileType");
 	}
 
-	public static Dimension extractVectorResolution(File file) throws IOException {
-		var output = runExifTool(file, "-ImageWidth", "-ImageHeight");
-		var width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
-		var height = Integer.parseInt(getTagValue(output, "ImageHeight"));
-		return new Dimension(width, height);
-	}
-
 	public static int extractVectorLayersCount(File file) throws IOException {
 		var output = runExifTool(file, "-Layers");
 		return Integer.parseInt(getTagValue(output, "Layers"));
 	}
 
-	public static Dimension extractIconResolution(File file) throws IOException {
+	public static Dimension extractXYResolution(File file) throws IOException {
 		var output = runExifTool(file, "-ImageWidth", "-ImageHeight");
 		var width  = Integer.parseInt(getTagValue(output, "ImageWidth"));
 		var height = Integer.parseInt(getTagValue(output, "ImageHeight"));

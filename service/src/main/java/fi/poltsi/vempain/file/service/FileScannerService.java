@@ -388,17 +388,17 @@ public class FileScannerService {
 			}
 			case VIDEO -> {
 				var videoFile = (VideoFileEntity) fileEntity;
-				var res       = MetadataTool.extractVideoResolution(file);
+				var res = MetadataTool.extractXYResolution(file);
 				videoFile.setWidth(res.width);
 				videoFile.setHeight(res.height);
 				videoFile.setFrameRate(MetadataTool.extractFrameRate(file));
-				videoFile.setDuration(MetadataTool.extractVideoDuration(file));
+				videoFile.setDuration(MetadataTool.extractAudioVideoDuration(file));
 				videoFile.setCodec(MetadataTool.extractVideoCodec(file));
 				fileRepository.save(videoFile);
 			}
 			case AUDIO -> {
 				var audioFile = (AudioFileEntity) fileEntity;
-				audioFile.setDuration(MetadataTool.extractAudioDuration(file));
+				audioFile.setDuration(MetadataTool.extractAudioVideoDuration(file));
 				audioFile.setBitRate(MetadataTool.extractAudioBitRate(file));
 				audioFile.setSampleRate(MetadataTool.extractAudioSampleRate(file));
 				audioFile.setCodec(MetadataTool.extractAudioCodec(file));
@@ -413,7 +413,7 @@ public class FileScannerService {
 			}
 			case VECTOR -> {
 				var vectorFile = (VectorFileEntity) fileEntity;
-				var res        = MetadataTool.extractVectorResolution(file);
+				var res = MetadataTool.extractXYResolution(file);
 				vectorFile.setWidth(res.width);
 				vectorFile.setHeight(res.height);
 				vectorFile.setLayersCount(MetadataTool.extractVectorLayersCount(file));
@@ -421,7 +421,7 @@ public class FileScannerService {
 			}
 			case ICON -> {
 				var iconFile = (IconFileEntity) fileEntity;
-				var res      = MetadataTool.extractIconResolution(file);
+				var res = MetadataTool.extractXYResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
 				iconFile.setIsScalable(MetadataTool.extractIconIsScalable(file));

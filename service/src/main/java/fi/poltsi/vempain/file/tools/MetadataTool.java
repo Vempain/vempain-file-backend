@@ -112,6 +112,11 @@ public class MetadataTool {
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		var tagValue = extractJsonString(jsonObject, locations);
+
+		if (tagValue == null) {
+			log.warn("No BitsPerSample found in metadata, returning default 8");
+			return 8;
+		}
 		// The result might be a space separated list of values, we take the first one
 		log.info("Image color depth output: {}", tagValue);
 		// If the output is like "8 8 8", we take the first value

@@ -54,6 +54,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Objects;
@@ -751,22 +752,33 @@ public class FileScannerService {
 		metadataRepository.saveAll(metadataEntities);
 	}
 
-	private Instant dateTimeParser(String dateTimeString) {
+	protected Instant dateTimeParser(String dateTimeString) {
 		if (dateTimeString == null || dateTimeString.isBlank()) {
 			return null;
 		}
 
 		var formatter = new DateTimeFormatterBuilder()
-				// Try: yyyy:MM:dd HH:mm:ss.SSS[S...] (allows up to 9 digits)
+				// Date
 				.appendPattern("yyyy:MM:dd HH:mm:ss")
+				// Optional fractional seconds (from 1 to 9 digits)
 				.optionalStart()
-				.appendLiteral('.')
-				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, false)
+				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+				.optionalEnd()
+				// Optional offset like +02:00
+				.optionalStart()
+				.appendOffset("+HH:mm", "Z")
 				.optionalEnd()
 				.toFormatter()
 				.withZone(ZoneId.systemDefault());
 
-		return Instant.from(formatter.parse(dateTimeString, Instant::from));
+		try {
+			var timeStamp = formatter.parse(dateTimeString, Instant::from);
+			log.info("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
+			return timeStamp;
+		} catch (DateTimeParseException e) {
+			log.error("Failed to parse date time string: {}", dateTimeString, e);
+			return null;
+		}
 	}
 
 	private void processImageFile(File file, FileEntity fileEntity) {

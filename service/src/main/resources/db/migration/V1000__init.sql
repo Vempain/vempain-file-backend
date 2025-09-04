@@ -29,7 +29,8 @@ CREATE TABLE files
 	locked                   BOOLEAN      NOT NULL DEFAULT false,
 	FOREIGN KEY (creator) REFERENCES user_account (id),
 	FOREIGN KEY (modifier) REFERENCES user_account (id),
-	CONSTRAINT fk_files_file_group_id FOREIGN KEY (file_group_id) REFERENCES file_group (id) ON DELETE CASCADE
+	CONSTRAINT fk_files_file_group_id FOREIGN KEY (file_group_id) REFERENCES file_group (id) ON DELETE CASCADE,
+	CONSTRAINT uq_files_file_path_filename UNIQUE (file_path, filename)
 );
 
 CREATE TABLE metadata

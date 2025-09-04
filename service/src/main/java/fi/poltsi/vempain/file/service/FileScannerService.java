@@ -57,6 +57,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
@@ -129,54 +130,10 @@ public class FileScannerService {
 		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
 
 		for (var leafDir : leafDirectories) {
-			var files = leafDir.toFile()
-							   .listFiles();
-
-			if (files == null || files.length == 0) {
-				log.warn("Directory is empty: {}", leafDir);
-				continue;
-			}
-
-			var relativeDirectory = computeRelativeFilePath(originalRootDirectory, leafDir.toFile());
-			var fileGroup = fileGroupRepository.save(
-					FileGroupEntity.builder()
-								   .path(relativeDirectory)
-								   .groupName(leafDir.getFileName()
-													 .toString())
-								   .build()
-			);
-
-			for (var file : files) {
-				scannedFilesCount++;
-
-				try {
-					var processed = processFile(file, fileGroup);
-
-					if (processed != null && processed) {
-						newFilesCount++;
-						// Retrieve the saved FileEntity and convert it to FileResponse.
-						var fileEntity = fileRepository.findByFilename(file.getName());
-
-						if (fileEntity != null) {
-							// First we reset the metadataRaw field to null so that it slims down the response size.
-							var fileResponse = fileEntity.toResponse();
-							fileResponse.setMetadataRaw(null);
-							successfulFileResponses.add(fileResponse);
-						}
-					} else if (processed != null && !processed) {
-						failedFiles.add(file.getName());
-						success = false;
-					}
-				} catch (IOException e) {
-					log.error("Error processing file: {}", file.getAbsolutePath(), e);
-					errorMessage.append("Error processing file: ")
-								.append(file.getAbsolutePath())
-								.append(" - ")
-								.append(e.getMessage())
-								.append("\n");
-					success = false;
-				}
-			}
+			var results = processDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses);
+			scannedFilesCount += results.get(0);
+			newFilesCount += results.get(1);
+			success = success && scannedFilesCount == newFilesCount;
 		}
 
 		return ScanOriginalResponse.builder()
@@ -187,6 +144,62 @@ public class FileScannerService {
 								   .successfulFiles(successfulFileResponses)
 								   .errorMessage(errorMessage.toString())
 								   .build();
+	}
+
+	private List<Long> processDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> failedFiles,
+										ArrayList<FileResponse> successfulFileResponses) {
+		var resultList = new ArrayList<Long>(2);
+		resultList.add(0L); // scannedFilesCount
+		resultList.add(0L); // newFilesCount
+		var files = leafDir.toFile()
+						   .listFiles();
+
+		if (files == null || files.length == 0) {
+			log.warn("Directory is empty: {}", leafDir);
+			return resultList;
+		}
+
+		var relativeDirectory = computeRelativeFilePath(originalRootDirectory, leafDir.toFile());
+		var fileGroup = fileGroupRepository.save(
+				FileGroupEntity.builder()
+							   .path(relativeDirectory)
+							   .groupName(leafDir.getFileName()
+												 .toString())
+							   .build()
+		);
+
+		for (var file : files) {
+			resultList.set(0, resultList.getFirst() + 1); // Increment scannedFilesCount
+
+			try {
+				var processed = processFile(file, fileGroup);
+
+				if (processed != null && processed) {
+					resultList.set(1, resultList.get(1) + 1); // Increment newFilesCount
+					// Retrieve the saved FileEntity and convert it to FileResponse.
+					var optionalFileEntity = fileRepository.findByFilePathAndFilename(relativeDirectory, file.getName());
+
+					if (optionalFileEntity.isPresent()) {
+						// First we reset the metadataRaw field to null so that it slims down the response size.
+						var fileResponse = optionalFileEntity.get()
+															 .toResponse();
+						fileResponse.setMetadataRaw(null);
+						successfulFileResponses.add(fileResponse);
+					}
+				} else if (processed != null) {
+					failedFiles.add(file.getName());
+				}
+			} catch (IOException e) {
+				log.error("Error processing file: {}", file.getAbsolutePath(), e);
+				errorMessage.append("Error processing file: ")
+							.append(file.getAbsolutePath())
+							.append(" - ")
+							.append(e.getMessage())
+							.append("\n");
+			}
+		}
+
+		return resultList;
 	}
 
 	@Transactional
@@ -301,11 +314,14 @@ public class FileScannerService {
 	protected Boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
 		log.info("Processing file: {}", file.getAbsolutePath());
 
-		var sha256sum = computeSha256(file);
-		// Check first if it already exists in the database
-		var existingFile = fileRepository.findByFilename(file.getName());
+		var sha256sum         = computeSha256(file);
+		var relativeDirectory = computeRelativeFilePath(originalRootDirectory, file.getParentFile());
 
-		if (existingFile != null) {
+		// Check first if it already exists in the database
+		var optionalExistingFile = fileRepository.findByFilePathAndFilename(relativeDirectory, file.getName());
+
+		if (optionalExistingFile.isPresent()) {
+			var existingFile = optionalExistingFile.get();
 			// Next check if the sha256sum matches
 			if (sha256sum != null
 				&& sha256sum.isBlank()

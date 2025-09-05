@@ -9,10 +9,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @ExtendWith(MockitoExtension.class)
-class FileScannerServiceUTC {
+class DirectoryProcessorServiceUTC {
 
 	@InjectMocks
-	private FileScannerService fileScannerService;
+	private DirectoryProcessorService directoryProcessorService;
 
 	@ParameterizedTest
 	@CsvSource({
@@ -21,7 +21,7 @@ class FileScannerServiceUTC {
 			"2014:06:24 09:34:01.761+03:00",
 	})
 	void dateTimeParser(String dateTimeString) {
-		var dateTime = fileScannerService.dateTimeParser(dateTimeString);
+		var dateTime = directoryProcessorService.dateTimeParser(dateTimeString);
 		assertNotNull(dateTime);
 	}
 }

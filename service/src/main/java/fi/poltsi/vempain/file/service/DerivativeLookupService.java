@@ -21,11 +21,10 @@ import java.util.Objects;
 @Slf4j
 @Service
 public class DerivativeLookupService {
-	@Value("${vempain.export-root-directory}")
-	private String exportDirectory;
-
 	private final ExportFileRepository exportFileRepository;
 	private final FileRepository       fileRepository;
+	@Value("${vempain.export-root-directory}")
+	private String exportDirectory;
 
 	public File findOriginal(String subPath, String filename, String documentId) {
 		var baseName = stripExtension(filename);

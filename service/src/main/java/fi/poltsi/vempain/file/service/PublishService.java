@@ -81,7 +81,7 @@ public class PublishService {
 					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f);
 					tempPathToDelete = tempFile;
 					exportFilePath = tempFile;
-					uploadPath = tempFile;
+					uploadPath     = tempFile;
 
 					// We need to also update the siteFileName to replace the original extension with
 					int suffixIndex = siteFileName.lastIndexOf('.');

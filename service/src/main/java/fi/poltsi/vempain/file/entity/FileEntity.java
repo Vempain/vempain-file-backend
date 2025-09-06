@@ -71,6 +71,21 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@Column(name = "metadata_raw", nullable = false)
 	private String metadataRaw;
 
+	@Column(name = "rights_holder")
+	private String rightsHolder;
+	@Column(name = "rights_terms")
+	private String rightsTerms;
+	@Column(name = "rights_url")
+	private String rightsUrl;
+	@Column(name = "creator_name")
+	private String creatorName;
+	@Column(name = "creator_email")
+	private String creatorEmail;
+	@Column(name = "creator_country")
+	private String creatorCountry;
+	@Column(name = "creator_url")
+	private String creatorUrl;
+
 	@EqualsAndHashCode.Exclude
 	@ManyToMany
 	@JoinTable(
@@ -99,6 +114,13 @@ public abstract class FileEntity extends AbstractVempainEntity {
 						   .description(this.description)
 						   .fileType(this.fileType)
 						   .metadataRaw(this.metadataRaw)
+						   .rightsHolder(this.rightsHolder)
+						   .rightsTerms(this.rightsTerms)
+						   .rightsUrl(this.rightsUrl)
+						   .creatorName(this.creatorName)
+						   .creatorEmail(this.creatorEmail)
+						   .creatorCountry(this.creatorCountry)
+						   .creatorUrl(this.creatorUrl)
 						   .tags(tagNames)
 						   .build();
 	}

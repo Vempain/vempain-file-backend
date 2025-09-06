@@ -26,4 +26,7 @@ public class ImageFileResponse extends FileResponse {
 
 	@Schema(description = "Dots per inch (DPI)", example = "300")
 	private int dpi;
+
+	@Schema(description = "Group label for the image, as defined in Adobe Lightroom", example = "green")
+	private String groupLabel;
 }

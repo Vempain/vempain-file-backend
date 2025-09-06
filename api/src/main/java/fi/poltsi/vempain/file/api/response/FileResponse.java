@@ -79,6 +79,12 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Creator URL", example = "http://creator.example.com")
 	private String creatorUrl;
 
+	@Schema(description = "If there is a related GPS coordinate, then this is the extracted GPS timestamp which is in UTC", example = "2025-09-01T12:34:56Z")
+	private Instant gpsTimestamp;
+
+	@Schema(description = "ID of the related GPS location entity, if any", example = "123")
+	private Long gpsLocationId;
+
 	@Schema(description = "List of file tags")
 	private List<String> tags;
 }

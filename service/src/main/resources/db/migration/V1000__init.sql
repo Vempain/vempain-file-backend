@@ -29,6 +29,8 @@ CREATE TABLE files
 	creator_email   VARCHAR(255),
 	creator_country VARCHAR(128),
 	creator_url     VARCHAR(255),
+	gps_timestamp   TIMESTAMP,
+	gps_location_id BIGINT,
 	creator                  BIGINT       NOT NULL,
 	created                  TIMESTAMP    NOT NULL,
 	modifier                 BIGINT,
@@ -160,6 +162,23 @@ CREATE TABLE export_files
 	original_document_id VARCHAR(128),
 	created              TIMESTAMP    NOT NULL,
 	FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE gps_locations
+(
+	id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	latitude        DOUBLE PRECISION NOT NULL,
+	latitude_ref    CHAR(1)          NOT NULL,
+	longitude       DOUBLE PRECISION NOT NULL,
+	longitude_ref   CHAR(1)          NOT NULL,
+	altitude        DOUBLE PRECISION,
+	direction       DOUBLE PRECISION,
+	satellite_count INT,
+	country         VARCHAR(128),
+	state           VARCHAR(128),
+	city            VARCHAR(128),
+	street          VARCHAR(255),
+	sub_location    VARCHAR(255)
 );
 
 -- Data

@@ -72,19 +72,23 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	private String metadataRaw;
 
 	@Column(name = "rights_holder")
-	private String rightsHolder;
+	private String  rightsHolder;
 	@Column(name = "rights_terms")
-	private String rightsTerms;
+	private String  rightsTerms;
 	@Column(name = "rights_url")
-	private String rightsUrl;
+	private String  rightsUrl;
 	@Column(name = "creator_name")
-	private String creatorName;
+	private String  creatorName;
 	@Column(name = "creator_email")
-	private String creatorEmail;
+	private String  creatorEmail;
 	@Column(name = "creator_country")
-	private String creatorCountry;
+	private String  creatorCountry;
 	@Column(name = "creator_url")
-	private String creatorUrl;
+	private String  creatorUrl;
+	@Column(name = "gps_timestamp")
+	private Instant gpsTimestamp;
+	@Column(name = "gps_location_id")
+	private Long    gpsLocationId;
 
 	@EqualsAndHashCode.Exclude
 	@ManyToMany
@@ -121,6 +125,8 @@ public abstract class FileEntity extends AbstractVempainEntity {
 						   .creatorEmail(this.creatorEmail)
 						   .creatorCountry(this.creatorCountry)
 						   .creatorUrl(this.creatorUrl)
+						   .gpsTimestamp(this.gpsTimestamp)
+						   .gpsLocationId(this.gpsLocationId)
 						   .tags(tagNames)
 						   .build();
 	}

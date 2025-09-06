@@ -26,6 +26,7 @@ import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileRepository;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
+import fi.poltsi.vempain.file.repository.GpsLocationRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,15 +42,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
+import static fi.poltsi.vempain.file.tools.MetadataTool.dateTimeParser;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveCompressionMethod;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveContentCount;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveIsEncrypted;
@@ -59,35 +57,37 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioChannels;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioCodec;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioSampleRate;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioVideoDuration;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorCountry;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorEmail;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorName;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorUrl;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractDescription;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentFormat;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentPageCount;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontFamily;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontStyle;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontWeight;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractFrameRate;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractGpsData;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractGpsTime;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractIconIsScalable;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageColorDepth;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageDpi;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageResolution;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractLabel;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDateTime;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDocumentId;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalSecondFraction;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsHolder;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsTerms;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsUrl;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractSubjects;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractVectorLayersCount;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractVideoCodec;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractXYResolution;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorCountry;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorEmail;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorName;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorUrl;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getDescriptionFromJson;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getLabel;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDateTimeFromJson;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDocumentId;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalSecondFraction;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsHolder;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsTerms;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsUrl;
-import static fi.poltsi.vempain.file.tools.MetadataTool.getSubjects;
 import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
@@ -102,8 +102,9 @@ public class DirectoryProcessorService {
 	private final FileTagRepository    fileTagRepository;
 	private final ExportFileRepository exportFileRepository;
 
-	private final AclService           aclService;
-	private final ExportedFilesService exportedFilesService;
+	private final AclService            aclService;
+	private final ExportedFilesService  exportedFilesService;
+	private final GpsLocationRepository gpsLocationRepository;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -272,7 +273,7 @@ public class DirectoryProcessorService {
 
 				imageFile.setColorDepth(extractImageColorDepth(jsonObject));
 				imageFile.setDpi(extractImageDpi(jsonObject));
-				imageFile.setGroupLabel(getLabel(jsonObject));
+				imageFile.setGroupLabel(extractLabel(jsonObject));
 				fileRepository.save(imageFile);
 			}
 			case VIDEO -> {
@@ -313,7 +314,7 @@ public class DirectoryProcessorService {
 				var res = extractXYResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
-				iconFile.setIsScalable(extractIconIsScalable(file));
+				iconFile.setIsScalable((Boolean) extractIconIsScalable(file));
 				fileRepository.save(iconFile);
 			}
 			case FONT -> {
@@ -328,7 +329,7 @@ public class DirectoryProcessorService {
 				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
 				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
 				archiveFile.setContentCount(extractArchiveContentCount(file));
-				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
+				archiveFile.setIsEncrypted((Boolean) extractArchiveIsEncrypted(file));
 				fileRepository.save(archiveFile);
 			}
 			default -> {
@@ -388,7 +389,7 @@ public class DirectoryProcessorService {
 				throw new RuntimeException(e);
 			}
 
-			var originalDocumentId = getOriginalDocumentId(metadataObject);
+			var originalDocumentId = extractOriginalDocumentId(metadataObject);
 
 			if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
 				|| exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
@@ -499,18 +500,22 @@ public class DirectoryProcessorService {
 
 		var sha256sum = computeSha256(file);
 
-		var description    = getDescriptionFromJson(jsonObject);
-		var originalDateTimeString = getOriginalDateTimeFromJson(jsonObject);
+		var description            = extractDescription(jsonObject);
+		var originalDateTimeString = extractOriginalDateTime(jsonObject);
 		var originalDateTime       = dateTimeParser(originalDateTimeString);
-		var originalSecondFraction = getOriginalSecondFraction(jsonObject);
-		var originalDocumentId     = getOriginalDocumentId(jsonObject);
-		var rightsHolder   = getRightsHolder(jsonObject);
-		var rightsTerms    = getRightsTerms(jsonObject);
-		var rightsUrl      = getRightsUrl(jsonObject);
-		var creatorName    = getCreatorName(jsonObject);
-		var creatorEmail   = getCreatorEmail(jsonObject);
-		var creatorCountry = getCreatorCountry(jsonObject);
-		var creatorUrl     = getCreatorUrl(jsonObject);
+		var originalSecondFraction = extractOriginalSecondFraction(jsonObject);
+		var originalDocumentId     = extractOriginalDocumentId(jsonObject);
+		var rightsHolder           = extractRightsHolder(jsonObject);
+		var rightsTerms            = extractRightsTerms(jsonObject);
+		var rightsUrl              = extractRightsUrl(jsonObject);
+		var creatorName            = extractCreatorName(jsonObject);
+		var creatorEmail           = extractCreatorEmail(jsonObject);
+		var creatorCountry         = extractCreatorCountry(jsonObject);
+		var creatorUrl             = extractCreatorUrl(jsonObject);
+		var gpsData                = extractGpsData(jsonObject);
+		var gpsTimestamp           = extractGpsTime(jsonObject);
+
+		gpsData = gpsLocationRepository.save(gpsData);
 
 		if (originalDocumentId != null) {
 			var existingFile = fileRepository.findByOriginalDocumentId(originalDocumentId);
@@ -549,35 +554,37 @@ public class DirectoryProcessorService {
 
 		// Populate shared FileEntity fields once
 		entity.setAclId(aclId);
-		entity.setFileGroup(fileGroup);
-		entity.setExternalFileId(externalFileId);
-		entity.setFilename(file.getName());
-		entity.setMimetype(mimetype);
-		entity.setFilesize(file.length());
-		entity.setFileType(fileType.name());
-		entity.setSha256sum(sha256sum);
-		entity.setCreator(userId);
 		entity.setCreated(Instant.now());
-		entity.setOriginalDatetime(originalDateTime);
-		entity.setOriginalSecondFraction(originalSecondFraction);
-		entity.setOriginalDocumentId(originalDocumentId);
+		entity.setCreator(userId);
+		entity.setCreatorCountry(creatorCountry);
+		entity.setCreatorEmail(creatorEmail);
+		entity.setCreatorName(creatorName);
+		entity.setCreatorUrl(creatorUrl);
 		entity.setDescription(description);
+		entity.setExternalFileId(externalFileId);
+		entity.setFileGroup(fileGroup);
+		entity.setFilePath(relativeFilePath);
+		entity.setFileType(fileType.name());
+		entity.setFilename(file.getName());
+		entity.setFilesize(file.length());
+		entity.setGpsLocationId(gpsData.getId());
+		entity.setGpsTimestamp(gpsTimestamp);
 		entity.setMetadataRaw(metadata);
+		entity.setMimetype(mimetype);
+		entity.setOriginalDatetime(originalDateTime);
+		entity.setOriginalDocumentId(originalDocumentId);
+		entity.setOriginalSecondFraction(originalSecondFraction);
 		entity.setRightsHolder(rightsHolder);
 		entity.setRightsTerms(rightsTerms);
 		entity.setRightsUrl(rightsUrl);
-		entity.setCreatorName(creatorName);
-		entity.setCreatorEmail(creatorEmail);
-		entity.setCreatorCountry(creatorCountry);
-		entity.setCreatorUrl(creatorUrl);
-		entity.setFilePath(relativeFilePath);
+		entity.setSha256sum(sha256sum);
 
 		return entity;
 	}
 
 	@Transactional
 	protected void saveTags(JSONObject jsonObject, FileEntity fileEntity) {
-		var subjects = getSubjects(jsonObject);
+		var subjects = extractSubjects(jsonObject);
 
 		if (subjects.isEmpty()) {
 			return;
@@ -642,34 +649,5 @@ public class DirectoryProcessorService {
 			}
 		}
 		metadataRepository.saveAll(metadataEntities);
-	}
-
-	protected Instant dateTimeParser(String dateTimeString) {
-		if (dateTimeString == null || dateTimeString.isBlank()) {
-			return null;
-		}
-
-		var formatter = new DateTimeFormatterBuilder()
-				// Date
-				.appendPattern("yyyy:MM:dd HH:mm:ss")
-				// Optional fractional seconds (from 1 to 9 digits)
-				.optionalStart()
-				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
-				.optionalEnd()
-				// Optional offset like +02:00
-				.optionalStart()
-				.appendOffset("+HH:mm", "Z")
-				.optionalEnd()
-				.toFormatter()
-				.withZone(ZoneId.systemDefault());
-
-		try {
-			var timeStamp = formatter.parse(dateTimeString, Instant::from);
-			log.info("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
-			return timeStamp;
-		} catch (DateTimeParseException e) {
-			log.error("Failed to parse date time string: {}", dateTimeString, e);
-			return null;
-		}
 	}
 }

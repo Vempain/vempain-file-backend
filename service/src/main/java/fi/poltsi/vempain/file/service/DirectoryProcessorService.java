@@ -499,9 +499,7 @@ public class DirectoryProcessorService {
 
 		var sha256sum = computeSha256(file);
 
-		// Extract comment from metadata, it may not exist
-		var description = getDescriptionFromJson(jsonObject);
-
+		var description    = getDescriptionFromJson(jsonObject);
 		var originalDateTimeString = getOriginalDateTimeFromJson(jsonObject);
 		var originalDateTime       = dateTimeParser(originalDateTimeString);
 		var originalSecondFraction = getOriginalSecondFraction(jsonObject);
@@ -514,228 +512,67 @@ public class DirectoryProcessorService {
 		var creatorCountry = getCreatorCountry(jsonObject);
 		var creatorUrl     = getCreatorUrl(jsonObject);
 
-		// Check that the originalDocumentId does not already exist in the database
 		if (originalDocumentId != null) {
 			var existingFile = fileRepository.findByOriginalDocumentId(originalDocumentId);
 
 			if (existingFile != null) {
 				log.warn("File with the same original document ID already exists in the database: {} for file: {}", originalDocumentId, file.getName());
-				// We do not allow duplicate original document IDs so we return null here
 				return null;
 			}
 		}
 
-		// Create a new ACL entry for the file
 		var aclId = 0L;
+
 		try {
 			aclId = aclService.createNewAcl(userId, null, true, true, true, true);
 		} catch (VempainAclException e) {
 			throw new VempainRuntimeException();
 		}
 
-		return switch (fileType) {
-			case IMAGE -> ImageFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + "-" + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .rightsHolder(rightsHolder)
-										 .rightsTerms(rightsTerms)
-										 .rightsUrl(rightsUrl)
-										 .creatorName(creatorName)
-										 .creatorEmail(creatorEmail)
-										 .creatorCountry(creatorCountry)
-										 .creatorUrl(creatorUrl)
-										 .filePath(relativeFilePath)
-										 .build();
-			case VIDEO -> VideoFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .rightsHolder(rightsHolder)
-										 .rightsTerms(rightsTerms)
-										 .rightsUrl(rightsUrl)
-										 .creatorName(creatorName)
-										 .creatorEmail(creatorEmail)
-										 .creatorCountry(creatorCountry)
-										 .creatorUrl(creatorUrl)
-										 .filePath(relativeFilePath)
-										 .build();
-			case AUDIO -> AudioFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .rightsHolder(rightsHolder)
-										 .rightsTerms(rightsTerms)
-										 .rightsUrl(rightsUrl)
-										 .creatorName(creatorName)
-										 .creatorEmail(creatorEmail)
-										 .creatorCountry(creatorCountry)
-										 .creatorUrl(creatorUrl)
-										 .filePath(relativeFilePath)
-										 .build();
-			case DOCUMENT -> DocumentFileEntity.builder()
-											   .aclId(aclId)
-											   .fileGroup(fileGroup)
-											   .externalFileId(fileType + sha256sum)
-											   .filename(file.getName())
-											   .mimetype(mimetype)
-											   .filesize(file.length())
-											   .fileType(fileType.name())
-											   .sha256sum(sha256sum)
-											   .creator(userId)
-											   .created(Instant.now())
-											   .originalDatetime(originalDateTime)
-											   .originalSecondFraction(originalSecondFraction)
-											   .originalDocumentId(originalDocumentId)
-											   .description(description)
-											   .metadataRaw(metadata)
-											   .rightsHolder(rightsHolder)
-											   .rightsTerms(rightsTerms)
-											   .rightsUrl(rightsUrl)
-											   .creatorName(creatorName)
-											   .creatorEmail(creatorEmail)
-											   .creatorCountry(creatorCountry)
-											   .creatorUrl(creatorUrl)
-											   .filePath(relativeFilePath)
-											   .build();
-			case VECTOR -> VectorFileEntity.builder()
-										   .aclId(aclId)
-										   .fileGroup(fileGroup)
-										   .externalFileId(fileType + sha256sum)
-										   .filename(file.getName())
-										   .mimetype(mimetype)
-										   .filesize(file.length())
-										   .fileType(fileType.name())
-										   .sha256sum(sha256sum)
-										   .creator(userId)
-										   .created(Instant.now())
-										   .originalDatetime(originalDateTime)
-										   .originalSecondFraction(originalSecondFraction)
-										   .originalDocumentId(originalDocumentId)
-										   .description(description)
-										   .metadataRaw(metadata)
-										   .rightsHolder(rightsHolder)
-										   .rightsTerms(rightsTerms)
-										   .rightsUrl(rightsUrl)
-										   .creatorName(creatorName)
-										   .creatorEmail(creatorEmail)
-										   .creatorCountry(creatorCountry)
-										   .creatorUrl(creatorUrl)
-										   .filePath(relativeFilePath)
-										   .build();
-			case ICON -> IconFileEntity.builder()
-									   .aclId(aclId)
-									   .fileGroup(fileGroup)
-									   .externalFileId(fileType + sha256sum)
-									   .filename(file.getName())
-									   .mimetype(mimetype)
-									   .filesize(file.length())
-									   .fileType(fileType.name())
-									   .sha256sum(sha256sum)
-									   .creator(userId)
-									   .created(Instant.now())
-									   .originalDatetime(originalDateTime)
-									   .originalSecondFraction(originalSecondFraction)
-									   .originalDocumentId(originalDocumentId)
-									   .description(description)
-									   .metadataRaw(metadata)
-									   .rightsHolder(rightsHolder)
-									   .rightsTerms(rightsTerms)
-									   .rightsUrl(rightsUrl)
-									   .creatorName(creatorName)
-									   .creatorEmail(creatorEmail)
-									   .creatorCountry(creatorCountry)
-									   .creatorUrl(creatorUrl)
-									   .filePath(relativeFilePath)
-									   .build();
-			case FONT -> FontFileEntity.builder()
-									   .aclId(aclId)
-									   .fileGroup(fileGroup)
-									   .externalFileId(fileType + sha256sum)
-									   .filename(file.getName())
-									   .mimetype(mimetype)
-									   .filesize(file.length())
-									   .fileType(fileType.name())
-									   .sha256sum(sha256sum)
-									   .creator(userId)
-									   .created(Instant.now())
-									   .originalDatetime(originalDateTime)
-									   .originalSecondFraction(originalSecondFraction)
-									   .originalDocumentId(originalDocumentId)
-									   .description(description)
-									   .metadataRaw(metadata)
-									   .rightsHolder(rightsHolder)
-									   .rightsTerms(rightsTerms)
-									   .rightsUrl(rightsUrl)
-									   .creatorName(creatorName)
-									   .creatorEmail(creatorEmail)
-									   .creatorCountry(creatorCountry)
-									   .creatorUrl(creatorUrl)
-									   .filePath(relativeFilePath)
-									   .build();
-			case ARCHIVE -> ArchiveFileEntity.builder()
-											 .aclId(aclId)
-											 .fileGroup(fileGroup)
-											 .externalFileId(fileType + sha256sum)
-											 .filename(file.getName())
-											 .mimetype(mimetype)
-											 .filesize(file.length())
-											 .fileType(fileType.name())
-											 .sha256sum(sha256sum)
-											 .creator(userId)
-											 .created(Instant.now())
-											 .originalDatetime(originalDateTime)
-											 .originalSecondFraction(originalSecondFraction)
-											 .originalDocumentId(originalDocumentId)
-											 .description(description)
-											 .metadataRaw(metadata)
-											 .rightsHolder(rightsHolder)
-											 .rightsTerms(rightsTerms)
-											 .rightsUrl(rightsUrl)
-											 .creatorName(creatorName)
-											 .creatorEmail(creatorEmail)
-											 .creatorCountry(creatorCountry)
-											 .creatorUrl(creatorUrl)
-											 .filePath(relativeFilePath)
-											 .build();
+		// Instantiate the correct subclass (no common field setting here)
+		FileEntity entity = switch (fileType) {
+			case IMAGE -> new ImageFileEntity();
+			case VIDEO -> new VideoFileEntity();
+			case AUDIO -> new AudioFileEntity();
+			case DOCUMENT -> new DocumentFileEntity();
+			case VECTOR -> new VectorFileEntity();
+			case ICON -> new IconFileEntity();
+			case FONT -> new FontFileEntity();
+			case ARCHIVE -> new ArchiveFileEntity();
 			case OTHER -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
 		};
+
+		// Preserve original externalFileId logic (IMAGE had a dash, others not)
+		String externalFileId = (fileType == FileTypeEnum.IMAGE)
+								? fileType + "-" + sha256sum
+								: fileType + sha256sum;
+
+		// Populate shared FileEntity fields once
+		entity.setAclId(aclId);
+		entity.setFileGroup(fileGroup);
+		entity.setExternalFileId(externalFileId);
+		entity.setFilename(file.getName());
+		entity.setMimetype(mimetype);
+		entity.setFilesize(file.length());
+		entity.setFileType(fileType.name());
+		entity.setSha256sum(sha256sum);
+		entity.setCreator(userId);
+		entity.setCreated(Instant.now());
+		entity.setOriginalDatetime(originalDateTime);
+		entity.setOriginalSecondFraction(originalSecondFraction);
+		entity.setOriginalDocumentId(originalDocumentId);
+		entity.setDescription(description);
+		entity.setMetadataRaw(metadata);
+		entity.setRightsHolder(rightsHolder);
+		entity.setRightsTerms(rightsTerms);
+		entity.setRightsUrl(rightsUrl);
+		entity.setCreatorName(creatorName);
+		entity.setCreatorEmail(creatorEmail);
+		entity.setCreatorCountry(creatorCountry);
+		entity.setCreatorUrl(creatorUrl);
+		entity.setFilePath(relativeFilePath);
+
+		return entity;
 	}
 
 	@Transactional

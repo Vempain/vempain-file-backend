@@ -58,6 +58,27 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Raw metadata as a JSON string", example = "{\"key\":\"value\"}")
 	private String metadataRaw;
 
+	@Schema(description = "Rights holder", example = "Rights Holder")
+	private String rightsHolder;
+
+	@Schema(description = "Rights terms", example = "All rights reserved")
+	private String rightsTerms;
+
+	@Schema(description = "Rights URL", example = "http://rights.example.com")
+	private String rightsUrl;
+
+	@Schema(description = "Creator name", example = "Creator Name")
+	private String creatorName;
+
+	@Schema(description = "Creator email", example = "creator@creator.example.com")
+	private String creatorEmail;
+
+	@Schema(description = "Creator country", example = "FI")
+	private String creatorCountry;
+
+	@Schema(description = "Creator URL", example = "http://creator.example.com")
+	private String creatorUrl;
+
 	@Schema(description = "List of file tags")
 	private List<String> tags;
 }

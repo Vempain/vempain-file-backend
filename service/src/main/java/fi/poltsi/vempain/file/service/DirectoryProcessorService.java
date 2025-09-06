@@ -28,7 +28,6 @@ import fi.poltsi.vempain.file.repository.FileRepository;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
@@ -51,11 +50,44 @@ import java.util.List;
 import java.util.Objects;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveCompressionMethod;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveContentCount;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveIsEncrypted;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveUncompressedSize;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioBitRate;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioChannels;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioCodec;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioSampleRate;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioVideoDuration;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentFormat;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentPageCount;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontFamily;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontStyle;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontWeight;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractFrameRate;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractIconIsScalable;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageColorDepth;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageDpi;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageResolution;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractVectorLayersCount;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractVideoCodec;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractXYResolution;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorCountry;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorEmail;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorName;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getCreatorUrl;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getDescriptionFromJson;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getLabel;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDateTimeFromJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalDocumentId;
 import static fi.poltsi.vempain.file.tools.MetadataTool.getOriginalSecondFraction;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsHolder;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsTerms;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getRightsUrl;
+import static fi.poltsi.vempain.file.tools.MetadataTool.getSubjects;
 import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
@@ -117,7 +149,7 @@ public class DirectoryProcessorService {
 			resultList.set(0, resultList.getFirst() + 1); // Increment scannedFilesCount
 
 			try {
-				var processed = processFile(file, fileGroup);
+				var processed = processOriginalFile(file, fileGroup);
 
 				if (processed != null && processed) {
 					resultList.set(1, resultList.get(1) + 1); // Increment newFilesCount
@@ -148,7 +180,7 @@ public class DirectoryProcessorService {
 	}
 
 	@Transactional
-	protected Boolean processFile(File file, FileGroupEntity fileGroup) throws IOException {
+	protected Boolean processOriginalFile(File file, FileGroupEntity fileGroup) throws IOException {
 		log.info("Processing file: {}", file.getAbsolutePath());
 
 		var sha256sum        = computeSha256(file);
@@ -204,7 +236,7 @@ public class DirectoryProcessorService {
 
 		if (mimetype == null) {
 			log.warn("Could not determine MIME type for file: {} by probing. Using exiftool to probe it", file.getName());
-			mimetype = MetadataTool.extractMimetype(jsonObject);
+			mimetype = extractMimetype(jsonObject);
 
 			if (mimetype == null) {
 				log.error("Failed to determine MIME type for file: {}", file.getName());
@@ -231,71 +263,72 @@ public class DirectoryProcessorService {
 			case IMAGE -> {
 				var imageFile = (ImageFileEntity) fileEntity;
 				log.info("Extracting resolution and metadata for image file: {}", file);
-				var res = MetadataTool.extractImageResolution(jsonObject);
+				var res = extractImageResolution(jsonObject);
 
 				if (res != null) {
 					imageFile.setWidth(res.width);
 					imageFile.setHeight(res.height);
 				}
 
-				imageFile.setColorDepth(MetadataTool.extractImageColorDepth(jsonObject));
-				imageFile.setDpi(MetadataTool.extractImageDpi(jsonObject));
+				imageFile.setColorDepth(extractImageColorDepth(jsonObject));
+				imageFile.setDpi(extractImageDpi(jsonObject));
+				imageFile.setGroupLabel(getLabel(jsonObject));
 				fileRepository.save(imageFile);
 			}
 			case VIDEO -> {
 				var videoFile = (VideoFileEntity) fileEntity;
-				var res       = MetadataTool.extractXYResolution(file);
+				var res = extractXYResolution(file);
 				videoFile.setWidth(res.width);
 				videoFile.setHeight(res.height);
-				videoFile.setFrameRate(MetadataTool.extractFrameRate(file));
-				videoFile.setDuration(MetadataTool.extractAudioVideoDuration(file));
-				videoFile.setCodec(MetadataTool.extractVideoCodec(file));
+				videoFile.setFrameRate(extractFrameRate(file));
+				videoFile.setDuration(extractAudioVideoDuration(file));
+				videoFile.setCodec(extractVideoCodec(file));
 				fileRepository.save(videoFile);
 			}
 			case AUDIO -> {
 				var audioFile = (AudioFileEntity) fileEntity;
-				audioFile.setDuration(MetadataTool.extractAudioVideoDuration(file));
-				audioFile.setBitRate(MetadataTool.extractAudioBitRate(file));
-				audioFile.setSampleRate(MetadataTool.extractAudioSampleRate(file));
-				audioFile.setCodec(MetadataTool.extractAudioCodec(file));
-				audioFile.setChannels(MetadataTool.extractAudioChannels(file));
+				audioFile.setDuration(extractAudioVideoDuration(file));
+				audioFile.setBitRate(extractAudioBitRate(file));
+				audioFile.setSampleRate(extractAudioSampleRate(file));
+				audioFile.setCodec(extractAudioCodec(file));
+				audioFile.setChannels(extractAudioChannels(file));
 				fileRepository.save(audioFile);
 			}
 			case DOCUMENT -> {
 				var documentFile = (DocumentFileEntity) fileEntity;
-				documentFile.setPageCount(MetadataTool.extractDocumentPageCount(file));
-				documentFile.setFormat(MetadataTool.extractDocumentFormat(file));
+				documentFile.setPageCount(extractDocumentPageCount(file));
+				documentFile.setFormat(extractDocumentFormat(file));
 				fileRepository.save(documentFile);
 			}
 			case VECTOR -> {
 				var vectorFile = (VectorFileEntity) fileEntity;
-				var res        = MetadataTool.extractXYResolution(file);
+				var res = extractXYResolution(file);
 				vectorFile.setWidth(res.width);
 				vectorFile.setHeight(res.height);
-				vectorFile.setLayersCount(MetadataTool.extractVectorLayersCount(file));
+				vectorFile.setLayersCount(extractVectorLayersCount(file));
 				fileRepository.save(vectorFile);
 			}
 			case ICON -> {
 				var iconFile = (IconFileEntity) fileEntity;
-				var res      = MetadataTool.extractXYResolution(file);
+				var res = extractXYResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
-				iconFile.setIsScalable(MetadataTool.extractIconIsScalable(file));
+				iconFile.setIsScalable(extractIconIsScalable(file));
 				fileRepository.save(iconFile);
 			}
 			case FONT -> {
 				var fontFile = (FontFileEntity) fileEntity;
-				fontFile.setFontFamily(MetadataTool.extractFontFamily(file));
-				fontFile.setWeight(MetadataTool.extractFontWeight(file));
-				fontFile.setStyle(MetadataTool.extractFontStyle(file));
+				fontFile.setFontFamily(extractFontFamily(file));
+				fontFile.setWeight(extractFontWeight(file));
+				fontFile.setStyle(extractFontStyle(file));
 				fileRepository.save(fontFile);
 			}
 			case ARCHIVE -> {
 				var archiveFile = (ArchiveFileEntity) fileEntity;
-				archiveFile.setCompressionMethod(MetadataTool.extractArchiveCompressionMethod(file));
-				archiveFile.setUncompressedSize(MetadataTool.extractArchiveUncompressedSize(file));
-				archiveFile.setContentCount(MetadataTool.extractArchiveContentCount(file));
-				archiveFile.setIsEncrypted(MetadataTool.extractArchiveIsEncrypted(file));
+				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
+				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
+				archiveFile.setContentCount(extractArchiveContentCount(file));
+				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
 				fileRepository.save(archiveFile);
 			}
 			default -> {
@@ -350,12 +383,12 @@ public class DirectoryProcessorService {
 			JSONObject metadataObject;
 
 			try {
-				metadataObject = MetadataTool.extractMetadataJsonObject(file);
+				metadataObject = extractMetadataJsonObject(file);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
 
-			var originalDocumentId = MetadataTool.getOriginalDocumentId(metadataObject);
+			var originalDocumentId = getOriginalDocumentId(metadataObject);
 
 			if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
 				|| exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
@@ -376,7 +409,7 @@ public class DirectoryProcessorService {
 
 			// Finally save the exported file entity
 			// First get the sha256sum of the exported file
-			var mimetype = MetadataTool.extractMimetype(metadataObject);
+			var mimetype = extractMimetype(metadataObject);
 
 			var exportFileEntity = ExportFileEntity.builder()
 												   .file(originalFileEntity)
@@ -466,185 +499,85 @@ public class DirectoryProcessorService {
 
 		var sha256sum = computeSha256(file);
 
-		// Extract comment from metadata, it may not exist
-		var description = getDescriptionFromJson(jsonObject);
-
+		var description    = getDescriptionFromJson(jsonObject);
 		var originalDateTimeString = getOriginalDateTimeFromJson(jsonObject);
 		var originalDateTime       = dateTimeParser(originalDateTimeString);
 		var originalSecondFraction = getOriginalSecondFraction(jsonObject);
 		var originalDocumentId     = getOriginalDocumentId(jsonObject);
+		var rightsHolder   = getRightsHolder(jsonObject);
+		var rightsTerms    = getRightsTerms(jsonObject);
+		var rightsUrl      = getRightsUrl(jsonObject);
+		var creatorName    = getCreatorName(jsonObject);
+		var creatorEmail   = getCreatorEmail(jsonObject);
+		var creatorCountry = getCreatorCountry(jsonObject);
+		var creatorUrl     = getCreatorUrl(jsonObject);
 
-		// Check that the originalDocumentId does not already exist in the database
 		if (originalDocumentId != null) {
 			var existingFile = fileRepository.findByOriginalDocumentId(originalDocumentId);
 
 			if (existingFile != null) {
 				log.warn("File with the same original document ID already exists in the database: {} for file: {}", originalDocumentId, file.getName());
-				// We do not allow duplicate original document IDs so we return null here
 				return null;
 			}
 		}
 
-		// Create a new ACL entry for the file
 		var aclId = 0L;
+
 		try {
 			aclId = aclService.createNewAcl(userId, null, true, true, true, true);
 		} catch (VempainAclException e) {
 			throw new VempainRuntimeException();
 		}
 
-		return switch (fileType) {
-			case IMAGE -> ImageFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + "-" + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .filePath(relativeFilePath)
-										 .build();
-			case VIDEO -> VideoFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .filePath(relativeFilePath)
-										 .build();
-			case AUDIO -> AudioFileEntity.builder()
-										 .aclId(aclId)
-										 .fileGroup(fileGroup)
-										 .externalFileId(fileType + sha256sum)
-										 .filename(file.getName())
-										 .mimetype(mimetype)
-										 .filesize(file.length())
-										 .fileType(fileType.name())
-										 .sha256sum(sha256sum)
-										 .creator(userId)
-										 .created(Instant.now())
-										 .originalDatetime(originalDateTime)
-										 .originalSecondFraction(originalSecondFraction)
-										 .originalDocumentId(originalDocumentId)
-										 .description(description)
-										 .metadataRaw(metadata)
-										 .filePath(relativeFilePath)
-										 .build();
-			case DOCUMENT -> DocumentFileEntity.builder()
-											   .aclId(aclId)
-											   .fileGroup(fileGroup)
-											   .externalFileId(fileType + sha256sum)
-											   .filename(file.getName())
-											   .mimetype(mimetype)
-											   .filesize(file.length())
-											   .fileType(fileType.name())
-											   .sha256sum(sha256sum)
-											   .creator(userId)
-											   .created(Instant.now())
-											   .originalDatetime(originalDateTime)
-											   .originalSecondFraction(originalSecondFraction)
-											   .originalDocumentId(originalDocumentId)
-											   .description(description)
-											   .metadataRaw(metadata)
-											   .filePath(relativeFilePath)
-											   .build();
-			case VECTOR -> VectorFileEntity.builder()
-										   .aclId(aclId)
-										   .fileGroup(fileGroup)
-										   .externalFileId(fileType + sha256sum)
-										   .filename(file.getName())
-										   .mimetype(mimetype)
-										   .filesize(file.length())
-										   .fileType(fileType.name())
-										   .sha256sum(sha256sum)
-										   .creator(userId)
-										   .created(Instant.now())
-										   .originalDatetime(originalDateTime)
-										   .originalSecondFraction(originalSecondFraction)
-										   .originalDocumentId(originalDocumentId)
-										   .description(description)
-										   .metadataRaw(metadata)
-										   .filePath(relativeFilePath)
-										   .build();
-			case ICON -> IconFileEntity.builder()
-									   .aclId(aclId)
-									   .fileGroup(fileGroup)
-									   .externalFileId(fileType + sha256sum)
-									   .filename(file.getName())
-									   .mimetype(mimetype)
-									   .filesize(file.length())
-									   .fileType(fileType.name())
-									   .sha256sum(sha256sum)
-									   .creator(userId)
-									   .created(Instant.now())
-									   .originalDatetime(originalDateTime)
-									   .originalSecondFraction(originalSecondFraction)
-									   .originalDocumentId(originalDocumentId)
-									   .description(description)
-									   .metadataRaw(metadata)
-									   .filePath(relativeFilePath)
-									   .build();
-			case FONT -> FontFileEntity.builder()
-									   .aclId(aclId)
-									   .fileGroup(fileGroup)
-									   .externalFileId(fileType + sha256sum)
-									   .filename(file.getName())
-									   .mimetype(mimetype)
-									   .filesize(file.length())
-									   .fileType(fileType.name())
-									   .sha256sum(sha256sum)
-									   .creator(userId)
-									   .created(Instant.now())
-									   .originalDatetime(originalDateTime)
-									   .originalSecondFraction(originalSecondFraction)
-									   .originalDocumentId(originalDocumentId)
-									   .description(description)
-									   .metadataRaw(metadata)
-									   .filePath(relativeFilePath)
-									   .build();
-			case ARCHIVE -> ArchiveFileEntity.builder()
-											 .aclId(aclId)
-											 .fileGroup(fileGroup)
-											 .externalFileId(fileType + sha256sum)
-											 .filename(file.getName())
-											 .mimetype(mimetype)
-											 .filesize(file.length())
-											 .fileType(fileType.name())
-											 .sha256sum(sha256sum)
-											 .creator(userId)
-											 .created(Instant.now())
-											 .originalDatetime(originalDateTime)
-											 .originalSecondFraction(originalSecondFraction)
-											 .originalDocumentId(originalDocumentId)
-											 .description(description)
-											 .metadataRaw(metadata)
-											 .filePath(relativeFilePath)
-											 .build();
+		// Instantiate the correct subclass (no common field setting here)
+		FileEntity entity = switch (fileType) {
+			case IMAGE -> new ImageFileEntity();
+			case VIDEO -> new VideoFileEntity();
+			case AUDIO -> new AudioFileEntity();
+			case DOCUMENT -> new DocumentFileEntity();
+			case VECTOR -> new VectorFileEntity();
+			case ICON -> new IconFileEntity();
+			case FONT -> new FontFileEntity();
+			case ARCHIVE -> new ArchiveFileEntity();
 			case OTHER -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
 		};
+
+		// Preserve original externalFileId logic (IMAGE had a dash, others not)
+		String externalFileId = (fileType == FileTypeEnum.IMAGE)
+								? fileType + "-" + sha256sum
+								: fileType + sha256sum;
+
+		// Populate shared FileEntity fields once
+		entity.setAclId(aclId);
+		entity.setFileGroup(fileGroup);
+		entity.setExternalFileId(externalFileId);
+		entity.setFilename(file.getName());
+		entity.setMimetype(mimetype);
+		entity.setFilesize(file.length());
+		entity.setFileType(fileType.name());
+		entity.setSha256sum(sha256sum);
+		entity.setCreator(userId);
+		entity.setCreated(Instant.now());
+		entity.setOriginalDatetime(originalDateTime);
+		entity.setOriginalSecondFraction(originalSecondFraction);
+		entity.setOriginalDocumentId(originalDocumentId);
+		entity.setDescription(description);
+		entity.setMetadataRaw(metadata);
+		entity.setRightsHolder(rightsHolder);
+		entity.setRightsTerms(rightsTerms);
+		entity.setRightsUrl(rightsUrl);
+		entity.setCreatorName(creatorName);
+		entity.setCreatorEmail(creatorEmail);
+		entity.setCreatorCountry(creatorCountry);
+		entity.setCreatorUrl(creatorUrl);
+		entity.setFilePath(relativeFilePath);
+
+		return entity;
 	}
 
 	@Transactional
 	protected void saveTags(JSONObject jsonObject, FileEntity fileEntity) {
-		var subjects = MetadataTool.getSubjects(jsonObject);
+		var subjects = getSubjects(jsonObject);
 
 		if (subjects.isEmpty()) {
 			return;

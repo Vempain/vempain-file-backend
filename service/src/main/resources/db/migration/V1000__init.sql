@@ -12,7 +12,7 @@ CREATE TABLE files
 	external_file_id         VARCHAR(255) NOT NULL,
 	file_group_id            BIGINT       NOT NULL,
 	filename                 VARCHAR(255) NOT NULL,
-	file_path VARCHAR(255) NOT NULL,
+	file_path       VARCHAR(255) NOT NULL,
 	mimetype                 VARCHAR(255) NOT NULL,
 	filesize                 BIGINT       NOT NULL,
 	original_datetime        TIMESTAMP,
@@ -22,6 +22,13 @@ CREATE TABLE files
 	file_type                VARCHAR(50)  NOT NULL,
 	description              TEXT,
 	metadata_raw             TEXT,
+	rights_holder   VARCHAR(255),
+	rights_terms    VARCHAR(255),
+	rights_url      VARCHAR(255),
+	creator_name    VARCHAR(255),
+	creator_email   VARCHAR(255),
+	creator_country VARCHAR(128),
+	creator_url     VARCHAR(255),
 	creator                  BIGINT       NOT NULL,
 	created                  TIMESTAMP    NOT NULL,
 	modifier                 BIGINT,
@@ -70,6 +77,7 @@ CREATE TABLE image_files
 	height      INT NOT NULL,
 	color_depth INT NOT NULL,
 	dpi         INT NOT NULL,
+	group_label VARCHAR(64),
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 

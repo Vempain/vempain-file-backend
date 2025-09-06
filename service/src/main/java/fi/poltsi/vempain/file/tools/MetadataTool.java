@@ -119,21 +119,28 @@ public class MetadataTool {
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 
-		var colorDepthNumber = extractJsonNumber(jsonObject, locations);
-
-		if (colorDepthNumber != null) {
-			return colorDepthNumber.intValue();
-		}
-
 		// Let's try to extract it as a string, as sometimes it might be stored as a triplet
 		var colorDepthString = extractJsonString(jsonObject, locations);
 
 		if (colorDepthString != null) {
-			// The result might be a space separated list of values, we take the first one
-			log.info("Image color depth output: {}", colorDepthString);
-			// If the output is like "8 8 8", we take the first value
-			if (colorDepthString.contains(" ")) {
-				colorDepthString = colorDepthString.split(" ")[0];
+			// Match any triplet format like "8 8 8" or "8, 8, 8" or "16 16 16"
+			colorDepthString = colorDepthString.replace(",", " ")
+											   .trim();
+			// Then calculate the total color depth by summing the individual channel depths
+			if (colorDepthString.matches("(\\d+\\s+){2}\\d+")) {
+				var channelBits = colorDepthString.split("\\s+");
+				int total       = 0;
+
+				for (String channelBit : channelBits) {
+					try {
+						total += Integer.parseInt(channelBit);
+					} catch (NumberFormatException e) {
+						log.error("Failed to parse channel bit part: {}", channelBit, e);
+					}
+				}
+				if (total > 0) {
+					return total;
+				}
 			}
 
 			try {
@@ -143,6 +150,14 @@ public class MetadataTool {
 			}
 		}
 
+		// If that fails, let's try to extract it as a number
+		var colorDepthNumber = extractJsonNumber(jsonObject, locations);
+
+		if (colorDepthNumber != null) {
+			return colorDepthNumber.intValue();
+		}
+
+		// Default to 8 if nothing found
 		return 8;
 	}
 
@@ -344,7 +359,7 @@ public class MetadataTool {
 		Map<String, List<String>> locations = new HashMap<>();
 		locations.put(XMP_KEY, List.of("Subject"));
 		locations.put(XMP_DC_KEY, List.of("Subject"));
-		locations.put(XMP_LR_KEY, List.of("HierarchicalSubject"));
+		locations.put(XMP_LR_KEY, List.of("HierarchicalSubject", "WeightedFlatSubject"));
 		locations.put(IPTC_KEY, List.of(IPTC_KEYWORD_FIELD));
 
 		// We try first to extract an array of strings
@@ -369,20 +384,87 @@ public class MetadataTool {
 		return subjectList;
 	}
 
+	public static String getRightsHolder(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_DC_KEY, List.of("Rights"));
+		locations.put(IFD0_KEY, List.of("Copyright"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getRightsTerms(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_XMP_RIGHTS_KEY, List.of("UsageTerms"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getRightsUrl(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_XMP_RIGHTS_KEY, List.of("WebStatement"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getCreatorName(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(IFD0_KEY, List.of("Artist"));
+		locations.put(XMP_DC_KEY, List.of("Creator"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getCreatorEmail(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorWorkEmail"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getCreatorCountry(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorCountry"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getCreatorUrl(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorWorkURL"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	public static String getLabel(JSONObject jsonObject) {
+		Map<String, List<String>> locations = new HashMap<>();
+		locations.put(XMP_XMP_KEY, List.of("Label"));
+		return extractJsonString(jsonObject, locations);
+	}
+
 	public static List<String> extractJsonArray(JSONObject jsonObject, Map<String, List<String>> locations) {
 		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
 			for (String key : location.getValue()) {
 				if (jsonObject.has(location.getKey()) && jsonObject.getJSONObject(location.getKey())
 																   .has(key)) {
-					try {
-						var objectList = jsonObject.getJSONObject(location.getKey())
-												   .getJSONArray(key)
-												   .toList();
-						return objectList.stream()
-										 .map(o -> Objects.toString(o, null))
-										 .toList();
-					} catch (JSONException e) {
-						log.error("Failed to retrieve JSON array from location {}, value is: {}", key, jsonObject.getJSONObject(location.getKey()));
+					Object targetObject = jsonObject.getJSONObject(location.getKey())
+													.opt(key);
+
+					if (targetObject instanceof JSONArray targetArray) {
+						try {
+							return targetArray.toList()
+											  .stream()
+											  .map(o -> Objects.toString(o, null))
+											  .toList();
+						} catch (Exception e) {
+							log.error("Failed to convert JSON array for key {}", key, e);
+						}
+					} else {
+						// Not an array: attempt to treat it as a single scalar value
+						if (targetObject != null
+							&& !(targetObject instanceof JSONObject)) { // Ignore nested objects
+							String value = Objects.toString(targetObject, null);
+
+							if (value != null && !value.isBlank()) {
+								log.debug("Key {} under {} is not a JSON array, but a single value, returning a one-item array", key, location.getKey());
+								return new ArrayList<>(List.of(value.trim()));
+							}
+						}
+						var targetSimpleName = targetObject == null ? "null" : targetObject.getClass()
+																						   .getSimpleName();
+						log.warn("Key {} under {} is not a JSON array (type: {})", key, location.getKey(), targetSimpleName);
 					}
 				}
 			}
@@ -405,6 +487,17 @@ public class MetadataTool {
 
 		var processBuilder = new ProcessBuilder(command);
 		var process        = processBuilder.start();
+	}
+
+	public static JSONObject metadataToJsonObject(String metadata) {
+		var jsonArray = new JSONArray(metadata);
+
+		if (jsonArray.isEmpty()) {
+			log.error("Failed to parse the metadata JSON from\n{}", metadata);
+			return null;
+		}
+
+		return jsonArray.getJSONObject(0);
 	}
 
 	private static String extractJsonString(JSONObject jsonObject, Map<String, List<String>> locations) {
@@ -485,16 +578,5 @@ public class MetadataTool {
 		}
 
 		return "";
-	}
-
-	public static JSONObject metadataToJsonObject(String metadata) {
-		var jsonArray = new JSONArray(metadata);
-
-		if (jsonArray.isEmpty()) {
-			log.error("Failed to parse the metadata JSON from\n{}", metadata);
-			return null;
-		}
-
-		return jsonArray.getJSONObject(0);
 	}
 }

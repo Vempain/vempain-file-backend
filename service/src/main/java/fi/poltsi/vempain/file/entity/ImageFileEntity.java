@@ -30,10 +30,13 @@ public class ImageFileEntity extends FileEntity {
 	private int height;
 
 	@Column(name = "color_depth")
-	private int colorDepth; // Optional: Color depth in bits
+	private int colorDepth;
 
-	@Column
-	private int dpi; // Optional: Dots per inch
+	@Column(name = "dpi")
+	private int dpi;
+
+	@Column(name = "group_label")
+	private String groupLabel;
 
 	@Override
 	public ImageFileResponse toResponse() {
@@ -59,7 +62,8 @@ public class ImageFileEntity extends FileEntity {
 		builder.width(getWidth())
 			   .height(getHeight())
 			   .colorDepth(getColorDepth())
-			   .dpi(getDpi());
+			   .dpi(getDpi())
+			   .groupLabel(getGroupLabel());
 
 		return builder.build();
 	}

@@ -25,9 +25,9 @@ public class ImageTool {
 		// Get the original dimensions of the source file in order to see whether it should be resized
 		var origDimensions   = getImageDimensions(sourceFile);
 		var targetDimensions = new Dimension();
-		var imageFormat      = destinationFile.toString()
-											  .substring(destinationFile.toString()
-																		.lastIndexOf(".") + 1);
+		var imageFormat = destinationFile.toString()
+										 .substring(destinationFile.toString()
+																   .lastIndexOf(".") + 1);
 
 		// If the original image is smaller than the minimum size, just copy it
 		if (origDimensions.height < imageMinimumSize || origDimensions.width < imageMinimumSize) {

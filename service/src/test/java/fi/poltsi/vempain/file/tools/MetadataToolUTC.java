@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.tools;
 
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+@Slf4j
 class MetadataToolUTC {
 
 	private static final double DELTA = 1e-6;
@@ -57,12 +59,13 @@ class MetadataToolUTC {
 	@DisplayName("extractGpsData branch coverage")
 	@CsvSource(
 			value = {
-					// scenario|Composite.GPSLocation|GPS.GPSLatitudeRef|GPS.GPSLatitude|Composite.GPSLatitude|GPS.GPSLongitudeRef|GPS.GPSLongitude|Composite.GPSLongitude|expLat|expLatRef|expLon|expLonRef
-					"A|60 deg 10' 30.00\" N, 24 deg 58' 00.0\" E|<null>|<null>|<null>|<null>|<null>|<null>|60.175|N|24.9666666667|E",
-					"B|60 deg 10' 30.00\" X, 24 deg 58' 00.0\" Y|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>",
-					"C|<null>|N|60 deg 10' 30.00\"|<null>|E|24 deg 58' 00.0\"|<null>|60.175|N|24.9666666667|E",
-					"D|<null>|<null>|<null>|60 deg 10' 30.00\" S|<null>|<null>|24 deg 58' 00.0\" S|-60.175|S|-24.9666666667|S",
-					"E|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>|<null>"
+					// scenario|Composite.GPSLocation    |GPS.GPSLatitudeRef|GPS.GPSLatitude|Composite.GPSLatitude|GPS.GPSLongitudeRef|GPS
+					// .GPSLongitude|Composite.GPSLongitude|expLat|expLatRef|expLon|expLonRef
+					"A         |60 deg 10' 30.00\" N, 24 deg 58' 00.0\" E|<null>|<null>            |<null>              |<null>|<null>|<null>|60.175|N|24.9666666667|E",
+					"B         |60 deg 10' 30.00\" X, 24 deg 58' 00.0\" Y|<null>|<null>            |<null>              |<null>|<null>|<null>|<null>|<null>|<null>|<null>",
+					"C         |<null>                                   |N     |60 deg 10' 30.00\"|<null>              |E|24 deg 58' 00.0\"|<null>|60.175|N|24.9666666667|E",
+					"D         |<null>                                   |<null>|<null>            |60 deg 10' 30.00\" S|<null>|<null>|24 deg 58' 00.0\" S|-60.175|S|-24.9666666667|S",
+					"E         |<null>                                   |<null>|<null>            |<null>              |<null>|<null>|<null>|<null>|<null>|<null>|<null>"
 			},
 			nullValues = "<null>",
 			delimiter = '|'
@@ -115,6 +118,7 @@ class MetadataToolUTC {
 			root.put("GPS", gpsObj);
 		}
 
+		log.info("Scenario {}: input JSON: {}", scenario, root.toString());
 		var entity = MetadataTool.extractGpsData(root);
 
 		if (expectedLat == null) {

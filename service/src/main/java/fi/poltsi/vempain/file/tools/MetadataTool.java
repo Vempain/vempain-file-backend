@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
 
+import static java.util.Map.entry;
+
 @Slf4j
 public class MetadataTool {
 	private static final String COMPOSITE_KEY      = "Composite";
@@ -472,119 +474,119 @@ public class MetadataTool {
 		locations.put(COMPOSITE_KEY, List.of("GPSLocation"));
 		var gpsLocationString = extractJsonString(jsonObject, locations);
 
-		if (gpsLocationString != null
-			&& !gpsLocationString.isBlank()
-			&& gpsLocationString.contains(",")) {
+		if (gpsLocationString != null && !gpsLocationString.isBlank() && gpsLocationString.contains(",")) {
 			// GPSPosition is in format "60 deg 10' 30.00\" N, 24 deg 58' 00.0\" E"
 			var locationParts = gpsLocationString.split(",");
 
 			if (locationParts.length == 2) {
-				var latitudePart  = locationParts[0].trim();
-				var longitudePart = locationParts[1].trim();
+				// Extract latitude (first part)
+				var latitudePart   = locationParts[0].trim();
+				var latitudeResult = extractCoordinateWithRef(latitudePart);
 
-				// Extract the latitude reference (N/S)
-				var latitudeRef = (Character) latitudePart.charAt(latitudePart.length() - 1);
+				// Extract longitude (second part)
+				var longitudePart   = locationParts[1].trim();
+				var longitudeResult = extractCoordinateWithRef(longitudePart);
 
-				if (latitudeRef != 'N' && latitudeRef != 'S') {
-					log.warn("Invalid latitude reference in GPSPosition: {}", latitudeRef);
-					latitudeRef = null;
-				} else {
-					latitudePart = latitudePart.substring(0, latitudePart.length() - 1)
-											   .trim();
+				// Set the values to the entity
+				if (latitudeResult != null) {
+					gpsLocationEntity.setLatitudeRef(latitudeResult.getKey());
+					gpsLocationEntity.setLatitude(latitudeResult.getValue());
 				}
 
-				// Extract the longitude reference (E/W)
-				var longitudeRef = (Character) longitudePart.charAt(longitudePart.length() - 1);
-				if (longitudeRef != 'E' && longitudeRef != 'W') {
-					log.warn("Invalid longitude reference in GPSPosition: {}", longitudeRef);
-					longitudeRef = null;
-				} else {
-					longitudePart = longitudePart.substring(0, longitudePart.length() - 1)
-												 .trim();
+				if (longitudeResult != null) {
+					gpsLocationEntity.setLongitudeRef(longitudeResult.getKey());
+					gpsLocationEntity.setLongitude(longitudeResult.getValue());
 				}
-
-				Double latitudeDouble  = convertGpsCoordinateStringToDouble(latitudePart, latitudeRef);
-				Double longitudeDouble = convertGpsCoordinateStringToDouble(longitudePart, longitudeRef);
-				gpsLocationEntity.setLatitudeRef(latitudeRef);
-				gpsLocationEntity.setLatitude(latitudeDouble);
-				gpsLocationEntity.setLongitudeRef(longitudeRef);
-				gpsLocationEntity.setLongitude(longitudeDouble);
 			}
 		} else {
-			// Latitude reference from GPS section
-			locations = new HashMap<>();
-			locations.put(GPS_KEY, List.of("GPSLatitudeRef"));
-			var latitudeRefString = extractJsonString(jsonObject, locations);
-			var latitudeRef       = latitudeRefString != null && !latitudeRefString.isBlank() ? latitudeRefString.charAt(0) : null;
+			// Try to get latitude and longitude from separate fields
+			var latitudeResult  = extractSingleCoordinate(jsonObject, "GPSLatitude", "GPSLatitudeRef");
+			var longitudeResult = extractSingleCoordinate(jsonObject, "GPSLongitude", "GPSLongitudeRef");
 
-			// Latitude, reset the locations map
-			locations = new HashMap<>();
-			locations.put(GPS_KEY, List.of("GPSLatitude"));
-			locations.put(COMPOSITE_KEY, List.of("GPSLatitude"));
-			var latitudeString = extractJsonString(jsonObject, locations);
-			// If we got this from the COMPOSITE_KEY then it probably has the cardinal point at the end, so separate it
-			if (latitudeString != null
-				&& !latitudeString.isBlank()
-				&& latitudeString.contains(" ")
-				&& latitudeRef == null) {
-				var parts    = latitudeString.split(" ");
-				var lastPart = parts[parts.length - 1].trim();
-
-				if (lastPart.length() == 1) {
-					var possibleRef = lastPart.charAt(0);
-
-					if (possibleRef == 'N'
-						|| possibleRef == 'S') {
-						latitudeRef    = possibleRef;
-						latitudeString = String.join(" ", Arrays.copyOf(parts, parts.length - 1));
-					}
-				}
+			if (latitudeResult != null) {
+				gpsLocationEntity.setLatitudeRef(latitudeResult.getKey());
+				gpsLocationEntity.setLatitude(latitudeResult.getValue());
 			}
 
-			/// ///////////////////////
-			// Longitude reference from GPS section
-			locations = new HashMap<>();
-			locations.put(GPS_KEY, List.of("GPSLongitudeRef"));
-			var longitudeRefString = extractJsonString(jsonObject, locations);
-			var longitudeRef       = longitudeRefString != null && !longitudeRefString.isBlank() ? longitudeRefString.charAt(0) : null;
-
-			// Latitude, reset the locations map
-			locations = new HashMap<>();
-			locations.put(GPS_KEY, List.of("GPSLongitude"));
-			locations.put(COMPOSITE_KEY, List.of("GPSLongitude"));
-			var longitudeString = extractJsonString(jsonObject, locations);
-			// If we got this from the COMPOSITE_KEY then it probably has the cardinal point at the end, so separate it
-			if (longitudeString != null
-				&& !longitudeString.isBlank()
-				&& longitudeString.contains(" ")
-				&& longitudeRef == null) {
-				var parts    = longitudeString.split(" ");
-				var lastPart = parts[parts.length - 1].trim();
-
-				if (lastPart.length() == 1) {
-					var possibleRef = lastPart.charAt(0);
-
-					if (possibleRef == 'N'
-						|| possibleRef == 'S') {
-						longitudeRef    = possibleRef;
-						longitudeString = String.join(" ", Arrays.copyOf(parts, parts.length - 1));
-					}
-				}
+			if (longitudeResult != null) {
+				gpsLocationEntity.setLongitudeRef(longitudeResult.getKey());
+				gpsLocationEntity.setLongitude(longitudeResult.getValue());
 			}
-
-			Double latitudeDouble  = convertGpsCoordinateStringToDouble(latitudeString, latitudeRef);
-			Double langitudeDouble = convertGpsCoordinateStringToDouble(longitudeString, longitudeRef);
-
-			gpsLocationEntity.setLatitudeRef(latitudeRef);
-			gpsLocationEntity.setLatitude(latitudeDouble);
-			gpsLocationEntity.setLongitudeRef(longitudeRef);
-			gpsLocationEntity.setLongitude(langitudeDouble);
 		}
 
-		// Then attempt to fetch the altitude
-		// Finally fetch the location fields
-
 		return gpsLocationEntity;
+	}
+
+	/**
+	 * Extracts a coordinate value and its reference from separate metadata fields
+	 *
+	 * @param jsonObject    The metadata JSON object
+	 * @param coordinateKey The key for the coordinate value
+	 * @param refKey        The key for the coordinate reference
+	 * @return A Map.Entry containing the reference character and coordinate value
+	 */
+	private static Map.Entry<Character, Double> extractSingleCoordinate(JSONObject jsonObject, String coordinateKey, String refKey) {
+		// Get reference (N/S/E/W)
+		var locations = new HashMap<String, List<String>>();
+		locations.put(GPS_KEY, List.of(refKey));
+		var       refString = extractJsonString(jsonObject, locations);
+		Character ref       = refString != null && !refString.isBlank() ? refString.charAt(0) : null;
+
+		// Get coordinate string
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of(coordinateKey));
+		locations.put(COMPOSITE_KEY, List.of(coordinateKey));
+		var coordinateString = extractJsonString(jsonObject, locations);
+
+		// If no reference was found but coordinate has one at the end, extract it
+		if (ref == null && coordinateString != null && !coordinateString.isBlank() && coordinateString.substring(coordinateString.length() - 1)
+																									  .matches("[NSEW]")) {
+			var result = extractCoordinateWithRef(coordinateString);
+			ref = result.getKey();
+			Double value = result.getValue();
+			return entry(ref, value);
+		}
+
+		// Otherwise convert the coordinate with the provided reference
+		Double value = convertGpsCoordinateStringToDouble(coordinateString, ref);
+
+		if (value == null) {
+			log.warn("Failed to extract coordinate for key {} with reference {}", coordinateKey, ref);
+			return null;
+		}
+
+		return entry(ref, value);
+	}
+
+	/**
+	 * Extracts a coordinate and its reference from a single string
+	 *
+	 * @param coordinateString The coordinate string possibly containing a reference at the end
+	 * @return A Map.Entry containing the reference character and coordinate value
+	 */
+	private static Map.Entry<Character, Double> extractCoordinateWithRef(String coordinateString) {
+		if (coordinateString == null || coordinateString.isBlank()) {
+			return null;
+		}
+
+		// Check if the last character is a cardinal point (N/S/E/W)
+		char      lastChar = coordinateString.charAt(coordinateString.length() - 1);
+		Character ref      = null;
+		String    coordStr = coordinateString;
+
+		if (lastChar == 'N' || lastChar == 'S' || lastChar == 'E' || lastChar == 'W') {
+			ref      = lastChar;
+			coordStr = coordinateString.substring(0, coordinateString.length() - 1)
+									   .trim();
+		}
+
+		if (ref == null) {
+			log.warn("No cardinal point found in coordinate string: {}", coordinateString);
+			return null;
+		}
+
+		Double value = convertGpsCoordinateStringToDouble(coordStr, ref);
+		return entry(ref, value);
 	}
 
 	protected static Double convertGpsCoordinateStringToDouble(String coordinateString, Character cardinalPoint) {
@@ -599,7 +601,7 @@ public class MetadataTool {
 					try {
 						return convertDmsToDecimal(coordinateString);
 					} catch (Exception e) {
-						log.error("Failed to parse GPS latitude: {} {}", cardinalPoint, cardinalPoint, e);
+						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
 					}
 				}
 			}
@@ -607,7 +609,7 @@ public class MetadataTool {
 				// South latitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return -convertDmsToDecimal(coordinateString);
+						return (Double) (-convertDmsToDecimal(coordinateString));
 					} catch (Exception e) {
 						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -627,7 +629,7 @@ public class MetadataTool {
 				// West longitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return -convertDmsToDecimal(coordinateString);
+						return (Double) (-convertDmsToDecimal(coordinateString));
 					} catch (Exception e) {
 						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -640,7 +642,7 @@ public class MetadataTool {
 		return null;
 	}
 
-	private static double convertDmsToDecimal(String latitudeString) {
+	private static Double convertDmsToDecimal(String latitudeString) {
 		// GPS coordinates are in DMS format, e.g. "60 deg 10' 30.00\""
 		// We need to convert it to decimal format
 		var dmsParts = latitudeString.split("[^0-9.+-]+");
@@ -654,7 +656,7 @@ public class MetadataTool {
 			double minutes = Double.parseDouble(dmsParts[1]);
 			double seconds = Double.parseDouble(dmsParts[2]);
 
-			return degrees + (minutes / 60) + (seconds / 3600);
+			return (Double) (degrees + (minutes / 60) + (seconds / 3600));
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Invalid number in DMS format: " + latitudeString, e);
 		}
@@ -757,7 +759,7 @@ public class MetadataTool {
 													.getString(key);
 
 						try {
-							return Integer.parseInt(stringValue);
+							return Double.valueOf(stringValue);
 						} catch (NumberFormatException ex) {
 							log.error("Key {} exists but can not be parsed as number", key);
 						}

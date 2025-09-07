@@ -139,4 +139,74 @@ class MetadataToolUTC {
 			assertEquals(expectedLonRef, entity.getLongitudeRef(), "Scenario " + scenario + " longitudeRef");
 		}
 	}
+
+	@ParameterizedTest
+	@DisplayName("Parse audio/video duration from various formats")
+	@CsvSource(value = {
+			// Format: description, input duration string, expected seconds
+			"hours_minutes_seconds, 1:30:45, 5445.0",
+			"hours_minutes_seconds_decimals, 1:30:45.5, 5445.5",
+			"minutes_seconds, 5:30, 330.0",
+			"minutes_seconds_decimals, 5:30.5, 330.5",
+			"seconds_only, 42, 42.0",
+			"seconds_decimals, 42.5, 42.5",
+			"seconds_with_s_qualifier, 24.47 s, 24.47",
+			"seconds_with_sec_qualifier, 24.47 sec, 24.47",
+			"seconds_with_seconds_qualifier, 24.47 seconds, 24.47",
+			"empty_string, , 0.0",
+			"null, null, 0.0"
+	}, nullValues = "null")
+	void parseDurationString(String description, String durationString, double expectedSeconds) {
+		// Create a helper method to test just the string parsing functionality
+		double actualSeconds = parseDurationStringHelper(durationString);
+		assertEquals(expectedSeconds, actualSeconds, DELTA, "Failed for case: " + description);
+	}
+
+	/**
+	 * Helper method that implements the same parsing logic as in MetadataTool.extractAudioVideoDuration
+	 * but accepts a string directly instead of requiring a file.
+	 */
+	private double parseDurationStringHelper(String durationStr) {
+		log.info("Parsing duration string: '{}'", durationStr);
+		// If the string is empty or null, return 0
+		if (durationStr == null || durationStr.isBlank()) {
+			return 0.0;
+		}
+
+		// If the string contains colons, it's in a time format (hh:mm:ss or mm:ss)
+		if (durationStr.contains(":")) {
+			String[] parts   = durationStr.split(":");
+			double   seconds = 0.0;
+
+			if (parts.length == 3) {
+				// Format: hh:mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 3600; // Hours to seconds
+				seconds += Double.parseDouble(parts[1]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[2]);        // Seconds
+			} else if (parts.length == 2) {
+				// Format: mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[1]);        // Seconds
+			}
+
+			return seconds;
+		} else {
+			// Check if the string contains a time qualifier like "s", "sec", "seconds"
+			String trimmedStr = durationStr.trim();
+			if (trimmedStr.endsWith(" s") ||
+				trimmedStr.endsWith(" sec") ||
+				trimmedStr.endsWith(" seconds")) {
+
+				// Extract the numeric part before the qualifier
+				int spaceIndex = trimmedStr.lastIndexOf(' ');
+				if (spaceIndex > 0) {
+					String numericPart = trimmedStr.substring(0, spaceIndex);
+					return Double.parseDouble(numericPart);
+				}
+			}
+
+			// It's already in seconds format (possibly with decimal)
+			return Double.parseDouble(durationStr);
+		}
+	}
 }

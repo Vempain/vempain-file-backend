@@ -195,7 +195,48 @@ public class MetadataTool {
 
 	public static double extractAudioVideoDuration(File file) throws IOException {
 		var output = runExifTool(file, "-Duration");
-		return Double.parseDouble(getTagValue(output, "Duration"));
+		var durationStr = getTagValue(output, "Duration");
+
+		// If the string is empty or null, return 0
+		if (durationStr == null || durationStr.isBlank()) {
+			return 0.0;
+		}
+
+		// If the string contains colons, it's in a time format (hh:mm:ss or mm:ss)
+		if (durationStr.contains(":")) {
+			String[] parts   = durationStr.split(":");
+			double   seconds = 0.0;
+
+			if (parts.length == 3) {
+				// Format: hh:mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 3600; // Hours to seconds
+				seconds += Double.parseDouble(parts[1]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[2]);        // Seconds
+			} else if (parts.length == 2) {
+				// Format: mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[1]);        // Seconds
+			}
+
+			return seconds;
+		} else {
+			// Check if the string contains a time qualifier like "s", "sec", "seconds"
+			String trimmedStr = durationStr.trim();
+			if (trimmedStr.endsWith(" s") ||
+				trimmedStr.endsWith(" sec") ||
+				trimmedStr.endsWith(" seconds")) {
+
+				// Extract the numeric part before the qualifier
+				int spaceIndex = trimmedStr.lastIndexOf(' ');
+				if (spaceIndex > 0) {
+					String numericPart = trimmedStr.substring(0, spaceIndex);
+					return Double.parseDouble(numericPart);
+				}
+			}
+
+			// It's already in seconds format (possibly with decimal)
+			return Double.parseDouble(durationStr);
+		}
 	}
 
 	public static int extractAudioBitRate(File file) throws IOException {

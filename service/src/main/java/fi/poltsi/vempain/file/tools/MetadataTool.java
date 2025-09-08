@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.tools;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -10,6 +11,11 @@ import org.json.JSONObject;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,28 +25,31 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
 
+import static java.util.Map.entry;
+
 @Slf4j
 public class MetadataTool {
 	private static final String COMPOSITE_KEY      = "Composite";
+	private static final String EXIF_IFD_KEY = "ExifIFD";
 	private static final String EXIF_KEY           = "EXIF";
-	private static final String EXIF_IFD_KEY       = "ExifIFD";
+	private static final String FILE_KEY     = "File";
+	private static final String GPS_KEY      = "GPS";
+	private static final String IFD0_KEY     = "IFD0";
 	private static final String IPTC_KEY           = "IPTC";
-	private static final String IFD0_KEY           = "IFD0";
-	private static final String FILE_KEY           = "File";
 	private static final String SUBIFD_1_KEY       = "SUBIFD1";
 	private static final String SUBIFD_2_KEY       = "SUBIFD2";
 	private static final String SUBIFD_3_KEY       = "SUBIFD3";
 	private static final String SUBIFD_KEY         = "SUBIFD";
+	private static final String SYSTEM_KEY   = "System";
 	private static final String XMP_DC_KEY         = "XMP-dc";
+	private static final String XMP_EXIF_KEY = "XMP-exif";
 	private static final String XMP_IPTC_CORE_KEY  = "XMP-iptcCore";
 	private static final String XMP_KEY            = "XMP";
-	private static final String XMP_EXIF_KEY       = "XMP-exif";
 	private static final String XMP_LR_KEY         = "XMP-lr";
 	private static final String XMP_PHOTOSHOP_KEY  = "XMP-photoshop";
 	private static final String XMP_XMPMM_KEY      = "XMP-xmpMM";
 	private static final String XMP_XMP_KEY        = "XMP-xmp";
 	private static final String XMP_XMP_RIGHTS_KEY = "XMP-xmpRights";
-	private static final String SYSTEM_KEY         = "System";
 
 	private static final String BITS_PER_SAMPLE_FIELD      = "BitsPerSample";
 	private static final String COMPOSITE_IMAGE_SIZE_FIELD = "ImageSize";
@@ -70,7 +79,7 @@ public class MetadataTool {
 	}
 
 	public static Dimension extractImageResolution(JSONObject jsonObject) throws IOException {
-		Map<String, List<String>> locations = new HashMap<>();
+		var locations = new HashMap<String, List<String>>();
 		// First we try to extract the resolution from the Composite section, here it should be like "widthxheight"
 		locations.put(COMPOSITE_KEY, List.of(COMPOSITE_IMAGE_SIZE_FIELD));
 		var resolution = extractJsonString(jsonObject, locations);
@@ -115,7 +124,7 @@ public class MetadataTool {
 	 * @throws IOException If an error occurs during extraction
 	 */
 	public static int extractImageColorDepth(JSONObject jsonObject) throws IOException {
-		Map<String, List<String>> locations = new HashMap<>();
+		var locations = new HashMap<String, List<String>>();
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 
@@ -162,7 +171,7 @@ public class MetadataTool {
 	}
 
 	public static int extractImageDpi(JSONObject jsonObject) throws IOException {
-		Map<String, List<String>> locations = new HashMap<>();
+		var locations = new HashMap<String, List<String>>();
 		locations.put(SUBIFD_KEY, List.of(X_RESOLUTION_FIELD));
 		var tagValue = extractJsonNumber(jsonObject, locations);
 
@@ -186,7 +195,48 @@ public class MetadataTool {
 
 	public static double extractAudioVideoDuration(File file) throws IOException {
 		var output = runExifTool(file, "-Duration");
-		return Double.parseDouble(getTagValue(output, "Duration"));
+		var durationStr = getTagValue(output, "Duration");
+
+		// If the string is empty or null, return 0
+		if (durationStr == null || durationStr.isBlank()) {
+			return 0.0;
+		}
+
+		// If the string contains colons, it's in a time format (hh:mm:ss or mm:ss)
+		if (durationStr.contains(":")) {
+			String[] parts   = durationStr.split(":");
+			double   seconds = 0.0;
+
+			if (parts.length == 3) {
+				// Format: hh:mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 3600; // Hours to seconds
+				seconds += Double.parseDouble(parts[1]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[2]);        // Seconds
+			} else if (parts.length == 2) {
+				// Format: mm:ss.ms
+				seconds += Double.parseDouble(parts[0]) * 60;   // Minutes to seconds
+				seconds += Double.parseDouble(parts[1]);        // Seconds
+			}
+
+			return seconds;
+		} else {
+			// Check if the string contains a time qualifier like "s", "sec", "seconds"
+			String trimmedStr = durationStr.trim();
+			if (trimmedStr.endsWith(" s") ||
+				trimmedStr.endsWith(" sec") ||
+				trimmedStr.endsWith(" seconds")) {
+
+				// Extract the numeric part before the qualifier
+				int spaceIndex = trimmedStr.lastIndexOf(' ');
+				if (spaceIndex > 0) {
+					String numericPart = trimmedStr.substring(0, spaceIndex);
+					return Double.parseDouble(numericPart);
+				}
+			}
+
+			// It's already in seconds format (possibly with decimal)
+			return Double.parseDouble(durationStr);
+		}
 	}
 
 	public static int extractAudioBitRate(File file) throws IOException {
@@ -277,8 +327,8 @@ public class MetadataTool {
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return String value retrieved, or null if none were found
 	 */
-	public static String getDescriptionFromJson(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractDescription(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_KEY, List.of(XMP_DESCRIPTION_FIELD));
 		locations.put(IPTC_KEY, List.of(IPTC_CAPTION_FIELD));
 
@@ -292,7 +342,7 @@ public class MetadataTool {
 	 * @return String value retrieved, or null if none were found
 	 */
 	public static String extractMimetype(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+		var locations = new HashMap<String, List<String>>();
 		locations.put(FILE_KEY, List.of(MIMETYPE_FIELD));
 		locations.put(XMP_KEY, List.of(MIMETYPE_FIELD));
 
@@ -305,8 +355,8 @@ public class MetadataTool {
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return String value retrieved, or null if none were found
 	 */
-	public static String getOriginalDateTimeFromJson(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractOriginalDateTime(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(EXIF_IFD_KEY, Arrays.asList(DATETIME_ORIGINAL_FIELD, CREATE_DATE_FIELD));
 		locations.put(EXIF_KEY, List.of(DATETIME_ORIGINAL_FIELD));
 		locations.put(XMP_XMP_KEY, List.of(CREATE_DATE_FIELD));
@@ -324,8 +374,8 @@ public class MetadataTool {
 	 * @return String value retrieved, or null if none were found
 	 */
 
-	public static int getOriginalSecondFraction(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static int extractOriginalSecondFraction(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(EXIF_IFD_KEY, Arrays.asList("SubSecTimeOriginal", "SubSecTimeDigitized"));
 		var fraction = extractJsonNumber(jsonObject, locations);
 
@@ -342,8 +392,8 @@ public class MetadataTool {
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return String value retrieved, or null if none were found
 	 */
-	public static String getOriginalDocumentId(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractOriginalDocumentId(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_XMPMM_KEY, Arrays.asList("OriginalDocumentID", "DocumentID", "InstanceID", "DerivedFromOriginalDocumentID"));
 		locations.put(XMP_KEY, Arrays.asList("OriginalDocumentID", "DocumentID", "InstanceID", "DerivedFromOriginalDocumentID"));
 		return extractJsonString(jsonObject, locations);
@@ -355,8 +405,8 @@ public class MetadataTool {
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return String value retrieved, or null if none were found
 	 */
-	public static List<String> getSubjects(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static List<String> extractSubjects(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_KEY, List.of("Subject"));
 		locations.put(XMP_DC_KEY, List.of("Subject"));
 		locations.put(XMP_LR_KEY, List.of("HierarchicalSubject", "WeightedFlatSubject"));
@@ -384,54 +434,364 @@ public class MetadataTool {
 		return subjectList;
 	}
 
-	public static String getRightsHolder(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractRightsHolder(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_DC_KEY, List.of("Rights"));
 		locations.put(IFD0_KEY, List.of("Copyright"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getRightsTerms(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractRightsTerms(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_XMP_RIGHTS_KEY, List.of("UsageTerms"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getRightsUrl(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractRightsUrl(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_XMP_RIGHTS_KEY, List.of("WebStatement"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getCreatorName(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractCreatorName(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(IFD0_KEY, List.of("Artist"));
 		locations.put(XMP_DC_KEY, List.of("Creator"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getCreatorEmail(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractCreatorEmail(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorWorkEmail"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getCreatorCountry(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractCreatorCountry(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorCountry"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getCreatorUrl(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractCreatorUrl(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_IPTC_CORE_KEY, List.of("CreatorWorkURL"));
 		return extractJsonString(jsonObject, locations);
 	}
 
-	public static String getLabel(JSONObject jsonObject) {
-		Map<String, List<String>> locations = new HashMap<>();
+	public static String extractLabel(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
 		locations.put(XMP_XMP_KEY, List.of("Label"));
 		return extractJsonString(jsonObject, locations);
+	}
+
+	public static Instant extractGpsTime(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put(COMPOSITE_KEY, List.of("GPSDateTime"));
+		var dateTimeStamp = extractJsonString(jsonObject, locations);
+
+		if (dateTimeStamp == null) {
+			locations.put(GPS_KEY, List.of("GPSTimeStamp"));
+			var timeStamp = extractJsonString(jsonObject, locations);
+			locations = new HashMap<>();
+			locations.put(GPS_KEY, List.of("GPSDateStamp"));
+			var dateStamp = extractJsonString(jsonObject, locations);
+			// Combine date and time to a single string and parse it as a UTC datetime
+			if (dateStamp != null
+				&& !dateStamp.isBlank()
+				&& timeStamp != null
+				&& !timeStamp.isBlank()) {
+				dateTimeStamp = dateStamp + " " + timeStamp + "Z";
+			}
+		}
+
+		return dateTimeParser(dateTimeStamp);
+	}
+
+	public static GpsLocationEntity extractGpsData(JSONObject jsonObject) {
+		var gpsLocationEntity = new GpsLocationEntity();
+
+		var locations = new HashMap<String, List<String>>();
+		// First attempt to fetch the GPSPosition
+		locations.put(COMPOSITE_KEY, List.of("GPSLocation"));
+		var gpsLocationString = extractJsonString(jsonObject, locations);
+
+		if (gpsLocationString != null && !gpsLocationString.isBlank() && gpsLocationString.contains(",")) {
+			// GPSPosition is in format "60 deg 10' 30.00\" N, 24 deg 58' 00.0\" E"
+			var locationParts = gpsLocationString.split(",");
+
+			if (locationParts.length == 2) {
+				// Extract latitude (first part)
+				var latitudePart   = locationParts[0].trim();
+				var latitudeResult = extractCoordinateWithRef(latitudePart);
+
+				// Extract longitude (second part)
+				var longitudePart   = locationParts[1].trim();
+				var longitudeResult = extractCoordinateWithRef(longitudePart);
+
+				// Set the values to the entity
+				if (latitudeResult != null) {
+					gpsLocationEntity.setLatitudeRef(latitudeResult.getKey());
+					gpsLocationEntity.setLatitude(latitudeResult.getValue());
+				}
+
+				if (longitudeResult != null) {
+					gpsLocationEntity.setLongitudeRef(longitudeResult.getKey());
+					gpsLocationEntity.setLongitude(longitudeResult.getValue());
+				}
+			}
+		} else {
+			// Try to get latitude and longitude from separate fields
+			var latitudeResult  = extractSingleCoordinate(jsonObject, "GPSLatitude", "GPSLatitudeRef");
+			var longitudeResult = extractSingleCoordinate(jsonObject, "GPSLongitude", "GPSLongitudeRef");
+
+			if (latitudeResult != null) {
+				gpsLocationEntity.setLatitudeRef(latitudeResult.getKey());
+				gpsLocationEntity.setLatitude(latitudeResult.getValue());
+			}
+
+			if (longitudeResult != null) {
+				gpsLocationEntity.setLongitudeRef(longitudeResult.getKey());
+				gpsLocationEntity.setLongitude(longitudeResult.getValue());
+			}
+		}
+		// GPS altitude, can be in form of "130 m" or "7 m Above Sea Level"
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSAltitude"));
+		locations.put(COMPOSITE_KEY, List.of("GPSAltitude"));
+		var altitudeString = extractJsonString(jsonObject, locations);
+
+		if (altitudeString != null && !altitudeString.isBlank()) {
+			var altitudeParts = altitudeString.split(" ");
+
+			if (altitudeParts.length > 0) {
+				try {
+					var altitudeValue = Double.parseDouble(altitudeParts[0].trim());
+					gpsLocationEntity.setAltitude(altitudeValue);
+				} catch (NumberFormatException e) {
+					log.error("Failed to parse GPS altitude: {}", altitudeString, e);
+				}
+			}
+		}
+
+		// GPS satellite count, seems to be given in a zero-filled format like "03"
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSSatellites"));
+
+		var satelliteString = extractJsonString(jsonObject, locations);
+		if (satelliteString != null && !satelliteString.isBlank()) {
+			try {
+				var satelliteCount = Integer.parseInt(satelliteString.trim());
+				gpsLocationEntity.setSatelliteCount(satelliteCount);
+			} catch (NumberFormatException e) {
+				log.error("Failed to parse GPS satellite count: {}", satelliteString, e);
+			}
+		}
+
+		// GPS direction, degrees with decimal, example 212.1
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSImgDirection"));
+		var directionString = extractJsonString(jsonObject, locations);
+
+		if (directionString != null && !directionString.isBlank()) {
+			try {
+				var directionValue = Double.parseDouble(directionString.trim());
+				gpsLocationEntity.setDirection(directionValue);
+			} catch (NumberFormatException e) {
+				log.error("Failed to parse GPS direction: {}", directionString, e);
+			}
+		}
+		// Then we need to extract the location data, which is spread over multiple locations
+		// Country, country code, e.g. "NL"
+		locations = new HashMap<>();
+		locations.put(XMP_IPTC_CORE_KEY, List.of("Country"));
+		var countryCode = extractJsonString(jsonObject, locations);
+
+		if (countryCode != null && !countryCode.isBlank()) {
+			gpsLocationEntity.setCountry(countryCode);
+		} else {
+			// Country, full text localizer, e.g. "Alankomaat"
+			locations = new HashMap<>();
+			locations.put(XMP_PHOTOSHOP_KEY, List.of("Country"));
+			var country = extractJsonString(jsonObject, locations);
+
+			if (country != null && !country.isBlank()) {
+				gpsLocationEntity.setCountry(country);
+			}
+		}
+		// Province or state, e.g. "Uusimaa"
+		locations = new HashMap<>();
+		locations.put(XMP_PHOTOSHOP_KEY, List.of("State"));
+		var state = extractJsonString(jsonObject, locations);
+
+		if (state != null && !state.isBlank()) {
+			gpsLocationEntity.setState(state);
+		}
+		// City, e.g. "Helsinki"
+		locations = new HashMap<>();
+		locations.put(XMP_PHOTOSHOP_KEY, List.of("City"));
+		var city = extractJsonString(jsonObject, locations);
+		if (city != null && !city.isBlank()) {
+			gpsLocationEntity.setCity(city);
+		}
+		// Street, e.g. "Mannerheimintie". The location may also be just a number, e.g. "4" so we may get an exception here
+		try {
+			locations = new HashMap<>();
+			locations.put(XMP_IPTC_CORE_KEY, List.of("Location"));
+			var street = extractJsonString(jsonObject, locations);
+
+			if (street != null && !street.isBlank()) {
+				gpsLocationEntity.setStreet(street);
+			}
+		} catch (JSONException e) {
+			log.warn("Failed to parse GPS location as string: {}", e.getMessage());
+		}
+
+		return gpsLocationEntity;
+	}
+
+	/**
+	 * Extracts a coordinate value and its reference from separate metadata fields
+	 *
+	 * @param jsonObject    The metadata JSON object
+	 * @param coordinateKey The key for the coordinate value
+	 * @param refKey        The key for the coordinate reference
+	 * @return A Map.Entry containing the reference character and coordinate value
+	 */
+	private static Map.Entry<Character, Double> extractSingleCoordinate(JSONObject jsonObject, String coordinateKey, String refKey) {
+		// Get reference (N/S/E/W)
+		var locations = new HashMap<String, List<String>>();
+		locations.put(GPS_KEY, List.of(refKey));
+		var       refString = extractJsonString(jsonObject, locations);
+		Character ref       = refString != null && !refString.isBlank() ? refString.charAt(0) : null;
+
+		// Get coordinate string
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of(coordinateKey));
+		locations.put(COMPOSITE_KEY, List.of(coordinateKey));
+		var coordinateString = extractJsonString(jsonObject, locations);
+
+		// If no reference was found but coordinate has one at the end, extract it
+		if (ref == null && coordinateString != null && !coordinateString.isBlank() && coordinateString.substring(coordinateString.length() - 1)
+																									  .matches("[NSEW]")) {
+			var result = extractCoordinateWithRef(coordinateString);
+			ref = result.getKey();
+			Double value = result.getValue();
+			return entry(ref, value);
+		}
+
+		// Otherwise convert the coordinate with the provided reference
+		Double value = convertGpsCoordinateStringToDouble(coordinateString, ref);
+
+		if (value == null) {
+			log.warn("Failed to extract coordinate for key {} with reference {}", coordinateKey, ref);
+			return null;
+		}
+
+		return entry(ref, value);
+	}
+
+	/**
+	 * Extracts a coordinate and its reference from a single string
+	 *
+	 * @param coordinateString The coordinate string possibly containing a reference at the end
+	 * @return A Map.Entry containing the reference character and coordinate value
+	 */
+	private static Map.Entry<Character, Double> extractCoordinateWithRef(String coordinateString) {
+		if (coordinateString == null || coordinateString.isBlank()) {
+			return null;
+		}
+
+		// Check if the last character is a cardinal point (N/S/E/W)
+		char      lastChar = coordinateString.charAt(coordinateString.length() - 1);
+		Character ref      = null;
+		String    coordStr = coordinateString;
+
+		if (lastChar == 'N' || lastChar == 'S' || lastChar == 'E' || lastChar == 'W') {
+			ref      = lastChar;
+			coordStr = coordinateString.substring(0, coordinateString.length() - 1)
+									   .trim();
+		}
+
+		if (ref == null) {
+			log.warn("No cardinal point found in coordinate string: {}", coordinateString);
+			return null;
+		}
+
+		Double value = convertGpsCoordinateStringToDouble(coordStr, ref);
+		return entry(ref, value);
+	}
+
+	protected static Double convertGpsCoordinateStringToDouble(String coordinateString, Character cardinalPoint) {
+		if (cardinalPoint == null) {
+			return null;
+		}
+
+		switch (cardinalPoint) {
+			case 'N' -> {
+				// North latitude, positive value
+				if (coordinateString != null && !coordinateString.isBlank()) {
+					try {
+						return convertDmsToDecimal(coordinateString);
+					} catch (Exception e) {
+						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
+					}
+				}
+			}
+			case 'S' -> {
+				// South latitude, negative value
+				if (coordinateString != null && !coordinateString.isBlank()) {
+					try {
+						return (Double) (-convertDmsToDecimal(coordinateString));
+					} catch (Exception e) {
+						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
+					}
+				}
+			}
+			case 'E' -> {
+				// East longitude, positive value
+				if (coordinateString != null && !coordinateString.isBlank()) {
+					try {
+						return convertDmsToDecimal(coordinateString);
+					} catch (Exception e) {
+						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
+					}
+				}
+			}
+			case 'W' -> {
+				// West longitude, negative value
+				if (coordinateString != null && !coordinateString.isBlank()) {
+					try {
+						return (Double) (-convertDmsToDecimal(coordinateString));
+					} catch (Exception e) {
+						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
+					}
+				}
+			}
+			default -> log.warn("Unknown latitude reference: {}", cardinalPoint);
+
+		}
+
+		return null;
+	}
+
+	private static Double convertDmsToDecimal(String latitudeString) {
+		// GPS coordinates are in DMS format, e.g. "60 deg 10' 30.00\""
+		// We need to convert it to decimal format
+		var dmsParts = latitudeString.split("[^0-9.+-]+");
+
+		if (dmsParts.length < 3) {
+			throw new IllegalArgumentException("Invalid DMS format: " + latitudeString);
+		}
+
+		try {
+			double degrees = Double.parseDouble(dmsParts[0]);
+			double minutes = Double.parseDouble(dmsParts[1]);
+			double seconds = Double.parseDouble(dmsParts[2]);
+
+			return (Double) (degrees + (minutes / 60) + (seconds / 3600));
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid number in DMS format: " + latitudeString, e);
+		}
 	}
 
 	public static List<String> extractJsonArray(JSONObject jsonObject, Map<String, List<String>> locations) {
@@ -531,7 +891,7 @@ public class MetadataTool {
 													.getString(key);
 
 						try {
-							return Integer.parseInt(stringValue);
+							return Double.valueOf(stringValue);
 						} catch (NumberFormatException ex) {
 							log.error("Key {} exists but can not be parsed as number", key);
 						}
@@ -578,5 +938,34 @@ public class MetadataTool {
 		}
 
 		return "";
+	}
+
+	public static Instant dateTimeParser(String dateTimeString) {
+		if (dateTimeString == null || dateTimeString.isBlank()) {
+			return null;
+		}
+
+		var formatter = new DateTimeFormatterBuilder()
+				// Date
+				.appendPattern("yyyy:MM:dd HH:mm:ss")
+				// Optional fractional seconds (from 1 to 9 digits)
+				.optionalStart()
+				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+				.optionalEnd()
+				// Optional offset like +02:00
+				.optionalStart()
+				.appendOffset("+HH:mm", "Z")
+				.optionalEnd()
+				.toFormatter()
+				.withZone(ZoneId.systemDefault());
+
+		try {
+			var timeStamp = formatter.parse(dateTimeString, Instant::from);
+			log.info("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
+			return timeStamp;
+		} catch (DateTimeParseException e) {
+			log.error("Failed to parse date time string: {}", dateTimeString, e);
+			return null;
+		}
 	}
 }

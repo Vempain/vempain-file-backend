@@ -554,6 +554,97 @@ public class MetadataTool {
 				gpsLocationEntity.setLongitude(longitudeResult.getValue());
 			}
 		}
+		// GPS altitude, can be in form of "130 m" or "7 m Above Sea Level"
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSAltitude"));
+		locations.put(COMPOSITE_KEY, List.of("GPSAltitude"));
+		var altitudeString = extractJsonString(jsonObject, locations);
+
+		if (altitudeString != null && !altitudeString.isBlank()) {
+			var altitudeParts = altitudeString.split(" ");
+
+			if (altitudeParts.length > 0) {
+				try {
+					var altitudeValue = Double.parseDouble(altitudeParts[0].trim());
+					gpsLocationEntity.setAltitude(altitudeValue);
+				} catch (NumberFormatException e) {
+					log.error("Failed to parse GPS altitude: {}", altitudeString, e);
+				}
+			}
+		}
+
+		// GPS satellite count, seems to be given in a zero-filled format like "03"
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSSatellites"));
+
+		var satelliteString = extractJsonString(jsonObject, locations);
+		if (satelliteString != null && !satelliteString.isBlank()) {
+			try {
+				var satelliteCount = Integer.parseInt(satelliteString.trim());
+				gpsLocationEntity.setSatelliteCount(satelliteCount);
+			} catch (NumberFormatException e) {
+				log.error("Failed to parse GPS satellite count: {}", satelliteString, e);
+			}
+		}
+
+		// GPS direction, degrees with decimal, example 212.1
+		locations = new HashMap<>();
+		locations.put(GPS_KEY, List.of("GPSImgDirection"));
+		var directionString = extractJsonString(jsonObject, locations);
+
+		if (directionString != null && !directionString.isBlank()) {
+			try {
+				var directionValue = Double.parseDouble(directionString.trim());
+				gpsLocationEntity.setDirection(directionValue);
+			} catch (NumberFormatException e) {
+				log.error("Failed to parse GPS direction: {}", directionString, e);
+			}
+		}
+		// Then we need to extract the location data, which is spread over multiple locations
+		// Country, country code, e.g. "NL"
+		locations = new HashMap<>();
+		locations.put(XMP_IPTC_CORE_KEY, List.of("Country"));
+		var countryCode = extractJsonString(jsonObject, locations);
+
+		if (countryCode != null && !countryCode.isBlank()) {
+			gpsLocationEntity.setCountry(countryCode);
+		} else {
+			// Country, full text localizer, e.g. "Alankomaat"
+			locations = new HashMap<>();
+			locations.put(XMP_PHOTOSHOP_KEY, List.of("Country"));
+			var country = extractJsonString(jsonObject, locations);
+
+			if (country != null && !country.isBlank()) {
+				gpsLocationEntity.setCountry(country);
+			}
+		}
+		// Province or state, e.g. "Uusimaa"
+		locations = new HashMap<>();
+		locations.put(XMP_PHOTOSHOP_KEY, List.of("State"));
+		var state = extractJsonString(jsonObject, locations);
+
+		if (state != null && !state.isBlank()) {
+			gpsLocationEntity.setState(state);
+		}
+		// City, e.g. "Helsinki"
+		locations = new HashMap<>();
+		locations.put(XMP_PHOTOSHOP_KEY, List.of("City"));
+		var city = extractJsonString(jsonObject, locations);
+		if (city != null && !city.isBlank()) {
+			gpsLocationEntity.setCity(city);
+		}
+		// Street, e.g. "Mannerheimintie". The location may also be just a number, e.g. "4" so we may get an exception here
+		try {
+			locations = new HashMap<>();
+			locations.put(XMP_IPTC_CORE_KEY, List.of("Location"));
+			var street = extractJsonString(jsonObject, locations);
+
+			if (street != null && !street.isBlank()) {
+				gpsLocationEntity.setStreet(street);
+			}
+		} catch (JSONException e) {
+			log.warn("Failed to parse GPS location as string: {}", e.getMessage());
+		}
 
 		return gpsLocationEntity;
 	}

@@ -515,7 +515,58 @@ public class DirectoryProcessorService {
 		var gpsData                = extractGpsData(jsonObject);
 		var gpsTimestamp           = extractGpsTime(jsonObject);
 
-		gpsData = gpsLocationRepository.save(gpsData);
+		// Check if the GPS data already exists in the database
+		if (gpsData != null) {
+			// Look up the existing GPS data by comparing the latitude, latitude ref, longitude and longitude ref
+			var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
+					gpsData.getLatitude(),
+					gpsData.getLatitudeRef(),
+					gpsData.getLongitude(),
+					gpsData.getLongitudeRef());
+
+			if (optionalExistingGps.isEmpty()) {
+				gpsData = gpsLocationRepository.save(gpsData);
+			} else {
+				var existingGps    = optionalExistingGps.get();
+				var updateExisting = false;
+				// See if we now have the location data which previously was null, if so, then update the existing entry
+				if (gpsData.getCountry() != null
+					&& existingGps.getCountry() == null) {
+					existingGps.setCountry(gpsData.getCountry());
+					updateExisting = true;
+				}
+
+				if (gpsData.getCity() != null
+					&& existingGps.getCity() == null) {
+					existingGps.setCity(gpsData.getCity());
+					updateExisting = true;
+				}
+
+				if (gpsData.getState() != null
+					&& existingGps.getState() == null) {
+					existingGps.setState(gpsData.getState());
+					updateExisting = true;
+				}
+
+				if (gpsData.getStreet() != null
+					&& existingGps.getStreet() == null) {
+					existingGps.setStreet(gpsData.getStreet());
+					updateExisting = true;
+				}
+
+				if (gpsData.getSubLocation() != null
+					&& existingGps.getSubLocation() == null) {
+					existingGps.setSubLocation(gpsData.getSubLocation());
+					updateExisting = true;
+				}
+
+				if (updateExisting) {
+					gpsData = gpsLocationRepository.save(existingGps);
+				} else {
+					gpsData = existingGps;
+				}
+			}
+		}
 
 		if (originalDocumentId != null) {
 			var existingFile = fileRepository.findByOriginalDocumentId(originalDocumentId);

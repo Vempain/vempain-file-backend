@@ -78,7 +78,7 @@ public class MetadataTool {
 		return metadataToJsonObject(metadata);
 	}
 
-	public static Dimension extractImageResolution(JSONObject jsonObject) throws IOException {
+	public static Dimension extractImageResolution(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		// First we try to extract the resolution from the Composite section, here it should be like "widthxheight"
 		locations.put(COMPOSITE_KEY, List.of(COMPOSITE_IMAGE_SIZE_FIELD));
@@ -121,9 +121,8 @@ public class MetadataTool {
 	 *
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return int value retrieved, or 8 if none were found or parsing failed. 8 is a good default for most images.
-	 * @throws IOException If an error occurs during extraction
 	 */
-	public static int extractImageColorDepth(JSONObject jsonObject) throws IOException {
+	public static int extractImageColorDepth(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
@@ -170,7 +169,7 @@ public class MetadataTool {
 		return 8;
 	}
 
-	public static int extractImageDpi(JSONObject jsonObject) throws IOException {
+	public static int extractImageDpi(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put(SUBIFD_KEY, List.of(X_RESOLUTION_FIELD));
 		var tagValue = extractJsonNumber(jsonObject, locations);
@@ -590,14 +589,14 @@ public class MetadataTool {
 		// GPS direction, degrees with decimal, example 212.1
 		locations = new HashMap<>();
 		locations.put(GPS_KEY, List.of("GPSImgDirection"));
-		var directionString = extractJsonString(jsonObject, locations);
+		var directionDouble = extractJsonNumber(jsonObject, locations);
 
-		if (directionString != null && !directionString.isBlank()) {
+		if (directionDouble != null) {
 			try {
-				var directionValue = Double.parseDouble(directionString.trim());
+				var directionValue = directionDouble.doubleValue();
 				gpsLocationEntity.setDirection(directionValue);
 			} catch (NumberFormatException e) {
-				log.error("Failed to parse GPS direction: {}", directionString, e);
+				log.error("Failed to parse GPS direction: {}", directionDouble, e);
 			}
 		}
 		// Then we need to extract the location data, which is spread over multiple locations
@@ -741,7 +740,7 @@ public class MetadataTool {
 				// South latitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return (Double) (-convertDmsToDecimal(coordinateString));
+						return -convertDmsToDecimal(coordinateString);
 					} catch (Exception e) {
 						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -761,7 +760,7 @@ public class MetadataTool {
 				// West longitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return (Double) (-convertDmsToDecimal(coordinateString));
+						return -convertDmsToDecimal(coordinateString);
 					} catch (Exception e) {
 						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -788,7 +787,7 @@ public class MetadataTool {
 			double minutes = Double.parseDouble(dmsParts[1]);
 			double seconds = Double.parseDouble(dmsParts[2]);
 
-			return (Double) (degrees + (minutes / 60) + (seconds / 3600));
+			return degrees + (minutes / 60) + (seconds / 3600);
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Invalid number in DMS format: " + latitudeString, e);
 		}
@@ -847,6 +846,23 @@ public class MetadataTool {
 
 		var processBuilder = new ProcessBuilder(command);
 		var process        = processBuilder.start();
+
+		if (process.isAlive()) {
+			try {
+				int exitCode = process.waitFor();
+				if (exitCode != 0) {
+					log.error("Exiftool copy process exited with code: {}", exitCode);
+				} else {
+					log.info("Exiftool copy process completed successfully.");
+				}
+			} catch (InterruptedException e) {
+				Thread.currentThread()
+					  .interrupt();
+				log.error("Exiftool copy process was interrupted", e);
+			}
+		} else {
+			log.error("Exiftool copy process failed to start.");
+		}
 	}
 
 	public static JSONObject metadataToJsonObject(String metadata) {

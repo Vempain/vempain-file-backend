@@ -530,7 +530,15 @@ public class DirectoryProcessorService {
 				gpsData.getLongitudeRef());
 
 		if (optionalExistingGps.isEmpty()) {
-			gpsData = gpsLocationRepository.save(gpsData);
+			// Make sure the non-null fields are not null
+			if (gpsData.getLatitude() == null
+				|| gpsData.getLatitudeRef() == null
+				|| gpsData.getLongitude() == null
+				|| gpsData.getLongitudeRef() == null) {
+				log.warn("GPS data not containing required fields, cannot save GPS data for file: {}", gpsData);
+			} else {
+				gpsData = gpsLocationRepository.save(gpsData);
+			}
 		} else {
 			var existingGps    = optionalExistingGps.get();
 			var updateExisting = false;

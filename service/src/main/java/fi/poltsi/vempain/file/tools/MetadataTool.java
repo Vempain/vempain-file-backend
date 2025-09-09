@@ -576,13 +576,22 @@ public class MetadataTool {
 		locations = new HashMap<>();
 		locations.put(GPS_KEY, List.of("GPSSatellites"));
 
-		var satelliteString = extractJsonString(jsonObject, locations);
-		if (satelliteString != null && !satelliteString.isBlank()) {
-			try {
-				var satelliteCount = Integer.parseInt(satelliteString.trim());
-				gpsLocationEntity.setSatelliteCount(satelliteCount);
-			} catch (NumberFormatException e) {
-				log.error("Failed to parse GPS satellite count: {}", satelliteString, e);
+		try {
+			var satelliteString = extractJsonString(jsonObject, locations);
+			if (satelliteString != null && !satelliteString.isBlank()) {
+				try {
+					var satelliteCount = Integer.parseInt(satelliteString.trim());
+					gpsLocationEntity.setSatelliteCount(satelliteCount);
+				} catch (NumberFormatException e) {
+					log.error("Failed to parse GPS satellite count: {}", satelliteString, e);
+				}
+			}
+		} catch (JSONException e) {
+			log.warn("Failed to parse GPS satellite count as string. Attempting to get number instead");
+			var satelliteCount = extractJsonNumber(jsonObject, locations);
+
+			if (satelliteCount != null) {
+				gpsLocationEntity.setSatelliteCount(satelliteCount.intValue());
 			}
 		}
 

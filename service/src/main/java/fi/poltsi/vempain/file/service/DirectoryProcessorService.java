@@ -200,7 +200,7 @@ public class DirectoryProcessorService {
 				log.info("File has already been scanned to the database: {}", file.getName());
 				return null;
 			} else {
-				log.info("File with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
+				log.info("Original file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
 						 file.getName());
 				// Remove the existing file so that it can be reprocessed
 				fileRepository.delete(existingFile);
@@ -314,7 +314,7 @@ public class DirectoryProcessorService {
 				var res = extractXYResolution(file);
 				iconFile.setWidth(res.width);
 				iconFile.setHeight(res.height);
-				iconFile.setIsScalable((Boolean) extractIconIsScalable(file));
+				iconFile.setIsScalable(extractIconIsScalable(file));
 				fileRepository.save(iconFile);
 			}
 			case FONT -> {
@@ -329,7 +329,7 @@ public class DirectoryProcessorService {
 				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
 				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
 				archiveFile.setContentCount(extractArchiveContentCount(file));
-				archiveFile.setIsEncrypted((Boolean) extractArchiveIsEncrypted(file));
+				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
 				fileRepository.save(archiveFile);
 			}
 			default -> {
@@ -376,7 +376,7 @@ public class DirectoryProcessorService {
 				}
 
 				// If the sha256sum does not match, we remove the existing entry so that it can be reprocessed
-				log.info("File with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
+				log.info("Export file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
 						 file.getName());
 				exportFileRepository.delete(exportFile);
 			}
@@ -386,6 +386,12 @@ public class DirectoryProcessorService {
 			try {
 				metadataObject = extractMetadataJsonObject(file);
 			} catch (IOException e) {
+				errorMessage.append("Failed to extract metadata from exported file: ")
+							.append(file.getAbsolutePath())
+							.append(" - ")
+							.append(e.getMessage())
+							.append("\n");
+				log.error("Failed to extract metadata from exported file: {}", file.getAbsolutePath(), e);
 				throw new RuntimeException(e);
 			}
 
@@ -516,55 +522,53 @@ public class DirectoryProcessorService {
 		var gpsTimestamp           = extractGpsTime(jsonObject);
 
 		// Check if the GPS data already exists in the database
-		if (gpsData != null) {
-			// Look up the existing GPS data by comparing the latitude, latitude ref, longitude and longitude ref
-			var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
-					gpsData.getLatitude(),
-					gpsData.getLatitudeRef(),
-					gpsData.getLongitude(),
-					gpsData.getLongitudeRef());
+		// Look up the existing GPS data by comparing the latitude, latitude ref, longitude and longitude ref
+		var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
+				gpsData.getLatitude(),
+				gpsData.getLatitudeRef(),
+				gpsData.getLongitude(),
+				gpsData.getLongitudeRef());
 
-			if (optionalExistingGps.isEmpty()) {
-				gpsData = gpsLocationRepository.save(gpsData);
+		if (optionalExistingGps.isEmpty()) {
+			gpsData = gpsLocationRepository.save(gpsData);
+		} else {
+			var existingGps    = optionalExistingGps.get();
+			var updateExisting = false;
+			// See if we now have the location data which previously was null, if so, then update the existing entry
+			if (gpsData.getCountry() != null
+				&& existingGps.getCountry() == null) {
+				existingGps.setCountry(gpsData.getCountry());
+				updateExisting = true;
+			}
+
+			if (gpsData.getCity() != null
+				&& existingGps.getCity() == null) {
+				existingGps.setCity(gpsData.getCity());
+				updateExisting = true;
+			}
+
+			if (gpsData.getState() != null
+				&& existingGps.getState() == null) {
+				existingGps.setState(gpsData.getState());
+				updateExisting = true;
+			}
+
+			if (gpsData.getStreet() != null
+				&& existingGps.getStreet() == null) {
+				existingGps.setStreet(gpsData.getStreet());
+				updateExisting = true;
+			}
+
+			if (gpsData.getSubLocation() != null
+				&& existingGps.getSubLocation() == null) {
+				existingGps.setSubLocation(gpsData.getSubLocation());
+				updateExisting = true;
+			}
+
+			if (updateExisting) {
+				gpsData = gpsLocationRepository.save(existingGps);
 			} else {
-				var existingGps    = optionalExistingGps.get();
-				var updateExisting = false;
-				// See if we now have the location data which previously was null, if so, then update the existing entry
-				if (gpsData.getCountry() != null
-					&& existingGps.getCountry() == null) {
-					existingGps.setCountry(gpsData.getCountry());
-					updateExisting = true;
-				}
-
-				if (gpsData.getCity() != null
-					&& existingGps.getCity() == null) {
-					existingGps.setCity(gpsData.getCity());
-					updateExisting = true;
-				}
-
-				if (gpsData.getState() != null
-					&& existingGps.getState() == null) {
-					existingGps.setState(gpsData.getState());
-					updateExisting = true;
-				}
-
-				if (gpsData.getStreet() != null
-					&& existingGps.getStreet() == null) {
-					existingGps.setStreet(gpsData.getStreet());
-					updateExisting = true;
-				}
-
-				if (gpsData.getSubLocation() != null
-					&& existingGps.getSubLocation() == null) {
-					existingGps.setSubLocation(gpsData.getSubLocation());
-					updateExisting = true;
-				}
-
-				if (updateExisting) {
-					gpsData = gpsLocationRepository.save(existingGps);
-				} else {
-					gpsData = existingGps;
-				}
+				gpsData = existingGps;
 			}
 		}
 

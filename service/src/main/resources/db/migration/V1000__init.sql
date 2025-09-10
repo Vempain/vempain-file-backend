@@ -167,10 +167,10 @@ CREATE TABLE export_files
 CREATE TABLE gps_locations
 (
 	id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	latitude        DOUBLE PRECISION NOT NULL,
-	latitude_ref    CHAR(1)          NOT NULL,
-	longitude       DOUBLE PRECISION NOT NULL,
-	longitude_ref   CHAR(1)          NOT NULL,
+	latitude      DECIMAL(15, 5) NOT NULL,
+	latitude_ref  CHAR(1)        NOT NULL,
+	longitude     DECIMAL(15, 5) NOT NULL,
+	longitude_ref CHAR(1)        NOT NULL,
 	altitude        DOUBLE PRECISION,
 	direction       DOUBLE PRECISION,
 	satellite_count INT,

@@ -11,6 +11,8 @@ import org.json.JSONObject;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -62,6 +64,9 @@ public class MetadataTool {
 	private static final String SUBIFD_IMAGE_WIDTH_FIELD   = "ImageWidth";
 	private static final String XMP_DESCRIPTION_FIELD      = "Description";
 	private static final String X_RESOLUTION_FIELD         = "XResolution";
+
+	// GPS coordinate precision
+	private static final int GPS_DECIMAL_PRECISION = 5;
 
 	public static String extractMetadataJson(File file) throws IOException {
 		return runExifTool(file, "-a", "-u", "-ee", "-api", "RequestAll=3", "-g1", "-J");
@@ -665,7 +670,7 @@ public class MetadataTool {
 	 * @param refKey        The key for the coordinate reference
 	 * @return A Map.Entry containing the reference character and coordinate value
 	 */
-	private static Map.Entry<Character, Double> extractSingleCoordinate(JSONObject jsonObject, String coordinateKey, String refKey) {
+	private static Map.Entry<Character, BigDecimal> extractSingleCoordinate(JSONObject jsonObject, String coordinateKey, String refKey) {
 		// Get reference (N/S/E/W)
 		var locations = new HashMap<String, List<String>>();
 		locations.put(GPS_KEY, List.of(refKey));
@@ -683,12 +688,12 @@ public class MetadataTool {
 																									  .matches("[NSEW]")) {
 			var result = extractCoordinateWithRef(coordinateString);
 			ref = result.getKey();
-			Double value = result.getValue();
+			BigDecimal value = result.getValue();
 			return entry(ref, value);
 		}
 
 		// Otherwise convert the coordinate with the provided reference
-		Double value = convertGpsCoordinateStringToDouble(coordinateString, ref);
+		BigDecimal value = convertGpsCoordinateStringToBigDecimal(coordinateString, ref);
 
 		if (value == null) {
 			log.warn("Failed to extract coordinate for key {} with reference {}", coordinateKey, ref);
@@ -704,7 +709,7 @@ public class MetadataTool {
 	 * @param coordinateString The coordinate string possibly containing a reference at the end
 	 * @return A Map.Entry containing the reference character and coordinate value
 	 */
-	private static Map.Entry<Character, Double> extractCoordinateWithRef(String coordinateString) {
+	private static Map.Entry<Character, BigDecimal> extractCoordinateWithRef(String coordinateString) {
 		if (coordinateString == null || coordinateString.isBlank()) {
 			return null;
 		}
@@ -725,11 +730,11 @@ public class MetadataTool {
 			return null;
 		}
 
-		Double value = convertGpsCoordinateStringToDouble(coordStr, ref);
+		BigDecimal value = convertGpsCoordinateStringToBigDecimal(coordStr, ref);
 		return entry(ref, value);
 	}
 
-	protected static Double convertGpsCoordinateStringToDouble(String coordinateString, Character cardinalPoint) {
+	protected static BigDecimal convertGpsCoordinateStringToBigDecimal(String coordinateString, Character cardinalPoint) {
 		if (cardinalPoint == null) {
 			return null;
 		}
@@ -739,7 +744,7 @@ public class MetadataTool {
 				// North latitude, positive value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return convertDmsToDecimal(coordinateString);
+						return convertDmsToBigDecimal(coordinateString);
 					} catch (Exception e) {
 						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -749,7 +754,7 @@ public class MetadataTool {
 				// South latitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return -convertDmsToDecimal(coordinateString);
+						return convertDmsToBigDecimal(coordinateString).negate();
 					} catch (Exception e) {
 						log.error("Failed to parse GPS latitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -759,7 +764,7 @@ public class MetadataTool {
 				// East longitude, positive value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return convertDmsToDecimal(coordinateString);
+						return convertDmsToBigDecimal(coordinateString);
 					} catch (Exception e) {
 						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -769,7 +774,7 @@ public class MetadataTool {
 				// West longitude, negative value
 				if (coordinateString != null && !coordinateString.isBlank()) {
 					try {
-						return -convertDmsToDecimal(coordinateString);
+						return convertDmsToBigDecimal(coordinateString).negate();
 					} catch (Exception e) {
 						log.error("Failed to parse GPS longitude: {} {}", coordinateString, cardinalPoint, e);
 					}
@@ -782,7 +787,7 @@ public class MetadataTool {
 		return null;
 	}
 
-	private static Double convertDmsToDecimal(String latitudeString) {
+	private static BigDecimal convertDmsToBigDecimal(String latitudeString) {
 		// GPS coordinates are in DMS format, e.g. "60 deg 10' 30.00\""
 		// We need to convert it to decimal format
 		var dmsParts = latitudeString.split("[^0-9.+-]+");
@@ -792,11 +797,17 @@ public class MetadataTool {
 		}
 
 		try {
-			double degrees = Double.parseDouble(dmsParts[0]);
-			double minutes = Double.parseDouble(dmsParts[1]);
-			double seconds = Double.parseDouble(dmsParts[2]);
+			BigDecimal degrees = new BigDecimal(dmsParts[0]);
+			BigDecimal minutes = new BigDecimal(dmsParts[1]);
+			BigDecimal seconds = new BigDecimal(dmsParts[2]);
 
-			return degrees + (minutes / 60) + (seconds / 3600);
+			// Convert to decimal degrees: degrees + (minutes/60) + (seconds/3600)
+			BigDecimal minutesFraction = minutes.divide(new BigDecimal("60"), GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
+			BigDecimal secondsFraction = seconds.divide(new BigDecimal("3600"), GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
+
+			return degrees.add(minutesFraction)
+						  .add(secondsFraction)
+						  .setScale(GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Invalid number in DMS format: " + latitudeString, e);
 		}

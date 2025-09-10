@@ -537,10 +537,12 @@ public class DirectoryProcessorService {
 				|| gpsData.getLongitudeRef() == null) {
 				log.warn("GPS data not containing required fields, cannot save GPS data for file: {}", gpsData);
 			} else {
+				log.debug("New GPS data containing required fields, saving to file: {}", gpsData);
 				gpsData = gpsLocationRepository.save(gpsData);
 			}
 		} else {
 			var existingGps    = optionalExistingGps.get();
+			log.debug("Using already existing GPS data found in the database, index: {}", existingGps.getId());
 			var updateExisting = false;
 			// See if we now have the location data which previously was null, if so, then update the existing entry
 			if (gpsData.getCountry() != null
@@ -575,6 +577,7 @@ public class DirectoryProcessorService {
 
 			if (updateExisting) {
 				gpsData = gpsLocationRepository.save(existingGps);
+				log.debug("Updated existing GPS data with new location information: {}", existingGps);
 			} else {
 				gpsData = existingGps;
 			}

@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "gps_locations")
 @Data
@@ -22,28 +24,28 @@ public class GpsLocationEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(name = "latitude", nullable = false)
-	private Double    latitude;
+	@Column(name = "latitude", nullable = false, precision = 15, scale = 5)
+	private BigDecimal latitude;
 	@Column(name = "latitude_ref", nullable = false)
-	private Character latitudeRef;
-	@Column(name = "longitude", nullable = false)
-	private Double    longitude;
+	private Character  latitudeRef;
+	@Column(name = "longitude", nullable = false, precision = 15, scale = 5)
+	private BigDecimal longitude;
 	@Column(name = "longitude_ref", nullable = false)
-	private Character longitudeRef;
+	private Character  longitudeRef;
 	@Column(name = "altitude")
-	private Double    altitude;
+	private Double     altitude;
 	@Column(name = "direction")
-	private Double    direction;
+	private Double     direction;
 	@Column(name = "satellite_count")
-	private Integer   satelliteCount;
+	private Integer    satelliteCount;
 	@Column(name = "country")
-	private String    country;
+	private String     country;
 	@Column(name = "state")
-	private String    state;
+	private String     state;
 	@Column(name = "city")
-	private String    city;
+	private String     city;
 	@Column(name = "street")
-	private String    street;
+	private String     street;
 	@Column(name = "sub_location")
-	private String    subLocation;
+	private String     subLocation;
 }

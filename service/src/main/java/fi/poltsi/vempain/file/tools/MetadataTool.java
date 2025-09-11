@@ -131,9 +131,23 @@ public class MetadataTool {
 		var locations = new HashMap<String, List<String>>();
 		locations.put(SUBIFD_KEY, List.of(BITS_PER_SAMPLE_FIELD));
 		locations.put(IFD0_KEY, List.of(BITS_PER_SAMPLE_FIELD));
-
+		String colorDepthString = null;
 		// Let's try to extract it as a string, as sometimes it might be stored as a triplet
-		var colorDepthString = extractJsonString(jsonObject, locations);
+		try {
+			colorDepthString = extractJsonString(jsonObject, locations);
+		} catch (JSONException e) {
+			log.warn("Failed to parse color depth as string. Attempting to get number instead");
+
+			try {
+				var colorDepthNumber = extractJsonNumber(jsonObject, locations);
+				if (colorDepthNumber != null) {
+					return colorDepthNumber.intValue();
+				}
+			} catch (JSONException e1) {
+				log.warn("Failed to parse color depth as number so returning default. Exception: {}", e1.getMessage());
+				return 8;
+			}
+		}
 
 		if (colorDepthString != null) {
 			// Match any triplet format like "8 8 8" or "8, 8, 8" or "16 16 16"

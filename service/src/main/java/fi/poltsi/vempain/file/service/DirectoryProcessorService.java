@@ -256,7 +256,7 @@ public class DirectoryProcessorService {
 		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
 
 		if (fileEntity == null) {
-			log.error("Failed to create file entity for file: {}", file.getName());
+			log.warn("Can not create file entity for file: {}", file.getName());
 			return Boolean.FALSE;
 		}
 
@@ -587,7 +587,8 @@ public class DirectoryProcessorService {
 			var existingFile = fileRepository.findByOriginalDocumentId(originalDocumentId);
 
 			if (existingFile != null) {
-				log.warn("File with the same original document ID already exists in the database: {} for file: {}", originalDocumentId, file.getName());
+				log.warn("File with the same original document ID already exists in the database: {} as file file: {} / {}", originalDocumentId,
+						 existingFile.getFilePath(), existingFile.getFilename());
 				return null;
 			}
 		}

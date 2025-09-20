@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
-import java.util.stream.Collectors;
-
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -40,27 +38,18 @@ public class AudioFileEntity extends FileEntity {
 
 	@Override
 	public AudioFileResponse toResponse() {
-		var builder = AudioFileResponse.builder()
-									   .filename(getFilename())
-									   .filePath(getFilePath())
-									   .externalFileId(getExternalFileId())
-									   .mimetype(getMimetype())
-									   .filesize(getFilesize())
-									   .sha256sum(getSha256sum())
-									   .originalDatetime(getOriginalDatetime())
-									   .originalSecondFraction(getOriginalSecondFraction())
-									   .originalDocumentId(getOriginalDocumentId())
-									   .description(getDescription())
-									   .fileType(getFileType())
-									   .metadataRaw(getMetadataRaw())
-									   .tags(getTags().stream()
-													  .map(TagEntity::getTagName)
-													  .collect(Collectors.toList()));
-		builder.duration(getDuration())
-			   .bitRate(getBitRate())
-			   .sampleRate(getSampleRate())
-			   .codec(getCodec())
-			   .channels(getChannels());
-		return builder.build();
+		AudioFileResponse response = new AudioFileResponse();
+
+		// Use the parent method to populate common fields
+		populateBaseResponse(response);
+
+		// Set the specific fields for this entity type
+		response.setDuration(getDuration());
+		response.setBitRate(getBitRate());
+		response.setSampleRate(getSampleRate());
+		response.setCodec(getCodec());
+		response.setChannels(getChannels());
+
+		return response;
 	}
 }

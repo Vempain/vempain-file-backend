@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
-import java.util.stream.Collectors;
-
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -40,31 +38,18 @@ public class ImageFileEntity extends FileEntity {
 
 	@Override
 	public ImageFileResponse toResponse() {
-		// Build the response using the properties from FileEntity
-		var builder = ImageFileResponse.builder()
-									   .filename(getFilename())
-									   .filePath(getFilePath())
-									   .externalFileId(getExternalFileId())
-									   .mimetype(getMimetype())
-									   .filesize(getFilesize())
-									   .sha256sum(getSha256sum())
-									   .originalDatetime(getOriginalDatetime())
-									   .originalSecondFraction(getOriginalSecondFraction())
-									   .originalDocumentId(getOriginalDocumentId())
-									   .description(getDescription())
-									   .fileType(getFileType())
-									   .metadataRaw(getMetadataRaw())
-									   .tags(getTags().stream()
-													  .map(TagEntity::getTagName)
-													  .collect(Collectors.toList()));
+		ImageFileResponse response = new ImageFileResponse();
 
-		// Populate ImageFileEntity-specific fields
-		builder.width(getWidth())
-			   .height(getHeight())
-			   .colorDepth(getColorDepth())
-			   .dpi(getDpi())
-			   .groupLabel(getGroupLabel());
+		// Use the parent method to populate common fields
+		populateBaseResponse(response);
 
-		return builder.build();
+		// Set the specific fields for this entity type
+		response.setWidth(getWidth());
+		response.setHeight(getHeight());
+		response.setColorDepth(getColorDepth());
+		response.setDpi(getDpi());
+		response.setGroupLabel(getGroupLabel());
+
+		return response;
 	}
 }

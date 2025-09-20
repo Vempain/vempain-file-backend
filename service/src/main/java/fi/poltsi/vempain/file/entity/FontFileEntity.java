@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
-import java.util.stream.Collectors;
-
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -24,35 +22,26 @@ import java.util.stream.Collectors;
 public class FontFileEntity extends FileEntity {
 
 	@Column(name = "font_family", nullable = false)
-	private String fontFamily; // Example: Arial, Roboto
+	private String fontFamily; // Font family name
 
-	@Column
-	private String weight; // Example: Bold, Regular
+	@Column(nullable = false)
+	private String weight; // Font weight (e.g., "regular", "bold")
 
-	@Column
-	private String style; // Example: Italic, Normal
+	@Column(nullable = false)
+	private String style; // Font style (e.g., "normal", "italic")
 
 	@Override
 	public FontFileResponse toResponse() {
-		var builder = FontFileResponse.builder()
-									  .filename(getFilename())
-									  .filePath(getFilePath())
-									  .externalFileId(getExternalFileId())
-									  .mimetype(getMimetype())
-									  .filesize(getFilesize())
-									  .sha256sum(getSha256sum())
-									  .originalDatetime(getOriginalDatetime())
-									  .originalSecondFraction(getOriginalSecondFraction())
-									  .originalDocumentId(getOriginalDocumentId())
-									  .description(getDescription())
-									  .fileType(getFileType())
-									  .metadataRaw(getMetadataRaw())
-									  .tags(getTags().stream()
-													 .map(TagEntity::getTagName)
-													 .collect(Collectors.toList()));
-		builder.fontFamily(getFontFamily())
-			   .weight(getWeight())
-			   .style(getStyle());
-		return builder.build();
+		FontFileResponse response = new FontFileResponse();
+
+		// Use the parent method to populate common fields
+		populateBaseResponse(response);
+
+		// Set the specific fields for this entity type
+		response.setFontFamily(getFontFamily());
+		response.setWeight(getWeight());
+		response.setStyle(getStyle());
+
+		return response;
 	}
 }

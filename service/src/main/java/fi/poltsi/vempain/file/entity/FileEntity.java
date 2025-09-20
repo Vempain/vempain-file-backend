@@ -22,7 +22,6 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -100,34 +99,42 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@Builder.Default
 	private Set<TagEntity> tags = new HashSet<>();
 
+	protected void populateBaseResponse(FileResponse response) {
+		response.setId(this.id);
+		response.setLocked(this.locked);
+		response.setCreator(this.creator);
+		response.setCreated(this.created);
+		response.setModifier(this.modifier);
+		response.setModified(this.modified);
+		response.setFilename(this.filename);
+		response.setFilePath(this.filePath);
+		response.setExternalFileId(this.externalFileId);
+		response.setMimetype(this.mimetype);
+		response.setFilesize(this.filesize);
+		response.setSha256sum(this.sha256sum);
+		response.setOriginalDatetime(this.originalDatetime);
+		response.setOriginalSecondFraction(this.originalSecondFraction);
+		response.setOriginalDocumentId(this.originalDocumentId);
+		response.setDescription(this.description);
+		response.setFileType(this.fileType);
+		response.setMetadataRaw(this.metadataRaw);
+		response.setRightsHolder(this.rightsHolder);
+		response.setRightsTerms(this.rightsTerms);
+		response.setRightsUrl(this.rightsUrl);
+		response.setCreatorName(this.creatorName);
+		response.setCreatorEmail(this.creatorEmail);
+		response.setCreatorCountry(this.creatorCountry);
+		response.setCreatorUrl(this.creatorUrl);
+		response.setGpsTimestamp(this.gpsTimestamp);
+		response.setGpsLocationId(this.gpsLocationId);
+		response.setTags(this.tags.stream()
+								  .map(TagEntity::getTagName)
+								  .collect(Collectors.toList()));
+	}
+
 	public FileResponse toResponse() {
-		List<String> tagNames = this.tags.stream()
-										 .map(TagEntity::getTagName)
-										 .collect(Collectors.toList());
-		return FileResponse.builder()
-						   .id(this.id)
-						   .filename(this.filename)
-						   .filePath(this.filePath)
-						   .externalFileId(this.externalFileId)
-						   .mimetype(this.mimetype)
-						   .filesize(this.filesize)
-						   .sha256sum(this.sha256sum)
-						   .originalDatetime(this.originalDatetime)
-						   .originalSecondFraction(this.originalSecondFraction)
-						   .originalDocumentId(this.originalDocumentId)
-						   .description(this.description)
-						   .fileType(this.fileType)
-						   .metadataRaw(this.metadataRaw)
-						   .rightsHolder(this.rightsHolder)
-						   .rightsTerms(this.rightsTerms)
-						   .rightsUrl(this.rightsUrl)
-						   .creatorName(this.creatorName)
-						   .creatorEmail(this.creatorEmail)
-						   .creatorCountry(this.creatorCountry)
-						   .creatorUrl(this.creatorUrl)
-						   .gpsTimestamp(this.gpsTimestamp)
-						   .gpsLocationId(this.gpsLocationId)
-						   .tags(tagNames)
-						   .build();
+		FileResponse response = new FileResponse();
+		populateBaseResponse(response);
+		return response;
 	}
 }

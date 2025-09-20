@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
-import java.util.stream.Collectors;
-
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -37,26 +35,17 @@ public class ArchiveFileEntity extends FileEntity {
 
 	@Override
 	public ArchiveFileResponse toResponse() {
-		var builder = ArchiveFileResponse.builder()
-										 .filename(getFilename())
-										 .filePath(getFilePath())
-										 .externalFileId(getExternalFileId())
-										 .mimetype(getMimetype())
-										 .filesize(getFilesize())
-										 .sha256sum(getSha256sum())
-										 .originalDatetime(getOriginalDatetime())
-										 .originalSecondFraction(getOriginalSecondFraction())
-										 .originalDocumentId(getOriginalDocumentId())
-										 .description(getDescription())
-										 .fileType(getFileType())
-										 .metadataRaw(getMetadataRaw())
-										 .tags(getTags().stream()
-														.map(TagEntity::getTagName)
-														.collect(Collectors.toList()));
-		builder.compressionMethod(getCompressionMethod())
-			   .uncompressedSize(getUncompressedSize())
-			   .contentCount(getContentCount())
-			   .isEncrypted(getIsEncrypted());
-		return builder.build();
+		ArchiveFileResponse response = new ArchiveFileResponse();
+
+		// Use the parent method to populate common fields
+		populateBaseResponse(response);
+
+		// Set the specific fields for this entity type
+		response.setCompressionMethod(getCompressionMethod());
+		response.setUncompressedSize(getUncompressedSize());
+		response.setContentCount(getContentCount());
+		response.setIsEncrypted(getIsEncrypted());
+
+		return response;
 	}
 }

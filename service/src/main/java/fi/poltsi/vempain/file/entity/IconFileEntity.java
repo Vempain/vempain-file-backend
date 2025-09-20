@@ -11,8 +11,6 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
-import java.util.stream.Collectors;
-
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -34,40 +32,16 @@ public class IconFileEntity extends FileEntity {
 
 	@Override
 	public IconFileResponse toResponse() {
-		var builder = IconFileResponse.builder()
-									  .id(this.id)
-									  .locked(this.locked)
-									  .creator(this.creator)
-									  .created(this.created)
-									  .modifier(this.modifier)
-									  .modified(this.modified)
-									  .filename(getFilename())
-									  .filePath(getFilePath())
-									  .externalFileId(getExternalFileId())
-									  .mimetype(getMimetype())
-									  .filesize(getFilesize())
-									  .sha256sum(getSha256sum())
-									  .originalDatetime(getOriginalDatetime())
-									  .originalSecondFraction(getOriginalSecondFraction())
-									  .originalDocumentId(getOriginalDocumentId())
-									  .gpsTimestamp(getGpsTimestamp())
-									  .gpsLocationId(getGpsLocationId())
-									  .rightsHolder(getRightsHolder())
-									  .rightsTerms(getRightsTerms())
-									  .rightsUrl(getRightsUrl())
-									  .creatorCountry(getCreatorCountry())
-									  .creatorEmail(getCreatorEmail())
-									  .creatorUrl(getCreatorUrl())
-									  .creatorName(getCreatorName())
-									  .description(getDescription())
-									  .fileType(getFileType())
-									  .metadataRaw(getMetadataRaw())
-									  .tags(getTags().stream()
-													 .map(TagEntity::getTagName)
-													 .collect(Collectors.toList()));
-		builder.width(getWidth())
-			   .height(getHeight())
-			   .isScalable(getIsScalable());
-		return builder.build();
+		IconFileResponse response = new IconFileResponse();
+
+		// Use the parent method to populate common fields
+		populateBaseResponse(response);
+
+		// Set the specific fields for this entity type
+		response.setWidth(getWidth());
+		response.setHeight(getHeight());
+		response.setIsScalable(getIsScalable());
+
+		return response;
 	}
 }

@@ -55,12 +55,12 @@ CREATE TABLE metadata
 CREATE TABLE tags
 (
 	id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	tag_name    VARCHAR(128) UNIQUE NOT NULL,
-	tag_name_de VARCHAR(128) NULL,
-	tag_name_en VARCHAR(128) NULL,
-	tag_name_es VARCHAR(128) NULL,
-	tag_name_fi VARCHAR(128) NULL,
-	tag_name_sv VARCHAR(128) NULL
+	tag_name    VARCHAR(256) UNIQUE NOT NULL,
+	tag_name_de VARCHAR(256)        NULL,
+	tag_name_en VARCHAR(256)        NULL,
+	tag_name_es VARCHAR(256)        NULL,
+	tag_name_fi VARCHAR(256)        NULL,
+	tag_name_sv VARCHAR(256)        NULL
 );
 
 CREATE TABLE file_tags
@@ -68,7 +68,7 @@ CREATE TABLE file_tags
 	file_id BIGINT NOT NULL,
 	tag_id  BIGINT NOT NULL,
 	CONSTRAINT pk_file_tags PRIMARY KEY (file_id, tag_id),
-	CONSTRAINT fk_file_tags_files FOREIGN KEY (file_id) REFERENCES files (id),
+	CONSTRAINT fk_file_tags_files FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE,
 	CONSTRAINT fk_file_tags_tags FOREIGN KEY (tag_id) REFERENCES tags (id)
 );
 

@@ -64,7 +64,7 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Rights terms", example = "All rights reserved")
 	private String rightsTerms;
 
-	@Schema(description = "Rights URL", example = "http://rights.example.com")
+	@Schema(description = "Rights URL", example = "https://rights.example.com")
 	private String rightsUrl;
 
 	@Schema(description = "Creator name", example = "Creator Name")
@@ -76,7 +76,7 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Creator country", example = "FI")
 	private String creatorCountry;
 
-	@Schema(description = "Creator URL", example = "http://creator.example.com")
+	@Schema(description = "Creator URL", example = "https://creator.example.com")
 	private String creatorUrl;
 
 	@Schema(description = "If there is a related GPS coordinate, then this is the extracted GPS timestamp which is in UTC", example = "2025-09-01T12:34:56Z")

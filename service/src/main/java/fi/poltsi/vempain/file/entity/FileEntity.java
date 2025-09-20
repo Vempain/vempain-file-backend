@@ -106,6 +106,11 @@ public abstract class FileEntity extends AbstractVempainEntity {
 										 .collect(Collectors.toList());
 		return FileResponse.builder()
 						   .id(this.id)
+						   .locked(this.locked)
+						   .creator(this.creator)
+						   .created(this.created)
+						   .modifier(this.modifier)
+						   .modified(this.modified)
 						   .filename(this.filename)
 						   .filePath(this.filePath)
 						   .externalFileId(this.externalFileId)

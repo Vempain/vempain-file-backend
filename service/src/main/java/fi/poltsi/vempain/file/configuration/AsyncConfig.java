@@ -1,4 +1,4 @@
-package fi.poltsi.vempain.file.config;
+package fi.poltsi.vempain.file.configuration;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;

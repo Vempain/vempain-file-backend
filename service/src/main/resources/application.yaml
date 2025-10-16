@@ -75,7 +75,7 @@ vempain:
     email: "poltsi@poltsi.fi"
   type: "Vempain File backend service"
   description: "Vempain File backend serves the REST API for the frontend"
-  version: @project.version@
+  version: @projectVersion@
   license: "GPL 2.0"
   license-url: "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
   app:

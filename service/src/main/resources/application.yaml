@@ -50,6 +50,25 @@ management:
         include: [ "*", "openapi", "swagger-ui" ]
     access:
       default: unrestricted
+  metrics:
+    tags:
+      application: vempain-file-backend
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ENV_PROMETHEUS_ENABLED:true}
+        step: ${ENV_PROMETHEUS_STEP:1m}
+        descriptions: true
+  elastic:
+    metrics:
+      export:
+        enabled: ${ENV_OPENSEARCH_METRICS_ENABLED:false}
+        host: ${ENV_OPENSEARCH_URI:http://opensearch:9200}
+        step: ${ENV_OPENSEARCH_STEP:1m}
+        password: ${ENV_OPENSEARCH_PASSWORD:}
+        user-name: ${ENV_OPENSEARCH_USERNAME:}
+        auto-create-index: ${ENV_OPENSEARCH_AUTOCREATE_INDEX:true}
+        index: ${ENV_OPENSEARCH_METRICS_INDEX:vempain-file-metrics}
 
 springdoc:
   show-login-endpoint: true

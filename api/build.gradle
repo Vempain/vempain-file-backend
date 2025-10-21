@@ -31,7 +31,7 @@ dependencies {
 	// This needs to be built first in vempain-auth
 	implementation "fi.poltsi.vempain:vempain-auth-api:${vempainAuthVersion}"
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
-	implementation "io.swagger.core.v3:swagger-annotations:2.2.35"
+	implementation "io.swagger.core.v3:swagger-annotations:2.2.39"
 	// https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
 	implementation "jakarta.validation:jakarta.validation-api:3.1.1"
 }

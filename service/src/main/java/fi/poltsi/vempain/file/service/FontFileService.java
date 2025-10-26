@@ -1,15 +1,17 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.response.FontFileResponse;
+import fi.poltsi.vempain.file.api.response.PagedResponse;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.repository.FontFileRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class FontFileService {
@@ -17,20 +19,39 @@ public class FontFileService {
 	private final FontFileRepository fontFileRepository;
 
 	@Transactional(readOnly = true)
-	public ResponseEntity<List<FontFileResponse>> findAll() {
-		var fileList = fontFileRepository.findAll();
-		var response = fileList.stream()
-							   .map(FontFileEntity::toResponse)
-							   .toList();
-		return ResponseEntity.ok(response);
+	public PagedResponse<FontFileResponse> findAll(int page, int size) {
+		var pageable   = PageRequest.of(Math.max(0, page), Math.max(1, size));
+		var pageResult = fontFileRepository.findAll(pageable);
+		var content = pageResult.getContent()
+								.stream()
+								.map(FontFileEntity::toResponse)
+								.toList();
+		return PagedResponse.of(
+				content,
+				pageResult.getNumber(),
+				pageResult.getSize(),
+				pageResult.getTotalElements(),
+				pageResult.getTotalPages(),
+				pageResult.isFirst(),
+				pageResult.isLast()
+		);
+
 	}
 
-	public ResponseEntity<FontFileResponse> findById(long id) {
-		return ResponseEntity.ok(null);
+	@Transactional(readOnly = true)
+	public FontFileResponse findById(long id) {
+		var entityOpt = fontFileRepository.findById(id);
+		return entityOpt.map(FontFileEntity::toResponse)
+						.orElse(null);
 	}
 
-	public ResponseEntity<Void> delete(long id) {
-		return ResponseEntity.ok()
-							 .build();
+	public HttpStatus delete(long id) {
+		try {
+			fontFileRepository.deleteById(id);
+			return HttpStatus.OK;
+		} catch (Exception e) {
+			log.warn("Failed to delete archive file with id {}: {}", id, e.getMessage());
+			return HttpStatus.NOT_FOUND;
+		}
 	}
 }

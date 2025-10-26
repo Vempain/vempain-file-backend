@@ -4,8 +4,8 @@ registries:
   maven-github:
     type: maven-repository
     url: https://maven.pkg.github.com/Vempain/vempain-auth
-    username: ${{ github.actor }}
-    password: ${{ secrets.GITHUB_TOKEN }}
+    username: x-access-token
+    password: ${{ secrets.VEMPAIN_ACTION_TOKEN }}
 
 updates:
   - package-ecosystem: "github-actions"

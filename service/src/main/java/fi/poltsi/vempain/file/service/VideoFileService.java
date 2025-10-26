@@ -1,15 +1,17 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.file.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.VideoFileResponse;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.VideoFileRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class VideoFileService {
@@ -17,20 +19,40 @@ public class VideoFileService {
 	private final VideoFileRepository videoFileRepository;
 
 	@Transactional(readOnly = true)
-	public ResponseEntity<List<VideoFileResponse>> findAll() {
-		var fileList = videoFileRepository.findAll();
-		var response = fileList.stream()
-							   .map(VideoFileEntity::toResponse)
-							   .toList();
-		return ResponseEntity.ok(response);
+	public PagedResponse<VideoFileResponse> findAll(int page, int size) {
+		var pageable   = PageRequest.of(Math.max(0, page), Math.max(1, size));
+		var pageResult = videoFileRepository.findAll(pageable);
+		var content = pageResult.getContent()
+								.stream()
+								.map(VideoFileEntity::toResponse)
+								.toList();
+		return PagedResponse.of(
+				content,
+				pageResult.getNumber(),
+				pageResult.getSize(),
+				pageResult.getTotalElements(),
+				pageResult.getTotalPages(),
+				pageResult.isFirst(),
+				pageResult.isLast()
+		);
+
 	}
 
-	public ResponseEntity<VideoFileResponse> findById(long id) {
-		return ResponseEntity.ok(null);
+	@Transactional(readOnly = true)
+	public VideoFileResponse findById(long id) {
+		var entityOpt = videoFileRepository.findById(id);
+		return entityOpt.map(VideoFileEntity::toResponse)
+						.orElse(null);
+
 	}
 
-	public ResponseEntity<Void> delete(long id) {
-		return ResponseEntity.ok()
-							 .build();
+	public HttpStatus delete(long id) {
+		try {
+			videoFileRepository.deleteById(id);
+			return HttpStatus.OK;
+		} catch (Exception e) {
+			log.warn("Failed to delete archive file with id {}: {}", id, e.getMessage());
+			return HttpStatus.NOT_FOUND;
+		}
 	}
 }

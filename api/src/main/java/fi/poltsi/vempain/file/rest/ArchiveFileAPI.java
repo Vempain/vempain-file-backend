@@ -1,7 +1,9 @@
 package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.file.api.response.ArchiveFileResponse;
+import fi.poltsi.vempain.file.api.response.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -11,24 +13,29 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Tag(name = "Archive file API", description = "API for accessing and managing archive files")
 public interface ArchiveFileAPI {
 	String BASE_PATH = "/files/archive";
 
-	@Operation(summary = "Get all archive files", description = "Retrieve full list of archive files", tags = "Archive file API")
+	@Operation(summary = "Get all archive files", description = "Retrieve archive files with paging", tags = "Archive file API")
+	@Parameter(name = "page", description = "Page number (0-based)", example = "0")
+	@Parameter(name = "size", description = "Number of items per page", example = "50")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "List of archive files retrieved successfully"),
+			@ApiResponse(responseCode = "200", description = "Page of archive files retrieved successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
 			@ApiResponse(responseCode = "500", description = "Internal server error")
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<List<ArchiveFileResponse>> findAll();
+	ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(
+			@RequestParam(value = "page", defaultValue = "0") int page,
+			@RequestParam(value = "size", defaultValue = "50") int size
+	);
 
 	@Operation(summary = "Get archive file by ID", description = "Retrieve specific archive file by its unique identifier", tags = "Archive file API")
+	@Parameter(name = "id", description = "Archive ID to be fetched", example = "1")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Specific archive file retrieved successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
@@ -40,6 +47,7 @@ public interface ArchiveFileAPI {
 	ResponseEntity<ArchiveFileResponse> findById(@PathVariable("id") long id);
 
 	@Operation(summary = "Remove archive file by ID", description = "Remove specific archive file by its unique identifier", tags = "Archive file API")
+	@Parameter(name = "id", description = "Archive ID to be removed", example = "1")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Specific archive file removed successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),

@@ -1,15 +1,17 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.response.DocumentFileResponse;
+import fi.poltsi.vempain.file.api.response.PagedResponse;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.repository.DocumentFileRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class DocumentFileService {
@@ -17,20 +19,40 @@ public class DocumentFileService {
 	private final DocumentFileRepository documentFileRepository;
 
 	@Transactional(readOnly = true)
-	public ResponseEntity<List<DocumentFileResponse>> findAll() {
-		var fileList = documentFileRepository.findAll();
-		var response = fileList.stream()
-							   .map(DocumentFileEntity::toResponse)
-							   .toList();
-		return ResponseEntity.ok(response);
+	public PagedResponse<DocumentFileResponse> findAll(int page, int size) {
+		var pageable   = PageRequest.of(Math.max(0, page), Math.max(1, size));
+		var pageResult = documentFileRepository.findAll(pageable);
+		var content = pageResult.getContent()
+								.stream()
+								.map(DocumentFileEntity::toResponse)
+								.toList();
+		var response = PagedResponse.of(
+				content,
+				pageResult.getNumber(),
+				pageResult.getSize(),
+				pageResult.getTotalElements(),
+				pageResult.getTotalPages(),
+				pageResult.isFirst(),
+				pageResult.isLast()
+		);
+		return response;
+
 	}
 
-	public ResponseEntity<DocumentFileResponse> findById(long id) {
-		return ResponseEntity.ok(null);
+	@Transactional(readOnly = true)
+	public DocumentFileResponse findById(long id) {
+		var entityOpt = documentFileRepository.findById(id);
+		return entityOpt.map(DocumentFileEntity::toResponse)
+						.orElse(null);
 	}
 
-	public ResponseEntity<Void> delete(long id) {
-		return ResponseEntity.ok()
-							 .build();
+	public HttpStatus delete(long id) {
+		try {
+			documentFileRepository.deleteById(id);
+			return HttpStatus.OK;
+		} catch (Exception e) {
+			log.warn("Failed to delete archive file with id {}: {}", id, e.getMessage());
+			return HttpStatus.NOT_FOUND;
+		}
 	}
 }

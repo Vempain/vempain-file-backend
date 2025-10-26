@@ -1,7 +1,9 @@
 package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.file.api.response.IconFileResponse;
+import fi.poltsi.vempain.file.api.response.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -11,24 +13,29 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Tag(name = "Icon file API", description = "API for accessing and managing icon files")
 public interface IconFileAPI {
 	String BASE_PATH = "/files/icon";
 
-	@Operation(summary = "Get all icon files", description = "Retrieve full list of icon files", tags = "Icon file API")
+	@Operation(summary = "Get all icon files", description = "Retrieve of icon files with paging", tags = "Icon file API")
+	@Parameter(name = "page", description = "Page number (0-based)", example = "0")
+	@Parameter(name = "size", description = "Number of items per page", example = "50")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "List of icon files retrieved successfully"),
+			@ApiResponse(responseCode = "200", description = "Page of icon files retrieved successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
 			@ApiResponse(responseCode = "500", description = "Internal server error")
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<List<IconFileResponse>> findAll();
+	ResponseEntity<PagedResponse<IconFileResponse>> findAll(
+			@RequestParam(value = "page", defaultValue = "0") int page,
+			@RequestParam(value = "size", defaultValue = "50") int size
+	);
 
 	@Operation(summary = "Get icon file by ID", description = "Retrieve specific icon file by its unique identifier", tags = "Icon file API")
+	@Parameter(name = "id", description = "Icon ID to be fetched", example = "1")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Specific icon file retrieved successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
@@ -40,6 +47,7 @@ public interface IconFileAPI {
 	ResponseEntity<IconFileResponse> findById(@PathVariable("id") long id);
 
 	@Operation(summary = "Remove icon file by ID", description = "Remove specific icon file by its unique identifier", tags = "Icon file API")
+	@Parameter(name = "id", description = "Icon ID to be fetched", example = "1")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Specific icon file removed successfully"),
 			@ApiResponse(responseCode = "403", description = "Unauthorized access"),

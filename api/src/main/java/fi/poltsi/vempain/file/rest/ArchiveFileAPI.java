@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,8 +32,8 @@ public interface ArchiveFileAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(
-			@RequestParam(value = "page", defaultValue = "0") int page,
-			@RequestParam(value = "size", defaultValue = "50") int size
+			@RequestParam(name = "page", defaultValue = "0") @PositiveOrZero int page,
+			@RequestParam(name = "size", defaultValue = "50") @Positive int size
 	);
 
 	@Operation(summary = "Get archive file by ID", description = "Retrieve specific archive file by its unique identifier", tags = "Archive file API")

@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,8 +32,8 @@ public interface DocumentFileAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<PagedResponse<DocumentFileResponse>> findAll(
-			@RequestParam(value = "page", defaultValue = "0") int page,
-			@RequestParam(value = "size", defaultValue = "50") int size
+			@RequestParam(name = "page", defaultValue = "0") @PositiveOrZero int page,
+			@RequestParam(name = "size", defaultValue = "50") @Positive int size
 	);
 
 	@Operation(summary = "Get document file by ID", description = "Retrieve specific document file by its unique identifier", tags = "Document file API")

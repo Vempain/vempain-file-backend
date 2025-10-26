@@ -19,6 +19,7 @@ updates:
     directory: /
     registries:
       - maven-github
+      - maven-central
     schedule:
       interval: weekly
     open-pull-requests-limit: 15

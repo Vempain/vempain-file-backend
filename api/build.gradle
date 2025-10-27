@@ -4,7 +4,6 @@ plugins {
 }
 
 repositories {
-	mavenLocal()
 	maven {
 		url = "https://maven.pkg.github.com/Vempain/vempain-auth"
 		credentials {

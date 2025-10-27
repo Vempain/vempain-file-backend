@@ -1,15 +1,4 @@
 version: 2
-
-registries:
-  maven-github:
-    type: maven-repository
-    url: https://maven.pkg.github.com/Vempain/vempain-auth
-    username: x-access-token
-    password: ${{ secrets.VEMPAIN_ACTION_TOKEN }}
-  maven-central:
-    type: maven-repository
-    url: https://repo1.maven.org/maven2/
-
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -17,9 +6,7 @@ updates:
       interval: "weekly"
   - package-ecosystem: "gradle"
     directory: /
-    registries:
-      - maven-github
-      - maven-central
+    registries: "*"
     schedule:
       interval: weekly
     open-pull-requests-limit: 15

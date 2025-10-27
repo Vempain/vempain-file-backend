@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.DocumentFileResponse;
+import fi.poltsi.vempain.file.api.response.files.DocumentFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;

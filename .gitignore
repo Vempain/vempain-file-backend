@@ -11,3 +11,5 @@ build
 
 # Ignore any log files
 *.log
+
+start.sh

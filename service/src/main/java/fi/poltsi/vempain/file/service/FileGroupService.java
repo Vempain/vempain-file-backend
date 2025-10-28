@@ -7,6 +7,7 @@ import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,17 @@ public class FileGroupService {
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FileGroupListResponse> getAll(int page, int size) {
-		var pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
+		// Default: sort by path ascending
+		return getAll(page, size, "path", Sort.Direction.ASC);
+	}
+
+	@Transactional(readOnly = true)
+	public PagedResponse<FileGroupListResponse> getAll(int page, int size, String sortBy, Sort.Direction direction) {
+		var safePage = Math.max(0, page);
+		var safeSize = Math.max(1, size);
+		var sort     = Sort.by(direction == null ? Sort.Direction.ASC : direction, sortBy == null ? "path" : sortBy);
+		var pageable = PageRequest.of(safePage, safeSize, sort);
+
 		// Use projection to avoid loading FileEntity list; fetch only counts
 		var pageResult = fileGroupRepository.findAllWithFileCounts(pageable);
 		var content = pageResult.getContent()
@@ -32,6 +43,7 @@ public class FileGroupService {
 															   .fileCount(p.getFileCount())
 															   .build())
 								.toList();
+
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),

@@ -1,3 +1,9 @@
+[![Dependabot Updates](https://github.com/Vempain/vempain-file-backend/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Vempain/vempain-file-backend/actions/workflows/dependabot/dependabot-updates)
+[![CodeQL](https://github.com/Vempain/vempain-file-backend/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Vempain/vempain-file-backend/actions/workflows/github-code-scanning/codeql)
+[![CI](https://github.com/Vempain/vempain-file-backend/actions/workflows/ci.yaml/badge.svg)](https://github.com/Vempain/vempain-file-backend/actions/workflows/ci.yaml)
+![GitHub Tag](https://img.shields.io/github/v/tag/Vempain/vempain-file-backend)
+![GitHub License](https://img.shields.io/github/license/Vempain/vempain-file-backend?color=green)
+
 # Vempain File service
 
 The service is part of the [Vempain](https://vempain.poltsi.fi/) project. The file service maintains a database of original files, their metadata as well as

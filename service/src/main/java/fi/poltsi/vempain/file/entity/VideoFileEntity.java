@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.VideoFileResponse;
+import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;

@@ -4,7 +4,7 @@ package fi.poltsi.vempain.file.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
-import fi.poltsi.vempain.file.repository.FileRepository;
+import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

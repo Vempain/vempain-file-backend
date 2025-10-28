@@ -2,10 +2,10 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
-import fi.poltsi.vempain.file.api.response.FileResponse;
 import fi.poltsi.vempain.file.api.response.ScanExportResponse;
 import fi.poltsi.vempain.file.api.response.ScanOriginalResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponses;
+import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

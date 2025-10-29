@@ -2,8 +2,10 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.admin.api.FileClassEnum;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.entity.FileEntity;
+import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
@@ -26,10 +28,11 @@ import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 @RequiredArgsConstructor
 @Service
 public class PublishService {
-	private final VempainAdminService  vempainAdminService;
-	private final ImageTool            imageTool;
-	private final FileGroupRepository  fileGroupRepository;
-	private final ExportFileRepository exportFileRepository;
+	private final VempainAdminService       vempainAdminService;
+	private final ImageTool                 imageTool;
+	private final FileGroupRepository       fileGroupRepository;
+	private final ExportFileRepository      exportFileRepository;
+	private final VempainAdminTokenProvider vempainAdminTokenProvider;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
@@ -107,8 +110,25 @@ public class PublishService {
 													 .galleryDescription(request.getGalleryDescription())
 													 .build();
 
-				// Upload
-				vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingestRequest);
+				// Upload with authentication retry (up to 5 attempts)
+				final int maxRetries = 5;
+				int       attempt    = 0;
+
+				while (true) {
+					try {
+						vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingestRequest);
+						break; // success
+					} catch (VempainAuthenticationException authEx) {
+						attempt++;
+						if (attempt >= maxRetries) {
+							log.error("Authentication failed after {} attempts for file {} in group {}", attempt, exportFilePath.getFileName(), request.getFileGroupId());
+							throw authEx;
+						}
+						log.warn("Authentication failed (attempt {}/{}). Re-authenticating and retrying...", attempt, maxRetries);
+						// Force re-login and retry
+						vempainAdminTokenProvider.login();
+					}
+				}
 			} catch (Exception ex) {
 				log.error("Failed to publish file {} from group {}", exportFilePath.getFileName(), request.getFileGroupId(), ex);
 			} finally {

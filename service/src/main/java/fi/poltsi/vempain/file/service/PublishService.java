@@ -96,19 +96,18 @@ public class PublishService {
 				// Build ingest request
 				var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
 				var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
-				var ingestRequest = FileIngestRequest.builder()
-													 .fileName(siteFileName)
-													 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
-													 .mimeType(mimetype)
-													 .comment("") // optional but not-null in DTO
-													 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
-															   "{}")
-													 .sha256sum(computeSha256(uploadPath.toFile()))
-													 .userId(1L) // service context; adjust if a real user id is
-													 .galleryId(null)
-													 .galleryName(request.getGalleryName())
-													 .galleryDescription(request.getGalleryDescription())
-													 .build();
+				var fileIngestRequest = FileIngestRequest.builder()
+														 .fileName(siteFileName)
+														 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
+														 .mimeType(mimetype)
+														 .comment("") // optional but not-null in DTO
+														 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
+																   "{}")
+														 .sha256sum(computeSha256(uploadPath.toFile()))
+														 .galleryId(null)
+														 .galleryName(request.getGalleryName())
+														 .galleryDescription(request.getGalleryDescription())
+														 .build();
 
 				// Upload with authentication retry (up to 5 attempts)
 				final int maxRetries = 5;
@@ -116,7 +115,7 @@ public class PublishService {
 
 				while (true) {
 					try {
-						vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), ingestRequest);
+						vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
 						break; // success
 					} catch (VempainAuthenticationException authEx) {
 						attempt++;

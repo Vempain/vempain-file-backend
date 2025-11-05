@@ -1,6 +1,8 @@
 plugins {
 	id 'java-library'
 	id "io.freefair.lombok" version "${ioFreeFairLombok}"
+	id 'maven-publish'
+	id "jacoco"
 }
 
 repositories {
@@ -33,4 +35,60 @@ dependencies {
 	implementation "io.swagger.core.v3:swagger-annotations:2.2.39"
 	// https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
 	implementation "jakarta.validation:jakarta.validation-api:3.1.1"
+}
+
+// Publish the API module to GitHub Packages when invoked by CI
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+			// Optional: keep artifactId as project name ('api')
+			groupId = project.group
+			artifactId = "vempain-file-backend-api"
+			version = project.version
+			pom {
+				name = "vempain-file-backend-api"
+				description = "Public API (DTOs and interfaces) for Vempain File backend"
+				url = "https://github.com/Vempain/vempain-file-backend"
+				licenses {
+					license {
+						name = "GPL-2.0 License"
+						url = "https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html"
+					}
+				}
+				scm {
+					url = "https://github.com/Vempain/vempain-file-backend"
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			name = "GitHubPackages"
+			url = uri("https://maven.pkg.github.com/Vempain/vempain-file-backend")
+			credentials {
+				username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+				password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+			}
+		}
+	}
+}
+
+jacoco {
+	toolVersion = "0.8.13"
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+test {
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		xml.required = true
+	}
 }

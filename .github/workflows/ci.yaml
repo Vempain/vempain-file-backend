@@ -111,6 +111,12 @@ jobs:
         env:
           newVersion: ${{ steps.newVer.outputs.newVersion }}
 
+      - name: Publish API to GitHub Packages (Maven)
+        if: contains(github.event.head_commit.message, 'Merge pull request')
+        run: ./gradlew :api:clean :api:publish -PreleaseVersion=${newVersion}
+        env:
+          newVersion: ${{ steps.newVer.outputs.newVersion }}
+
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}

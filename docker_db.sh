@@ -2,9 +2,10 @@
 
 setup_database_container() {
     local db_name="$1"
-    local db_user="$2"
-    local db_password="$3"
-    local port="$4"
+    local schema_name="$2"
+    local db_user="$3"
+    local db_password="$4"
+    local port="$5"
 
     local container_name="dev_${db_name}"
     local volume_name="${container_name}_volume"
@@ -33,10 +34,16 @@ setup_database_container() {
     echo "Set user ${db_user} as owner on database ${db_name}..."
     docker exec -it "${container_name}" psql -U postgres -c "ALTER DATABASE ${db_name} OWNER TO ${db_user};"
 
-    echo "Database setup for ${db_name} completed."
+    echo "Creating schema ${schema_name}..."
+    docker exec -it "${container_name}" psql -U postgres -d "${db_name}" -c "CREATE SCHEMA ${schema_name} AUTHORIZATION ${db_user};"
+
+    echo "Setting search path to schema ${schema_name} for user ${db_user}..."
+    docker exec -it "${container_name}" psql -U postgres -d "${db_name}" -c "ALTER ROLE ${db_user} SET search_path TO ${schema_name};"
+
+    echo "Database setup for ${db_name} with schema ${schema_name} completed."
 }
 
 # Setup first database for vempain_file
-setup_database_container "vempain_file" "vempain_file" "vempain_file_password" 5432
+setup_database_container "vempain_file_db" "vempain_file" "vempain_file" "vempain_file_password" 5432
 
 echo "All databases setup completed."

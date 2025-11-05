@@ -35,6 +35,13 @@ repositories {
 			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
 		}
 	}
+	maven {
+		url = "https://maven.pkg.github.com/Vempain/vempain-admin-backend-api"
+		credentials {
+			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+		}
+	}
 	maven { url = 'https://repo.spring.io/milestone' }
 }
 
@@ -56,8 +63,6 @@ dependencies {
 	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${springBootVersion}"
 	implementation "org.springframework.session:spring-session-core:3.5.3"
 	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
-	implementation "io.micrometer:micrometer-registry-prometheus:${micrometerVersion}"
-	implementation "io.micrometer:micrometer-registry-elastic:${micrometerVersion}"
 	implementation "org.flywaydb:flyway-core:${flywayVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"

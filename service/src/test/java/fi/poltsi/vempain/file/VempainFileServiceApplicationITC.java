@@ -17,7 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class VempainFileServiceApplicationITC {
 	@Container
 	public static PostgreSQLContainer<?> vempainAdminContainer = new PostgreSQLContainer<>("postgres:latest")
-			.withDatabaseName("vempain_file")
+			.withDatabaseName("vempain_file_db")
 			.withUsername("test")
 			.withPassword("test");
 

@@ -1,5 +1,7 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.api.request.TagRequest;
+import fi.poltsi.vempain.file.api.response.TagResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -47,4 +49,34 @@ public class TagEntity {
 	@ManyToMany(mappedBy = "tags")
 	@Builder.Default
 	private Set<FileEntity> files = new HashSet<>();
+
+	/**
+	 * Maps this entity to TagResponse.
+	 */
+	public TagResponse toResponse() {
+		return TagResponse.builder()
+						  .id(getId())
+						  .tagName(getTagName())
+						  .tagNameDe(getTagNameDe())
+						  .tagNameEn(getTagNameEn())
+						  .tagNameEs(getTagNameEs())
+						  .tagNameFi(getTagNameFi())
+						  .tagNameSv(getTagNameSv())
+						  .build();
+	}
+
+	/**
+	 * Maps this entity to TagRequest.
+	 */
+	public TagRequest toRequest() {
+		return new TagRequest(
+				getId(),
+				getTagName(),
+				getTagNameDe(),
+				getTagNameEn(),
+				getTagNameEs(),
+				getTagNameFi(),
+				getTagNameSv()
+		);
+	}
 }

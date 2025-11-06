@@ -33,6 +33,7 @@ public class PublishService {
 	private final FileGroupRepository       fileGroupRepository;
 	private final ExportFileRepository      exportFileRepository;
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
+	private final TagService tagService;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
@@ -76,6 +77,9 @@ public class PublishService {
 			Path uploadPath = exportFilePath;
 			Path    tempPathToDelete = null;
 
+			// Fetch the tags belonging to the file
+			var tagRequests = tagService.getTagRequestsByFileId(fileEntity.getId());
+
 			try {
 				if (isImage) {
 					// Create temp file with same extension in system temp dir
@@ -107,6 +111,7 @@ public class PublishService {
 														 .galleryId(null)
 														 .galleryName(request.getGalleryName())
 														 .galleryDescription(request.getGalleryDescription())
+														 .tags(tagRequests)
 														 .build();
 
 				// Upload with authentication retry (up to 5 attempts)

@@ -2,19 +2,23 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
+import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.TagEntity;
+import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class TagService {
 
-	private final TagRepository tagRepository;
+	private final TagRepository     tagRepository;
+	private final FileTagRepository fileTagRepository;
 
 	public List<TagResponse> getAllTags() {
 		return tagRepository.findAll()
@@ -55,6 +59,15 @@ public class TagService {
 
 	public void deleteTag(Long id) {
 		tagRepository.deleteById(id);
+	}
+
+	public List<TagRequest> getTagRequestsByFileId(long fileId) {
+		var associations = fileTagRepository.findByFileId(fileId);
+		return associations.stream()
+						   .map(FileTag::getTag)
+						   .filter(Objects::nonNull)
+						   .map(TagEntity::toRequest)
+						   .collect(Collectors.toList());
 	}
 
 	private TagEntity mapToEntity(TagRequest dto) {

@@ -14,4 +14,6 @@ public interface FileTagRepository extends JpaRepository<FileTag, FileTagId> {
 	List<FileTag> findByFile(FileEntity file);
 
 	List<FileTag> findByTag(TagEntity tag);
+
+	List<FileTag> findByFileId(long fileId);
 }

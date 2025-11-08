@@ -63,7 +63,7 @@ public class PublishService {
 			return;
 		}
 
-		for (FileEntity fileEntity : fileGroup.getFiles()) {
+		for (var fileEntity : fileGroup.getFiles()) {
 			var exportFilePath = resolveExportedPath(fileEntity.getId());
 			var siteFileName = fileEntity.getFilename();
 
@@ -97,14 +97,14 @@ public class PublishService {
 					}
 				}
 
-				// Build ingest request
+				// Build ingest request, we need to send the mimetype of the temp file, not the original which may have a different type
 				var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
 				var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
 				var fileIngestRequest = FileIngestRequest.builder()
 														 .fileName(siteFileName)
 														 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
 														 .mimeType(mimetype)
-														 .comment("") // optional but not-null in DTO
+														 .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
 														 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
 																   "{}")
 														 .sha256sum(computeSha256(uploadPath.toFile()))
@@ -115,7 +115,7 @@ public class PublishService {
 														 .build();
 
 				// Upload with authentication retry (up to 5 attempts)
-				final int maxRetries = 5;
+				final int maxRetries = 3;
 				int       attempt    = 0;
 
 				while (true) {

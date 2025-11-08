@@ -541,7 +541,7 @@ public class DirectoryProcessorService {
 				gpsData = gpsLocationRepository.save(gpsData);
 			}
 		} else {
-			var existingGps    = optionalExistingGps.get();
+			var existingGps = optionalExistingGps.get();
 			log.debug("Using already existing GPS data found in the database, index: {}", existingGps.getId());
 			var updateExisting = false;
 			// See if we now have the location data which previously was null, if so, then update the existing entry

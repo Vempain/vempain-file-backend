@@ -37,6 +37,19 @@ public class PagedResponse<T> {
 	@Schema(description = "Is this the last page", example = "false")
 	private boolean last;
 
+	// Convenience factory
+	public static <T> PagedResponse<T> of(List<T> content, int page, int size, long totalElements, int totalPages, boolean first, boolean last) {
+		var pr = new PagedResponse<T>();
+		pr.setContent(content);
+		pr.setPage(page);
+		pr.setSize(size);
+		pr.setTotalElements(totalElements);
+		pr.setTotalPages(totalPages);
+		pr.setFirst(first);
+		pr.setLast(last);
+		return pr;
+	}
+
 	// Getters and setters
 	public List<T> getContent() {
 		return content;
@@ -92,19 +105,6 @@ public class PagedResponse<T> {
 
 	public void setLast(boolean last) {
 		this.last = last;
-	}
-
-	// Convenience factory
-	public static <T> PagedResponse<T> of(List<T> content, int page, int size, long totalElements, int totalPages, boolean first, boolean last) {
-		var pr = new PagedResponse<T>();
-		pr.setContent(content);
-		pr.setPage(page);
-		pr.setSize(size);
-		pr.setTotalElements(totalElements);
-		pr.setTotalPages(totalPages);
-		pr.setFirst(first);
-		pr.setLast(last);
-		return pr;
 	}
 }
 

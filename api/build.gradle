@@ -23,6 +23,17 @@ jar {
 	archiveFileName = "${rootProject.name}-api-${version}.jar"
 }
 
+java {
+	// Attach sources and javadoc for Maven consumers
+	withSourcesJar()
+	withJavadocJar()
+}
+
+// Quiet javadoc warnings as we're using Lombok which does not generate documentation for the generated methods
+tasks.withType(Javadoc).configureEach {
+	options.addStringOption('Xdoclint:all,-missing', '-quiet') // keep other checks, ignore missing docs
+}
+
 dependencies {
 	api "org.springframework.data:spring-data-jpa:3.5.5"
 	api "com.fasterxml.jackson.core:jackson-annotations:2.20"
@@ -35,6 +46,12 @@ dependencies {
 	api "jakarta.validation:jakarta.validation-api:3.1.1"
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
 	implementation "io.swagger.core.v3:swagger-annotations:2.2.39"
+	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
+	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
+	// https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter
+	testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+	// https://mvnrepository.com/artifact/org.junit.platform/junit-platform-launcher
+	testImplementation "org.junit.platform:junit-platform-launcher:${junitVersion}"
 }
 
 // Publish the API module to GitHub Packages when invoked by CI

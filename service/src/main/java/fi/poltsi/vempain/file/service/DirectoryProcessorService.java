@@ -10,7 +10,10 @@ import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
+import fi.poltsi.vempain.file.entity.BinaryFileEntity;
+import fi.poltsi.vempain.file.entity.DataFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
+import fi.poltsi.vempain.file.entity.ExecutableFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
@@ -18,8 +21,10 @@ import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
+import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
@@ -43,8 +48,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 import static fi.poltsi.vempain.file.tools.MetadataTool.dateTimeParser;
@@ -245,22 +252,22 @@ public class DirectoryProcessorService {
 			}
 		}
 
-		var fileType = determineFileType(mimetype);
-		log.info("Determined file type: {}", fileType);
+		var fileTypeEnum = FileTypeEnum.getFileTypeByMimetype(mimetype);
+		log.info("Determined file type: {}", fileTypeEnum);
 
-		if (fileType == FileTypeEnum.OTHER) {
+		if (fileTypeEnum == FileTypeEnum.UNKNOWN) {
 			log.warn("Unsupported file type: {}", file.getName());
 			return Boolean.FALSE;
 		}
 
-		var fileEntity = createFileEntity(fileType, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
+		var fileEntity = createFileEntity(fileTypeEnum, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
 
 		if (fileEntity == null) {
 			log.warn("Can not create file entity for file: {}", file.getName());
 			return Boolean.FALSE;
 		}
 
-		switch (fileType) {
+		switch (fileTypeEnum) {
 			case IMAGE -> {
 				var imageFile = (ImageFileEntity) fileEntity;
 				log.info("Extracting resolution and metadata for image file: {}", file);
@@ -331,6 +338,43 @@ public class DirectoryProcessorService {
 				archiveFile.setContentCount(extractArchiveContentCount(file));
 				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
 				fileRepository.save(archiveFile);
+			}
+			case BINARY -> {
+				var binary = (BinaryFileEntity) fileEntity;
+				// Try to infer software name from metadata label or fallback to null
+				var label = extractLabel(jsonObject);
+				binary.setSoftwareName(label);
+				binary.setSoftwareMajorVersion(parseMajorVersionFromText(label != null ? label : file.getName()));
+				fileRepository.save(binary);
+			}
+			case DATA -> {
+				var data = (DataFileEntity) fileEntity;
+				data.setDataStructure(determineDataStructure(mimetype));
+				fileRepository.save(data);
+			}
+			case EXECUTABLE -> {
+				var exe = (ExecutableFileEntity) fileEntity;
+				var os  = determineOperatingSystems(mimetype, file.getName());
+				exe.setOperatingSystems(os);
+				exe.setScript(isScript(mimetype, file.getName()));
+				fileRepository.save(exe);
+			}
+			case INTERACTIVE -> {
+				var inter = (InteractiveFileEntity) fileEntity;
+				inter.setTechnology(determineInteractiveTechnology(mimetype));
+				fileRepository.save(inter);
+			}
+			case THUMB -> {
+				var thumb = (ThumbFileEntity) fileEntity;
+				thumb.setRelationType("thumbnail");
+				// Try to link to original file via originalDocumentId if present
+				if (fileEntity.getOriginalDocumentId() != null) {
+					var target = fileRepository.findByOriginalDocumentId(fileEntity.getOriginalDocumentId());
+					if (target != null) {
+						thumb.setTargetFile(target);
+					}
+				}
+				fileRepository.save(thumb);
 			}
 			default -> {
 				return Boolean.FALSE;
@@ -458,38 +502,8 @@ public class DirectoryProcessorService {
 							.replace(File.separatorChar, '/');
 	}
 
-	private FileTypeEnum determineFileType(String mimetype) {
-		if (mimetype == null) {
-			return FileTypeEnum.OTHER;
-		}
-		if (mimetype.startsWith("image/")) {
-			return FileTypeEnum.IMAGE;
-		}
-		if (mimetype.startsWith("video/")) {
-			return FileTypeEnum.VIDEO;
-		}
-		if (mimetype.startsWith("audio/")) {
-			return FileTypeEnum.AUDIO;
-		}
-		if (mimetype.startsWith("application/pdf")) {
-			return FileTypeEnum.DOCUMENT;
-		}
-		if (mimetype.startsWith("application/postscript")) {
-			return FileTypeEnum.VECTOR;
-		}
-		if (mimetype.startsWith("image/vnd.microsoft.icon") || mimetype.startsWith("image/x-icon")) {
-			return FileTypeEnum.ICON;
-		}
-		if (mimetype.startsWith("font/")) {
-			return FileTypeEnum.FONT;
-		}
-		if (mimetype.startsWith("application/zip") || mimetype.startsWith("application/x-tar")) {
-			return FileTypeEnum.ARCHIVE;
-		}
-		return FileTypeEnum.OTHER;
-	}
-
-	private FileEntity createFileEntity(FileTypeEnum fileType, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata, String relativeFilePath) {
+	private FileEntity createFileEntity(FileTypeEnum fileTypeEnum, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata,
+										String relativeFilePath) {
 		var userId = 0L;
 
 		try {
@@ -602,22 +616,27 @@ public class DirectoryProcessorService {
 		}
 
 		// Instantiate the correct subclass (no common field setting here)
-		FileEntity entity = switch (fileType) {
+		FileEntity entity = switch (fileTypeEnum) {
 			case IMAGE -> new ImageFileEntity();
 			case VIDEO -> new VideoFileEntity();
 			case AUDIO -> new AudioFileEntity();
+			case BINARY -> new BinaryFileEntity();
+			case DATA -> new DataFileEntity();
 			case DOCUMENT -> new DocumentFileEntity();
 			case VECTOR -> new VectorFileEntity();
 			case ICON -> new IconFileEntity();
+			case EXECUTABLE -> new ExecutableFileEntity();
 			case FONT -> new FontFileEntity();
 			case ARCHIVE -> new ArchiveFileEntity();
-			case OTHER -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
+			case INTERACTIVE -> new InteractiveFileEntity();
+			case THUMB -> new ThumbFileEntity();
+			case UNKNOWN -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
 		};
 
 		// Preserve original externalFileId logic (IMAGE had a dash, others not)
-		String externalFileId = (fileType == FileTypeEnum.IMAGE)
-								? fileType + "-" + sha256sum
-								: fileType + sha256sum;
+		String externalFileId = (fileTypeEnum == FileTypeEnum.IMAGE)
+								? fileTypeEnum + "-" + sha256sum
+								: fileTypeEnum + sha256sum;
 
 		// Populate shared FileEntity fields once
 		entity.setAclId(aclId);
@@ -631,7 +650,7 @@ public class DirectoryProcessorService {
 		entity.setExternalFileId(externalFileId);
 		entity.setFileGroup(fileGroup);
 		entity.setFilePath(relativeFilePath);
-		entity.setFileType(fileType.name());
+		entity.setFileType(fileTypeEnum);
 		entity.setFilename(file.getName());
 		entity.setFilesize(file.length());
 		entity.setGpsLocationId(gpsData.getId());
@@ -716,5 +735,108 @@ public class DirectoryProcessorService {
 			}
 		}
 		metadataRepository.saveAll(metadataEntities);
+	}
+
+	// --- Helpers for new file types ---
+
+	private Integer parseMajorVersionFromText(String text) {
+		if (text == null || text.isBlank()) {
+			return null;
+		}
+		// Find first number sequence as a major version, optionally followed by dots (e.g. "Name 12.3")
+		for (String token : text.split("[^0-9.]")) {
+			if (token == null || token.isBlank()) {
+				continue;
+			}
+			try {
+				// Take the part before first dot as major
+				var majorStr = token.split("\\.")[0];
+				if (!majorStr.isBlank()) {
+					return Integer.parseInt(majorStr);
+				}
+			} catch (NumberFormatException ignored) {
+			}
+		}
+		return null;
+	}
+
+	private String determineDataStructure(String mimetype) {
+		if (mimetype == null) {
+			return "OTHER";
+		}
+		var mt = mimetype.toLowerCase();
+		if (mt.contains("json")) {
+			return "JSON";
+		}
+		if (mt.contains("xml")) {
+			return "XML";
+		}
+		if (mt.contains("ndjson")) {
+			return "NDJSON";
+		}
+		if (mt.contains("yaml")) {
+			return "YAML";
+		}
+		if (mt.contains("csv")) {
+			return "CSV";
+		}
+		if (mt.contains("octet-stream") || mt.contains("x-binary")) {
+			return "BINARY";
+		}
+		return "OTHER";
+	}
+
+	private Set<String> determineOperatingSystems(String mimetype, String filename) {
+		var result = new HashSet<String>();
+		var mt     = mimetype != null ? mimetype.toLowerCase() : "";
+		var name   = filename != null ? filename.toLowerCase() : "";
+
+		if (mt.contains("x-ms") || name.endsWith(".exe") || name.endsWith(".bat") || name.endsWith(".msi") || name.endsWith(".cmd")) {
+			result.add("WINDOWS");
+		}
+		if (mt.contains("x-executable") || name.endsWith(".run") || name.endsWith(".bin")) {
+			result.add("LINUX");
+		}
+		if (mt.contains("java-archive") || name.endsWith(".jar")) {
+			result.add("JVM");
+		}
+		if (mt.contains("vnd.android.package-archive") || name.endsWith(".apk")) {
+			result.add("ANDROID");
+		}
+		if (name.endsWith(".app") || mt.contains("mac") || mt.contains("x-mach-o")) {
+			result.add("MACOS");
+		}
+
+		if (result.isEmpty()) {
+			result.add("OTHER");
+		}
+		return result;
+	}
+
+	private boolean isScript(String mimetype, String filename) {
+		var mt   = mimetype != null ? mimetype.toLowerCase() : "";
+		var name = filename != null ? filename.toLowerCase() : "";
+		return mt.contains("shellscript") ||
+			   mt.contains("x-sh") ||
+			   name.endsWith(".sh") ||
+			   name.endsWith(".bat") ||
+			   name.endsWith(".cmd") ||
+			   name.endsWith(".ps1") ||
+			   name.endsWith(".py") ||
+			   name.endsWith(".pl");
+	}
+
+	private String determineInteractiveTechnology(String mimetype) {
+		if (mimetype == null) {
+			return null;
+		}
+		var mt = mimetype.toLowerCase();
+		if (mt.contains("x-shockwave-flash")) {
+			return "FLASH";
+		}
+		if (mt.contains("x-director")) {
+			return "SHOCKWAVE";
+		}
+		return "OTHER";
 	}
 }

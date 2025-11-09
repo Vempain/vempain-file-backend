@@ -1,10 +1,13 @@
 package fi.poltsi.vempain.file.entity;
 
 import fi.poltsi.vempain.auth.entity.AbstractVempainEntity;
+import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
@@ -54,7 +57,7 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@Column(name = "filename", nullable = false)
 	private   String          filename;
 	@Column(name = "file_path", nullable = false)
-	private String filePath;
+	private String       filePath;
 	@Column(name = "external_file_id", nullable = false)
 	private   String          externalFileId;
 	@Column(name = "mimetype", nullable = false)
@@ -63,8 +66,9 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	private   long            filesize;
 	@Column(name = "sha256sum", nullable = false, length = 64)
 	private   String          sha256sum;
+	@Enumerated(EnumType.STRING)
 	@Column(name = "file_type", nullable = false)
-	private   String          fileType;
+	private FileTypeEnum fileType;
 
 	@EqualsAndHashCode.Exclude
 	@Column(name = "metadata_raw", nullable = false)

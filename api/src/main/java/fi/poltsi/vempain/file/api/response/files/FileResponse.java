@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.api.response.files;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import fi.poltsi.vempain.auth.api.response.AbstractResponse;
+import fi.poltsi.vempain.file.api.FileTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -53,7 +54,7 @@ public class FileResponse extends AbstractResponse {
 	private String description;
 
 	@Schema(description = "File type", example = "IMAGE")
-	private String fileType;
+	private FileTypeEnum fileType;
 
 	@Schema(description = "Raw metadata as a JSON string", example = "{\"key\":\"value\"}")
 	private String metadataRaw;

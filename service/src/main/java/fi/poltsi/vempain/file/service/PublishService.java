@@ -1,10 +1,9 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.admin.api.FileClassEnum;
-import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
+import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.request.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
-import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
@@ -73,7 +72,6 @@ public class PublishService {
 				continue;
 			}
 
-			boolean isImage          = isImageFileType(fileEntity);
 			Path uploadPath = exportFilePath;
 			Path    tempPathToDelete = null;
 
@@ -81,7 +79,8 @@ public class PublishService {
 			var tagRequests = tagService.getTagRequestsByFileId(fileEntity.getId());
 
 			try {
-				if (isImage) {
+				if (fileEntity.getFileType()
+							  .equals(FileTypeEnum.IMAGE)) {
 					// Create temp file with same extension in system temp dir
 					Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
 					// Resize: smaller dimension to siteImageSize, keep quality 0.9
@@ -174,11 +173,6 @@ public class PublishService {
 		return Path.of(exportRootDirectory)
 				   .resolve(relativePath)
 				   .resolve(exportFileEntity.getFilename());
-	}
-
-	private boolean isImageFileType(FileEntity fe) {
-		String t = fe.getFileType();
-		return t != null && t.equalsIgnoreCase(FileClassEnum.IMAGE.toString());
 	}
 
 	private String normalizeIngestPath(String filePath) {

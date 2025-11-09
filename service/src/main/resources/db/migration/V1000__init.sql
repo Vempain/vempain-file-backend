@@ -150,6 +150,58 @@ CREATE TABLE archive_files
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 
+CREATE TABLE binary_files
+(
+	id                     BIGINT PRIMARY KEY,
+	software_name          VARCHAR(255),
+	software_major_version INT,
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE data_files
+(
+	id             BIGINT PRIMARY KEY,
+	data_structure VARCHAR(50),
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE executable_files
+(
+	id        BIGINT PRIMARY KEY,
+	is_script BOOLEAN NOT NULL DEFAULT false,
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE executable_os
+(
+	file_id BIGINT      NOT NULL,
+	os      VARCHAR(50) NOT NULL,
+	PRIMARY KEY (file_id, os),
+	FOREIGN KEY (file_id) REFERENCES executable_files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE interactive_files
+(
+	id         BIGINT PRIMARY KEY,
+	technology VARCHAR(50),
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
+);
+
+CREATE TABLE thumb_files
+(
+	id             BIGINT PRIMARY KEY,
+	target_file_id BIGINT,
+	relation_type  VARCHAR(50),
+	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE,
+	FOREIGN KEY (target_file_id) REFERENCES files (id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_binary_files_software_name ON binary_files (software_name);
+CREATE INDEX idx_data_files_structure ON data_files (data_structure);
+CREATE INDEX idx_executable_files_is_script ON executable_files (is_script);
+CREATE INDEX idx_interactive_files_technology ON interactive_files (technology);
+CREATE INDEX idx_thumb_files_target ON thumb_files (target_file_id);
+
 CREATE TABLE export_files
 (
 	id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

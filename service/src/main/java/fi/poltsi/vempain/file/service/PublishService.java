@@ -4,9 +4,12 @@ import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.request.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
+import fi.poltsi.vempain.file.api.response.CopyrightResponse;
+import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
+import fi.poltsi.vempain.file.repository.LocationRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,7 @@ public class PublishService {
 	private final ExportFileRepository      exportFileRepository;
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
 	private final TagService tagService;
+	private final LocationRepository locationRepository;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
@@ -99,6 +103,33 @@ public class PublishService {
 				// Build ingest request, we need to send the mimetype of the temp file, not the original which may have a different type
 				var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
 				var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
+				var copyrightResponse = CopyrightResponse.builder()
+														 .creatorName(fileEntity.getCreatorName())
+														 .creatorEmail(fileEntity.getCreatorEmail())
+														 .creatorCountry(fileEntity.getCreatorCountry())
+														 .creatorUrl(fileEntity.getCreatorUrl())
+														 .rightsHolder(fileEntity.getRightsHolder())
+														 .rightsTerms(fileEntity.getRightsTerms())
+														 .rightsUrl(fileEntity.getRightsUrl())
+														 .build();
+				LocationResponse locationResponse    = null;
+				var              optionalGpsLocation = locationRepository.findById(fileEntity.getGpsLocationId());
+
+				if (optionalGpsLocation.isPresent()) {
+					var location = optionalGpsLocation.get();
+					locationResponse = LocationResponse.builder()
+													   .id(location.getId())
+													   .latitude(location.getLatitude())
+													   .latitudeRef(location.getLatitudeRef())
+													   .longitude(location.getLongitude())
+													   .longitudeRef(location.getLongitudeRef())
+													   .altitude(location.getAltitude())
+													   .direction(location.getDirection())
+													   .satelliteCount(location.getSatelliteCount())
+													   .country(location.getCountry())
+													   .build();
+				}
+
 				var fileIngestRequest = FileIngestRequest.builder()
 														 .fileName(siteFileName)
 														 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
@@ -107,10 +138,13 @@ public class PublishService {
 														 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
 																   "{}")
 														 .sha256sum(computeSha256(uploadPath.toFile()))
+														 .originalDateTime(fileEntity.getOriginalDatetime())
 														 .galleryId(null)
 														 .galleryName(request.getGalleryName())
 														 .galleryDescription(request.getGalleryDescription())
 														 .tags(tagRequests)
+														 .location(locationResponse)
+														 .copyright(copyrightResponse)
 														 .build();
 
 				// Upload with authentication retry (up to 5 attempts)

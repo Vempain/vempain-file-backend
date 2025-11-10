@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.api.request;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import fi.poltsi.vempain.file.api.response.LocationResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -15,6 +16,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+import java.time.Instant;
 import java.util.List;
 
 @Data
@@ -65,6 +67,15 @@ public class FileIngestRequest {
 	@Size(max = 2048)
 	private String galleryDescription;
 
+	@Schema(description = "Datetime of creation of the original file", example = "2025-08-15T14:30:00Z", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Instant originalDateTime;
+
 	@Schema(description = "List of tags linked to the file", example = "[list of tag requests]", requiredMode = Schema.RequiredMode.REQUIRED)
 	private List<TagRequest> tags;
+
+	@Schema(description = "Location (GPS) data associated with the file", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private LocationResponse location;
+
+	@Schema(description = "Copyright information associated with the file", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private CopyrightRequest copyright;
 }

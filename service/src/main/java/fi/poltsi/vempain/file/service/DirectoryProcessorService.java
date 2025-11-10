@@ -653,7 +653,7 @@ public class DirectoryProcessorService {
 		entity.setFileType(fileTypeEnum);
 		entity.setFilename(file.getName());
 		entity.setFilesize(file.length());
-		entity.setGpsLocationId(gpsData.getId());
+		entity.setGpsLocation(gpsData);
 		entity.setGpsTimestamp(gpsTimestamp);
 		entity.setMetadataRaw(metadata);
 		entity.setMimetype(mimetype);

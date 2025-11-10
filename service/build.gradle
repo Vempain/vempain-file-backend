@@ -65,6 +65,7 @@ dependencies {
 	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
 	implementation "org.flywaydb:flyway-core:${flywayVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+	implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
 	runtimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui

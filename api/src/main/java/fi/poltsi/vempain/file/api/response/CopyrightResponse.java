@@ -2,9 +2,8 @@ package fi.poltsi.vempain.file.api.response;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import fi.poltsi.vempain.file.api.request.LocationRequest;
+import fi.poltsi.vempain.file.api.request.CopyrightRequest;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -14,11 +13,8 @@ import lombok.experimental.SuperBuilder;
 @Data
 @SuperBuilder
 @NoArgsConstructor
-@AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@Schema(name = "LocationResponse", description = "Response DTO containing location (GPS) data")
-public class LocationResponse extends LocationRequest {
+@Schema(name = "CopyrightResponse", description = "Response DTO containing copyright data")
+public class CopyrightResponse extends CopyrightRequest {
 
-	@Schema(description = "GPS location ID", example = "42")
-	private Long id;
 }

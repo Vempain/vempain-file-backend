@@ -8,6 +8,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
@@ -90,8 +91,11 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	private String  creatorUrl;
 	@Column(name = "gps_timestamp")
 	private Instant gpsTimestamp;
-	@Column(name = "gps_location_id")
-	private Long    gpsLocationId;
+
+	// Replace raw FK id with relation
+	@ManyToOne(fetch = FetchType.EAGER)
+	@JoinColumn(name = "gps_location_id")
+	private GpsLocationEntity gpsLocation;
 
 	@EqualsAndHashCode.Exclude
 	@ManyToMany
@@ -130,7 +134,8 @@ public abstract class FileEntity extends AbstractVempainEntity {
 		response.setCreatorCountry(this.creatorCountry);
 		response.setCreatorUrl(this.creatorUrl);
 		response.setGpsTimestamp(this.gpsTimestamp);
-		response.setGpsLocationId(this.gpsLocationId);
+		// Map relation to response DTO
+		response.setLocation(this.gpsLocation != null ? this.gpsLocation.toResponse() : null);
 		response.setTags(this.tags.stream()
 								  .map(TagEntity::getTagName)
 								  .collect(Collectors.toList()));

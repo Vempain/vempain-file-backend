@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import fi.poltsi.vempain.auth.api.response.AbstractResponse;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.response.LocationResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -83,8 +84,8 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "If there is a related GPS coordinate, then this is the extracted GPS timestamp which is in UTC", example = "2025-09-01T12:34:56Z")
 	private Instant gpsTimestamp;
 
-	@Schema(description = "ID of the related GPS location entity, if any", example = "123")
-	private Long gpsLocationId;
+	@Schema(description = "Location information extracted from the file, if available")
+	private LocationResponse location;
 
 	@Schema(description = "List of file tags")
 	private List<String> tags;

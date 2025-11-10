@@ -113,21 +113,10 @@ public class PublishService {
 														 .rightsUrl(fileEntity.getRightsUrl())
 														 .build();
 				LocationResponse locationResponse    = null;
-				var              optionalGpsLocation = locationRepository.findById(fileEntity.getGpsLocationId());
-
-				if (optionalGpsLocation.isPresent()) {
-					var location = optionalGpsLocation.get();
-					locationResponse = LocationResponse.builder()
-													   .id(location.getId())
-													   .latitude(location.getLatitude())
-													   .latitudeRef(location.getLatitudeRef())
-													   .longitude(location.getLongitude())
-													   .longitudeRef(location.getLongitudeRef())
-													   .altitude(location.getAltitude())
-													   .direction(location.getDirection())
-													   .satelliteCount(location.getSatelliteCount())
-													   .country(location.getCountry())
-													   .build();
+				// Use relation from FileEntity instead of repository lookup
+				if (fileEntity.getGpsLocation() != null) {
+					locationResponse = fileEntity.getGpsLocation()
+												 .toResponse();
 				}
 
 				var fileIngestRequest = FileIngestRequest.builder()
@@ -146,7 +135,6 @@ public class PublishService {
 														 .location(locationResponse)
 														 .copyright(copyrightResponse)
 														 .build();
-
 				// Upload with authentication retry (up to 5 attempts)
 				final int maxRetries = 3;
 				int       attempt    = 0;

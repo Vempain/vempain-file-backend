@@ -268,30 +268,13 @@ public class DirectoryProcessorService {
 		}
 
 		switch (fileTypeEnum) {
-			case IMAGE -> {
-				var imageFile = (ImageFileEntity) fileEntity;
-				log.info("Extracting resolution and metadata for image file: {}", file);
-				var res = extractImageResolution(jsonObject);
-
-				if (res != null) {
-					imageFile.setWidth(res.width);
-					imageFile.setHeight(res.height);
-				}
-
-				imageFile.setColorDepth(extractImageColorDepth(jsonObject));
-				imageFile.setDpi(extractImageDpi(jsonObject));
-				imageFile.setGroupLabel(extractLabel(jsonObject));
-				fileRepository.save(imageFile);
-			}
-			case VIDEO -> {
-				var videoFile = (VideoFileEntity) fileEntity;
-				var res = extractXYResolution(file);
-				videoFile.setWidth(res.width);
-				videoFile.setHeight(res.height);
-				videoFile.setFrameRate(extractFrameRate(file));
-				videoFile.setDuration(extractAudioVideoDuration(file));
-				videoFile.setCodec(extractVideoCodec(file));
-				fileRepository.save(videoFile);
+			case ARCHIVE -> {
+				var archiveFile = (ArchiveFileEntity) fileEntity;
+				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
+				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
+				archiveFile.setContentCount(extractArchiveContentCount(file));
+				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
+				fileRepository.save(archiveFile);
 			}
 			case AUDIO -> {
 				var audioFile = (AudioFileEntity) fileEntity;
@@ -301,43 +284,6 @@ public class DirectoryProcessorService {
 				audioFile.setCodec(extractAudioCodec(file));
 				audioFile.setChannels(extractAudioChannels(file));
 				fileRepository.save(audioFile);
-			}
-			case DOCUMENT -> {
-				var documentFile = (DocumentFileEntity) fileEntity;
-				documentFile.setPageCount(extractDocumentPageCount(file));
-				documentFile.setFormat(extractDocumentFormat(file));
-				fileRepository.save(documentFile);
-			}
-			case VECTOR -> {
-				var vectorFile = (VectorFileEntity) fileEntity;
-				var res = extractXYResolution(file);
-				vectorFile.setWidth(res.width);
-				vectorFile.setHeight(res.height);
-				vectorFile.setLayersCount(extractVectorLayersCount(file));
-				fileRepository.save(vectorFile);
-			}
-			case ICON -> {
-				var iconFile = (IconFileEntity) fileEntity;
-				var res = extractXYResolution(file);
-				iconFile.setWidth(res.width);
-				iconFile.setHeight(res.height);
-				iconFile.setIsScalable(extractIconIsScalable(file));
-				fileRepository.save(iconFile);
-			}
-			case FONT -> {
-				var fontFile = (FontFileEntity) fileEntity;
-				fontFile.setFontFamily(extractFontFamily(file));
-				fontFile.setWeight(extractFontWeight(file));
-				fontFile.setStyle(extractFontStyle(file));
-				fileRepository.save(fontFile);
-			}
-			case ARCHIVE -> {
-				var archiveFile = (ArchiveFileEntity) fileEntity;
-				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
-				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
-				archiveFile.setContentCount(extractArchiveContentCount(file));
-				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
-				fileRepository.save(archiveFile);
 			}
 			case BINARY -> {
 				var binary = (BinaryFileEntity) fileEntity;
@@ -352,12 +298,48 @@ public class DirectoryProcessorService {
 				data.setDataStructure(determineDataStructure(mimetype));
 				fileRepository.save(data);
 			}
+			case DOCUMENT -> {
+				var documentFile = (DocumentFileEntity) fileEntity;
+				documentFile.setPageCount(extractDocumentPageCount(file));
+				documentFile.setFormat(extractDocumentFormat(file));
+				fileRepository.save(documentFile);
+			}
 			case EXECUTABLE -> {
 				var exe = (ExecutableFileEntity) fileEntity;
 				var os  = determineOperatingSystems(mimetype, file.getName());
 				exe.setOperatingSystems(os);
 				exe.setScript(isScript(mimetype, file.getName()));
 				fileRepository.save(exe);
+			}
+			case FONT -> {
+				var fontFile = (FontFileEntity) fileEntity;
+				fontFile.setFontFamily(extractFontFamily(file));
+				fontFile.setWeight(extractFontWeight(file));
+				fontFile.setStyle(extractFontStyle(file));
+				fileRepository.save(fontFile);
+			}
+			case ICON -> {
+				var iconFile = (IconFileEntity) fileEntity;
+				var res      = extractXYResolution(file);
+				iconFile.setWidth(res.width);
+				iconFile.setHeight(res.height);
+				iconFile.setIsScalable(extractIconIsScalable(file));
+				fileRepository.save(iconFile);
+			}
+			case IMAGE -> {
+				var imageFile = (ImageFileEntity) fileEntity;
+				log.info("Extracting resolution and metadata for image file: {}", file);
+				var res = extractImageResolution(jsonObject);
+
+				if (res != null) {
+					imageFile.setWidth(res.width);
+					imageFile.setHeight(res.height);
+				}
+
+				imageFile.setColorDepth(extractImageColorDepth(jsonObject));
+				imageFile.setDpi(extractImageDpi(jsonObject));
+				imageFile.setGroupLabel(extractLabel(jsonObject));
+				fileRepository.save(imageFile);
 			}
 			case INTERACTIVE -> {
 				var inter = (InteractiveFileEntity) fileEntity;
@@ -375,6 +357,24 @@ public class DirectoryProcessorService {
 					}
 				}
 				fileRepository.save(thumb);
+			}
+			case VECTOR -> {
+				var vectorFile = (VectorFileEntity) fileEntity;
+				var res = extractXYResolution(file);
+				vectorFile.setWidth(res.width);
+				vectorFile.setHeight(res.height);
+				vectorFile.setLayersCount(extractVectorLayersCount(file));
+				fileRepository.save(vectorFile);
+			}
+			case VIDEO -> {
+				var videoFile = (VideoFileEntity) fileEntity;
+				var res = extractXYResolution(file);
+				videoFile.setWidth(res.width);
+				videoFile.setHeight(res.height);
+				videoFile.setFrameRate(extractFrameRate(file));
+				videoFile.setDuration(extractAudioVideoDuration(file));
+				videoFile.setCodec(extractVideoCodec(file));
+				fileRepository.save(videoFile);
 			}
 			default -> {
 				return Boolean.FALSE;

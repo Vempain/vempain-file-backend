@@ -233,6 +233,17 @@ CREATE TABLE gps_locations
 	sub_location    VARCHAR(255)
 );
 
+CREATE TABLE location_guard
+(
+	id                  BIGSERIAL PRIMARY KEY,
+	guard_type          VARCHAR(16)    NOT NULL,
+	primary_longitude   NUMERIC(10, 5) NOT NULL,
+	primary_latitude    NUMERIC(10, 5) NOT NULL,
+	secondary_longitude NUMERIC(10, 5),
+	secondary_latitude  NUMERIC(10, 5),
+	radius              NUMERIC(10, 5)
+);
+
 -- Data
 
 -- Add administrator account

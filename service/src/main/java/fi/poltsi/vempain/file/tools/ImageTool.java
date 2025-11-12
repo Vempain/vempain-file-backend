@@ -21,7 +21,7 @@ public class ImageTool {
 
 	private static final String RESPONSE_STATUS_EXCEPTION_MESSAGE = "Unknown error";
 
-	public Dimension resizeImage(Path sourceFile, Path destinationFile, int imageMinimumSize, float quality) {
+	public Dimension resizeImage(Path sourceFile, Path destinationFile, int imageMinimumSize, float quality, String metadataJson) {
 		// Get the original dimensions of the source file in order to see whether it should be resized
 		var origDimensions   = getImageDimensions(sourceFile);
 		var targetDimensions = new Dimension();
@@ -51,7 +51,11 @@ public class ImageTool {
 					.useExifOrientation(true)
 					.toFile(destinationFile.toFile());
 
-			MetadataTool.copyMetadata(sourceFile.toFile(), destinationFile.toFile());
+			if (metadataJson != null) {
+				MetadataTool.writeMetadataFromJson(destinationFile.toFile(), metadataJson);
+			} else {
+				MetadataTool.copyMetadata(sourceFile.toFile(), destinationFile.toFile());
+			}
 		} catch (IOException e) {
 			log.error("Failed to copy/convert {} to {}", sourceFile, destinationFile, e);
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, RESPONSE_STATUS_EXCEPTION_MESSAGE);

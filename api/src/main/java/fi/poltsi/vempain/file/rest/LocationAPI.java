@@ -21,34 +21,35 @@ import java.util.List;
 @Tag(name = "Location API", description = "API for accessing and managing location data and location guards")
 public interface LocationAPI {
 	String BASE_PATH = "/location";
+	String GUARD_PATH = BASE_PATH + "/guard";
 
 	@Operation(summary = "Get location data by ID", description = "Retrieve specific location data by its unique identifier")
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<LocationResponse> getLocationById(@PathVariable long id);
 
-	@Operation(summary = "Create a location guard", description = "Add a new location guard (circle or square)")
-	@SecurityRequirement(name = "Bearer Authentication")
-	@PostMapping(path = BASE_PATH + "/guard", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<LocationGuardResponse> addLocationGuard(@Valid @RequestBody LocationGuardRequest request);
-
-	@Operation(summary = "Update a location guard", description = "Update existing location guard by providing its ID")
-	@SecurityRequirement(name = "Bearer Authentication")
-	@PutMapping(path = BASE_PATH + "/guard", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<LocationGuardResponse> updateLocationGuard(@Valid @RequestBody LocationGuardRequest request);
-
-	@Operation(summary = "Delete a location guard", description = "Delete a location guard by ID")
-	@SecurityRequirement(name = "Bearer Authentication")
-	@DeleteMapping(path = BASE_PATH + "/guard/{id}")
-	ResponseEntity<Void> deleteLocationGuard(@PathVariable long id);
-
 	@Operation(summary = "List all location guards", description = "Fetch all existing location guards")
 	@SecurityRequirement(name = "Bearer Authentication")
-	@GetMapping(path = BASE_PATH + "/guards", produces = MediaType.APPLICATION_JSON_VALUE)
+	@GetMapping(path = GUARD_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<List<LocationGuardResponse>> findAllLocationGuards();
 
 	@Operation(summary = "Check if GPS location is guarded", description = "Returns true if the given GPS location (by ID) lies within any guard")
 	@SecurityRequirement(name = "Bearer Authentication")
-	@GetMapping(path = BASE_PATH + "/guarded/{gpsLocationId}", produces = MediaType.APPLICATION_JSON_VALUE)
+	@GetMapping(path = GUARD_PATH + "/{gpsLocationId}", produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<Boolean> isGuardedLocation(@PathVariable long gpsLocationId);
+
+	@Operation(summary = "Create a location guard", description = "Add a new location guard (circle or square)")
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(path = GUARD_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<LocationGuardResponse> addLocationGuard(@Valid @RequestBody LocationGuardRequest request);
+
+	@Operation(summary = "Update a location guard", description = "Update existing location guard by providing its ID")
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PutMapping(path = GUARD_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<LocationGuardResponse> updateLocationGuard(@Valid @RequestBody LocationGuardRequest request);
+
+	@Operation(summary = "Delete a location guard", description = "Delete a location guard by ID")
+	@SecurityRequirement(name = "Bearer Authentication")
+	@DeleteMapping(path = GUARD_PATH + "/{id}")
+	ResponseEntity<Void> deleteLocationGuard(@PathVariable long id);
 }

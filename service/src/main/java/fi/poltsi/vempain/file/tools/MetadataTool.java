@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -905,7 +907,60 @@ public class MetadataTool {
 
 
 	public static void writeMetadataFromJson(File file, String metadataJson) {
+		if (file == null || metadataJson == null || metadataJson.isBlank()) {
+			log.warn("writeMetadataFromJson called with empty inputs. File: {}, metadataJson empty: {}", file, metadataJson == null || metadataJson.isBlank());
+			return;
+		}
 
+		File tempJson = null;
+		try {
+			tempJson = File.createTempFile("vempain-meta-", ".json");
+			Files.writeString(tempJson.toPath(), metadataJson, StandardCharsets.UTF_8);
+			log.info("Temporary metadata JSON written to {}", tempJson.getAbsolutePath());
+
+			wipeMetadataFromFile(file);
+
+			var importCmd = new ArrayList<String>();
+			importCmd.add("exiftool");
+			importCmd.add("-overwrite_original_in_place");
+			importCmd.add("-json=" + tempJson.getAbsolutePath());
+			importCmd.add(file.getAbsolutePath());
+
+			log.info("Importing metadata with command: {}", importCmd);
+			var process = new ProcessBuilder(importCmd).start();
+			int exit    = process.waitFor();
+			if (exit != 0) {
+				log.error("Exiftool import (-json=) exited with code {} for file {}", exit, file.getAbsolutePath());
+			} else {
+				log.info("Metadata successfully written to {}", file.getAbsolutePath());
+			}
+		} catch (Exception e) {
+			log.error("Failed to write metadata JSON to file {}", file != null ? file.getAbsolutePath() : "null", e);
+		} finally {
+			if (tempJson != null && tempJson.exists()) {
+				try {
+					Files.deleteIfExists(tempJson.toPath());
+					log.debug("Deleted temporary metadata JSON {}", tempJson.getAbsolutePath());
+				} catch (IOException ioe) {
+					log.warn("Failed to delete temporary metadata JSON {}", tempJson.getAbsolutePath(), ioe);
+				}
+			}
+		}
+	}
+
+	public static void wipeMetadataFromFile(File file) throws IOException, InterruptedException {
+		var wipeCmd = new ArrayList<String>();
+		wipeCmd.add("exiftool");
+		wipeCmd.add("-overwrite_original_in_place");
+		wipeCmd.add("-all=");
+		wipeCmd.add(file.getAbsolutePath());
+
+		log.info("Wiping metadata with command: {}", wipeCmd);
+		var process = new ProcessBuilder(wipeCmd).start();
+		int exit    = process.waitFor();
+		if (exit != 0) {
+			log.error("Exiftool wipe (-all=) exited with code {} for file {}", exit, file.getAbsolutePath());
+		}
 	}
 
 	public static JSONObject metadataToJsonObject(String metadata) {

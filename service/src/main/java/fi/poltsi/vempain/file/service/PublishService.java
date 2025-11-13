@@ -128,9 +128,9 @@ public class PublishService {
 					if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
 						locationResponse = fileEntity.getGpsLocation()
 													 .toResponse();
-						log.info("File {} location is inside guarded areas, adding location data", fileEntity.getFilename());
+						log.info("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
 					} else {
-						log.info("File {} location is outside guarded areas, not publishing location data", fileEntity.getFilename());
+						log.info("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
 					}
 				}
 

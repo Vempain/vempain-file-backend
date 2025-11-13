@@ -10,6 +10,7 @@ import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.LocationRepository;
+import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
@@ -24,19 +25,24 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
+import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
 
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class PublishService {
-	private final VempainAdminService       vempainAdminService;
-	private final ImageTool                 imageTool;
-	private final FileGroupRepository       fileGroupRepository;
-	private final ExportFileRepository      exportFileRepository;
+	private final FileGroupRepository  fileGroupRepository;
+	private final ExportFileRepository exportFileRepository;
+	private final LocationRepository   locationRepository;
+
+	private final VempainAdminService vempainAdminService;
+	private final TagService          tagService;
+	private final LocationService     locationService;
+
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
-	private final TagService tagService;
-	private final LocationRepository locationRepository;
+	private final ImageTool          imageTool;
+	private final MetadataRepository metadataRepository;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
@@ -67,6 +73,9 @@ public class PublishService {
 		}
 
 		for (var fileEntity : fileGroup.getFiles()) {
+			var metadataList = metadataRepository.findByFile(fileEntity);
+			var metadataJson = collectStandardMetadataAsJson(metadataList, fileEntity);
+
 			var exportFilePath = resolveExportedPath(fileEntity.getId());
 			var siteFileName = fileEntity.getFilename();
 
@@ -87,8 +96,8 @@ public class PublishService {
 							  .equals(FileTypeEnum.IMAGE)) {
 					// Create temp file with same extension in system temp dir
 					Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
-					// Resize: smaller dimension to siteImageSize, keep quality 0.9
-					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f);
+					// Resize: smaller dimension to siteImageSize, keep quality 0.7
+					imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
 					tempPathToDelete = tempFile;
 					exportFilePath = tempFile;
 					uploadPath     = tempFile;
@@ -115,8 +124,14 @@ public class PublishService {
 				LocationResponse locationResponse    = null;
 				// Use relation from FileEntity instead of repository lookup
 				if (fileEntity.getGpsLocation() != null) {
-					locationResponse = fileEntity.getGpsLocation()
-												 .toResponse();
+					// Add location only if the location is outside guarded areas
+					if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
+						locationResponse = fileEntity.getGpsLocation()
+													 .toResponse();
+						log.info("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
+					} else {
+						log.info("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
+					}
 				}
 
 				var fileIngestRequest = FileIngestRequest.builder()
@@ -124,8 +139,7 @@ public class PublishService {
 														 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
 														 .mimeType(mimetype)
 														 .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
-														 .metadata(fileEntity.getMetadataRaw() != null ? fileEntity.getMetadataRaw() :
-																   "{}")
+														 .metadata(metadataJson)
 														 .sha256sum(computeSha256(uploadPath.toFile()))
 														 .originalDateTime(fileEntity.getOriginalDatetime())
 														 .galleryId(null)

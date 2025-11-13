@@ -2,7 +2,9 @@ package fi.poltsi.vempain.file.tools;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
+import fi.poltsi.vempain.file.entity.MetadataEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -13,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -22,10 +26,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 
@@ -899,6 +905,64 @@ public class MetadataTool {
 		}
 	}
 
+
+	public static void writeMetadataFromJson(File file, String metadataJson) {
+		if (file == null || metadataJson == null || metadataJson.isBlank()) {
+			log.warn("writeMetadataFromJson called with empty inputs. File: {}, metadataJson empty: {}", file, metadataJson == null || metadataJson.isBlank());
+			return;
+		}
+
+		File tempJson = null;
+		try {
+			tempJson = File.createTempFile("vempain-meta-", ".json");
+			Files.writeString(tempJson.toPath(), metadataJson, StandardCharsets.UTF_8);
+			log.info("Temporary metadata JSON written to {}", tempJson.getAbsolutePath());
+
+			wipeMetadataFromFile(file);
+
+			var importCmd = new ArrayList<String>();
+			importCmd.add("exiftool");
+			importCmd.add("-overwrite_original_in_place");
+			importCmd.add("-json=" + tempJson.getAbsolutePath());
+			importCmd.add(file.getAbsolutePath());
+
+			log.info("Importing metadata with command: {}", importCmd);
+			var process = new ProcessBuilder(importCmd).start();
+			int exit    = process.waitFor();
+			if (exit != 0) {
+				log.error("Exiftool import (-json=) exited with code {} for file {}", exit, file.getAbsolutePath());
+			} else {
+				log.info("Metadata successfully written to {}", file.getAbsolutePath());
+			}
+		} catch (Exception e) {
+			log.error("Failed to write metadata JSON to file {}", file != null ? file.getAbsolutePath() : "null", e);
+		} finally {
+			if (tempJson != null && tempJson.exists()) {
+				try {
+					Files.deleteIfExists(tempJson.toPath());
+					log.debug("Deleted temporary metadata JSON {}", tempJson.getAbsolutePath());
+				} catch (IOException ioe) {
+					log.warn("Failed to delete temporary metadata JSON {}", tempJson.getAbsolutePath(), ioe);
+				}
+			}
+		}
+	}
+
+	public static void wipeMetadataFromFile(File file) throws IOException, InterruptedException {
+		var wipeCmd = new ArrayList<String>();
+		wipeCmd.add("exiftool");
+		wipeCmd.add("-overwrite_original_in_place");
+		wipeCmd.add("-all=");
+		wipeCmd.add(file.getAbsolutePath());
+
+		log.info("Wiping metadata with command: {}", wipeCmd);
+		var process = new ProcessBuilder(wipeCmd).start();
+		int exit    = process.waitFor();
+		if (exit != 0) {
+			log.error("Exiftool wipe (-all=) exited with code {} for file {}", exit, file.getAbsolutePath());
+		}
+	}
+
 	public static JSONObject metadataToJsonObject(String metadata) {
 		var jsonArray = new JSONArray(metadata);
 
@@ -1017,5 +1081,320 @@ public class MetadataTool {
 			log.error("Failed to parse date time string: {}", dateTimeString, e);
 			return null;
 		}
+	}
+
+	/**
+	 * Scan a list of MetadataEntity objects (two-tier: group/key/value) and the FileEntity
+	 * to collect common camera/image metadata into a JSON array (one element) using common EXIF/XMP keys.
+	 * Returned JSON is an array with a single object, compatible with exiftool -json ingestion.
+	 */
+	public static String collectStandardMetadataAsJson(List<MetadataEntity> metadataEntities, FileEntity fileEntity) {
+		var result = new LinkedHashMap<String, Object>();
+		if (metadataEntities == null || metadataEntities.isEmpty()) {
+			// still include rights/creator if present
+			putFileRightsAndCreatorForExif(result, fileEntity);
+			return writeJsonArray(result);
+		}
+
+		// Build quick lookup: Map<groupLower, Map<keyLower, value>>
+		var index = metadataEntities.stream()
+									.filter(Objects::nonNull)
+									.collect(Collectors.groupingBy(
+											me -> normalizeName(me.getMetadataGroup()),
+											LinkedHashMap::new,
+											Collectors.toMap(
+													me -> normalizeName(me.getMetadataKey()),
+													MetadataEntity::getMetadataValue,
+													(a, b) -> a != null ? a : b // prefer first if duplicate
+											)
+									));
+
+		// Helper to fetch by prioritized (group,key) pairs
+		java.util.function.BiFunction<List<String>, List<String>, String> findFirst = (groups, keys) -> {
+			for (String g : groups) {
+				var gi = index.get(normalizeName(g));
+				if (gi == null) {
+					continue;
+				}
+				for (String k : keys) {
+					var v = gi.get(normalizeName(k));
+					if (v != null && !v.isBlank()) {
+						return v;
+					}
+				}
+			}
+			return null;
+		};
+
+		// collect candidate values using common EXIF/XMP key names
+		String make           = findFirst.apply(List.of("XMP-exif", "IFD0", "EXIF", "ExifIFD", "Composite"), List.of("Make", "Maker", "Make"));
+		String model          = findFirst.apply(List.of("XMP-exif", "IFD0", "EXIF", "ExifIFD", "Composite"), List.of("Model"));
+		String artist         = findFirst.apply(List.of("IFD0", "XMP-dc", "XMP-exif"), List.of("Artist", "Creator"));
+		String copyright      = findFirst.apply(List.of("IFD0", "XMP-xmpRights", "XMP-dc", "Composite"), List.of("Copyright", "CopyrightNotice", "Rights"));
+		String exposureTime   = findFirst.apply(List.of("ExifIFD", "EXIF", "Composite"), List.of("ExposureTime", "ExposureTime"));
+		String fNumberStr     = findFirst.apply(List.of("ExifIFD", "Composite", "IFD0"), List.of("FNumber", "Aperture", "ApertureValue"));
+		String shutterSpeed   = findFirst.apply(List.of("Composite", "ExifIFD", "EXIF", "IFD0"), List.of("ShutterSpeed", "ShutterSpeedValue", "ExposureTime"));
+		String focalLength    = findFirst.apply(List.of("ExifIFD", "Composite", "IFD0"), List.of("FocalLength", "FocalLength35efl", "FocalLengthIn35mmFormat"));
+		String originalDocId  = findFirst.apply(List.of("XMP-xmpMM", "XMP-xmp", "XMP", "Composite"), List.of("OriginalDocumentID", "DocumentID", "InstanceID", "DerivedFromOriginalDocumentID"));
+		String webStatement   = findFirst.apply(List.of("XMP-xmpRights", "XMP-xmp", "XMP", "IFD0"), List.of("WebStatement", "WebStatement", "WebStatement", "WebStatement"));
+		String usageTerms     = findFirst.apply(List.of("XMP-xmpRights", "XMP-xmp", "XMP"), List.of("UsageTerms", "UsageTerms", "UsageTerms"));
+		String creatorEmail   = findFirst.apply(List.of("XMP-iptcCore", "XMP-dc", "IFD0"), List.of("CreatorWorkEmail", "Creator", "CreatorWorkEmail"));
+		String creatorCountry = findFirst.apply(List.of("XMP-iptcCore", "IFD0"), List.of("CreatorCountry", "CreatorCountry"));
+		String creatorUrl     = findFirst.apply(List.of("XMP-iptcCore", "XMP-dc"), List.of("CreatorWorkURL", "CreatorWorkURL"));
+
+		String isoStr           = findFirst.apply(List.of("Composite", "ExifIFD", "EXIF", "IFD0"), List.of("ISO", "ISOSpeed", "CameraISO", "ISO"));
+		String bitsPerSampleStr = findFirst.apply(List.of("SUBIFD", "File", "PNG", "SubIFD1", "SubIFD2", "SubIFD"), List.of("BitsPerSample", "BitDepth", "BitsPerSample"));
+		String imageSize        = findFirst.apply(List.of("Composite", "File", "SubIFD", "SubIFD1", "SubIFD2"), List.of("ImageSize", "ImageSize"));
+		if (imageSize == null) {
+			String width  = findFirst.apply(List.of("File", "SubIFD", "SubIFD1", "SubIFD2"), List.of("ImageWidth", "ImageWidth"));
+			String height = findFirst.apply(List.of("File", "SubIFD", "SubIFD1", "SubIFD2"), List.of("ImageHeight", "ImageHeight"));
+			if (width != null && height != null) {
+				imageSize = width.trim() + "x" + height.trim();
+			}
+		}
+		String megapixelsStr     = findFirst.apply(List.of("Composite", "EXIF", "IFD0"), List.of("Megapixels", "Megapixels"));
+		String circleOfConfusion = findFirst.apply(List.of("Composite", "IFD0"), List.of("CircleOfConfusion"));
+		String fov               = findFirst.apply(List.of("Composite", "XMP-crs", "XMP-panorama"), List.of("FOV", "FOV", "VirtualFocalLength"));
+
+		// Put values into result using EXIF/XMP keys and typed parsing where sensible
+		putIfNotNullObject(result, "Make", make);
+		putIfNotNullObject(result, "Model", model);
+
+		// Creator/Artist
+		if (artist == null || artist.isBlank()) {
+			artist = fileEntity != null ? fileEntity.getCreatorName() : null;
+		}
+		putIfNotNullObject(result, "Artist", artist);
+		putIfNotNullObject(result, "Creator", artist);
+
+		// Copyright / Rights
+		if (copyright == null || copyright.isBlank()) {
+			copyright = fileEntity != null ? fileEntity.getRightsHolder() : null;
+		}
+		putIfNotNullObject(result, "Copyright", copyright);
+		putIfNotNullObject(result, "CopyrightNotice", copyright);
+		if (copyright != null && !copyright.isBlank()) {
+			result.put("CopyrightFlag", Boolean.TRUE);
+			putIfNotNullObject(result, "Rights", copyright);
+		}
+
+		putIfNotNullObject(result, "ExposureTime", exposureTime);
+		// FNumber / ApertureValue numeric
+		Double fNumber = parseDoubleSafe(fNumberStr);
+		if (fNumber != null) {
+			result.put("FNumber", fNumber);
+			result.put("ApertureValue", fNumber);
+			result.put("Aperture", fNumber);
+		} else {
+			putIfNotNullObject(result, "FNumber", fNumberStr);
+			putIfNotNullObject(result, "ApertureValue", fNumberStr);
+			putIfNotNullObject(result, "Aperture", fNumberStr);
+		}
+
+		putIfNotNullObject(result, "ShutterSpeedValue", shutterSpeed);
+		putIfNotNullObject(result, "ShutterSpeed", shutterSpeed);
+		putIfNotNullObject(result, "FocalLength", focalLength);
+		putIfNotNullObject(result, "OriginalDocumentID", originalDocId);
+
+		// WebStatement / UsageTerms
+		if ((webStatement == null || webStatement.isBlank()) && fileEntity != null) {
+			webStatement = fileEntity.getRightsUrl();
+		}
+		putIfNotNullObject(result, "WebStatement", webStatement);
+		if ((usageTerms == null || usageTerms.isBlank()) && fileEntity != null) {
+			usageTerms = safeString(fileEntity.getRightsTerms());
+		}
+		putIfNotNullObject(result, "UsageTerms", usageTerms);
+
+		// Creator contact fields (prefer metadata then FileEntity)
+		if ((creatorEmail == null || creatorEmail.isBlank()) && fileEntity != null) {
+			creatorEmail = fileEntity.getCreatorEmail();
+		}
+		putIfNotNullObject(result, "CreatorWorkEmail", creatorEmail);
+
+		if ((creatorCountry == null || creatorCountry.isBlank()) && fileEntity != null) {
+			creatorCountry = fileEntity.getCreatorCountry();
+		}
+		putIfNotNullObject(result, "CreatorCountry", creatorCountry);
+
+		if ((creatorUrl == null || creatorUrl.isBlank()) && fileEntity != null) {
+			creatorUrl = fileEntity.getCreatorUrl();
+		}
+		putIfNotNullObject(result, "CreatorWorkURL", creatorUrl);
+
+		// ISO as number if possible
+		Integer iso = parseIntegerSafe(isoStr);
+		if (iso != null) {
+			result.put("ISO", iso);
+		} else {
+			putIfNotNullObject(result, "ISO", isoStr);
+		}
+
+		// BitsPerSample numeric
+		Integer bitsPerSample = parseIntegerSafe(bitsPerSampleStr);
+		if (bitsPerSample != null) {
+			result.put("BitsPerSample", bitsPerSample);
+		} else {
+			putIfNotNullObject(result, "BitsPerSample", bitsPerSampleStr);
+		}
+
+		// ImageSize
+		putIfNotNullObject(result, "ImageSize", imageSize);
+
+		// Megapixels numeric
+		Double megapixels = parseDoubleSafe(megapixelsStr);
+		if (megapixels != null) {
+			result.put("Megapixels", megapixels);
+		} else {
+			putIfNotNullObject(result, "Megapixels", megapixelsStr);
+		}
+
+		putIfNotNullObject(result, "CircleOfConfusion", circleOfConfusion);
+		putIfNotNullObject(result, "FOV", fov);
+		// Also keep ExposureTime and ShutterSpeed as duplicates
+		putIfNotNullObject(result, "Exposure", exposureTime);
+
+		// Ensure we include rights/creator values from FileEntity as well (prefer already set keys)
+		putFileRightsAndCreatorForExif(result, fileEntity);
+
+		return writeJsonArray(result);
+	}
+
+	// Helper: write single-object-as-array map as JSON string
+	private static String writeJsonArray(Map<String, Object> map) {
+		try {
+			var mapper = new ObjectMapper();
+			// produce an array with single element
+			return mapper.writeValueAsString(new Object[]{map});
+		} catch (Exception e) {
+			log.error("Failed to serialize metadata map to JSON array", e);
+			return "[]";
+		}
+	}
+
+	// Helper: put value if not null/blank (String)
+	private static void putIfNotNull(Map<String, Object> map, String key, String value) {
+		if (value != null && !value.isBlank()) {
+			map.put(key, value);
+		}
+	}
+
+	// Helper: put object value if not null (used for strings and typed values)
+	private static void putIfNotNullObject(Map<String, Object> map, String key, Object value) {
+		if (value instanceof String s) {
+			if (s != null && !s.isBlank()) {
+				map.put(key, s);
+			}
+		} else if (value != null) {
+			map.put(key, value);
+		}
+	}
+
+	private static void putFileRightsAndCreatorForExif(Map<String, Object> map, FileEntity fileEntity) {
+		if (fileEntity == null) {
+			return;
+		}
+		try {
+			var rights = safeString(fileEntity.getRightsHolder());
+			if (rights != null && !rights.isBlank()) {
+				// put multiple common keys for compatibility
+				map.putIfAbsent("Rights", rights);
+				map.putIfAbsent("Copyright", rights);
+				map.putIfAbsent("CopyrightNotice", rights);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var creator = safeString(fileEntity.getCreatorName());
+			if (creator != null && !creator.isBlank()) {
+				map.putIfAbsent("Creator", creator);
+				map.putIfAbsent("Artist", creator);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var web = safeString(fileEntity.getRightsUrl());
+			if (web != null && !web.isBlank()) {
+				map.putIfAbsent("WebStatement", web);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var email = safeString(fileEntity.getCreatorEmail());
+			if (email != null && !email.isBlank()) {
+				map.putIfAbsent("CreatorWorkEmail", email);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var country = safeString(fileEntity.getCreatorCountry());
+			if (country != null && !country.isBlank()) {
+				map.putIfAbsent("CreatorCountry", country);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var url = safeString(fileEntity.getCreatorUrl());
+			if (url != null && !url.isBlank()) {
+				map.putIfAbsent("CreatorWorkURL", url);
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			var terms = safeString(fileEntity.getRightsTerms());
+			if (terms != null && !terms.isBlank()) {
+				map.putIfAbsent("UsageTerms", terms);
+			}
+		} catch (Exception ignored) {
+		}
+	}
+
+	private static String safeString(String s) {
+		return s == null ? null : s.trim();
+	}
+
+	private static Integer parseIntegerSafe(String s) {
+		if (s == null) {
+			return null;
+		}
+		try {
+			// remove non-digit characters except leading minus
+			var cleaned = s.trim()
+						   .replaceAll("[^0-9-]", "");
+			if (cleaned.isBlank()) {
+				return null;
+			}
+			return Integer.parseInt(cleaned);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static Double parseDoubleSafe(String s) {
+		if (s == null) {
+			return null;
+		}
+		try {
+			// Accept values like "1.7", "1/6" (do not convert fractions), "4.3 mm" => extract numeric part if present
+			var trimmed = s.trim();
+			// if fraction like 1/6, leave as string (not parseable to double reliably) -> return null
+			if (trimmed.matches("\\d+\\s*/\\s*\\d+")) {
+				return null;
+			}
+			// extract first valid number (with decimal)
+			var m = trimmed.replaceAll("[^0-9.+-]", "");
+			if (m.isBlank()) {
+				return null;
+			}
+			return Double.valueOf(m);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	// Helper to normalize group/key names for indexing and lookup
+	private static String normalizeName(String s) {
+		return (s == null) ? "" : s.trim()
+								   .toLowerCase();
 	}
 }

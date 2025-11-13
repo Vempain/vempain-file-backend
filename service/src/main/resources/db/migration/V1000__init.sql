@@ -2,7 +2,8 @@ CREATE TABLE file_group
 (
 	id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	path       VARCHAR(255) NOT NULL,
-	group_name VARCHAR(255) NOT NULL
+	group_name  VARCHAR(255) NOT NULL,
+	description TEXT
 );
 
 CREATE TABLE files

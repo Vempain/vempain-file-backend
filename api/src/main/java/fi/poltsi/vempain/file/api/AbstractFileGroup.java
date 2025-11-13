@@ -1,23 +1,23 @@
-package fi.poltsi.vempain.file.api.response;
+package fi.poltsi.vempain.file.api;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@Schema(name = "FileGroupResponse", description = "Represents a file group and the count of files, used to list the groups without loading all files")
-@Tag(name = "FileGroupListResponse", description = "Schema for FileGroupListResponse")
-public class FileGroupListResponse {
-
+@Schema(name = "AbstractFileGroup", description = "Common file group class for both requests and responses")
+@Tag(name = "AbstractFileGroup", description = "Schema for AbstractFileGroup")
+public abstract class AbstractFileGroup {
 	@Schema(description = "ID of the file group", example = "123")
 	private Long id;
 
@@ -25,11 +25,10 @@ public class FileGroupListResponse {
 	private String path;
 
 	@Schema(description = "Name of the file group", example = "Firenze Trip 2025")
+	@NotNull
 	private String groupName;
 
-	@Schema(description = "Description of the file group", example = "Our trip to Firenze 2025 by car")
+	@Schema(description = "Optional description of the group", example = "Interesting files related to our Firenze trip in 2025")
 	private String description;
-
-	@Schema(description = "How many files belong to this group", example = "42")
-	private long fileCount;
 }
+

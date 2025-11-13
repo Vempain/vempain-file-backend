@@ -1,9 +1,8 @@
-package fi.poltsi.vempain.file.api.response;
+package fi.poltsi.vempain.file.api.request;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import fi.poltsi.vempain.file.api.AbstractFileGroup;
-import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
@@ -22,12 +21,12 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-@Schema(name = "FileGroupResponse", description = "Represents a file group and its files")
-@Tag(name = "FileGroups", description = "Schema for FileGroupResponse")
-public class FileGroupResponse extends AbstractFileGroup {
-
-	@Schema(description = "Files belonging to this group")
+@Schema(name = "FileGroupRequest", description = "Represents a file group and its files")
+@Tag(name = "FileGroups", description = "Schema for FileGroupRequest")
+public class FileGroupRequest extends AbstractFileGroup {
+	@Schema(description = "IDs of files to associate with the group; replaces existing associations on update", example = "[101,102,103]")
 	@NotNull
 	@Size(min = 0)
-	private List<FileResponse> files;
+	private List<Long> fileIds;
 }
+

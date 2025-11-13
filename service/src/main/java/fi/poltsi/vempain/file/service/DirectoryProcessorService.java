@@ -150,6 +150,7 @@ public class DirectoryProcessorService {
 					FileGroupEntity.builder()
 								   .path(relativeDirectory)
 								   .groupName(groupName)
+								   .description("")
 								   .build());
 		}
 

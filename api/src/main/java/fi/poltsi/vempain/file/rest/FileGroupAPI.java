@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.rest;
 
+import fi.poltsi.vempain.file.api.request.FileGroupRequest;
 import fi.poltsi.vempain.file.api.response.FileGroupListResponse;
 import fi.poltsi.vempain.file.api.response.FileGroupResponse;
 import fi.poltsi.vempain.file.api.response.PagedResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.MediaType;
@@ -18,6 +20,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @Validated
@@ -57,4 +62,16 @@ public interface FileGroupAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH + "/{id}", produces = "application/json")
 	ResponseEntity<FileGroupResponse> getFileGroupById(@PathVariable("id") @Positive Long id);
+
+	@Operation(summary = "Create a new file group", description = "Creates a file group and associates given files to the group")
+	@ApiResponse(responseCode = "201", description = "Created",
+				 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
+	@PostMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<FileGroupResponse> addFileGroup(@Valid @RequestBody FileGroupRequest request);
+
+	@Operation(summary = "Update an existing file group", description = "Updates group metadata and replaces file associations with the provided list")
+	@ApiResponse(responseCode = "200", description = "Updated",
+				 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
+	@PutMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<FileGroupResponse> updateFileGroup(@Valid @RequestBody FileGroupRequest request);
 }

@@ -96,6 +96,7 @@ public class FileScannerService {
 
 		for (Path leafDir : leafDirectories) {
 			var foo = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses);
+			log.debug("Processed {} in export directory", foo.size());
 		}
 
 		return ScanExportResponse.builder()

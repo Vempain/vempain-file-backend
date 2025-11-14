@@ -18,12 +18,17 @@ public interface FileGroupRepository extends JpaRepository<FileGroupEntity, Long
 	// Paged query that groups by file group and counts files without loading the collection
 	@Query(
 			value = """
-					SELECT fg.id AS id, fg.path AS path, fg.groupName AS groupName, fg.description AS description, COUNT(f) AS fileCount
-					FROM FileGroupEntity fg
-					LEFT JOIN fg.files f
-					GROUP BY fg.id, fg.path, fg.groupName
+					SELECT fg.id AS id,
+						   fg.path AS path,
+						   fg.group_name AS groupName,
+						   fg.description AS description,
+						   COUNT(fgf.file_id) AS fileCount
+					FROM file_group fg
+					LEFT JOIN file_group_files fgf ON fgf.file_group_id = fg.id
+					GROUP BY fg.id, fg.path, fg.group_name, fg.description
 					""",
-			countQuery = "SELECT COUNT(fg) FROM FileGroupEntity fg"
+			countQuery = "SELECT COUNT(*) FROM file_group",
+			nativeQuery = true
 	)
 	Page<FileGroupCountProjection> findAllWithFileCounts(Pageable pageable);
 

@@ -52,9 +52,6 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@Basic
 	@Column(name = "description")
 	protected String          description;
-	@ManyToOne
-	@JoinColumn(name = "file_group_id", nullable = false)
-	private   FileGroupEntity fileGroup;
 	@Column(name = "filename", nullable = false)
 	private   String          filename;
 	@Column(name = "file_path", nullable = false)
@@ -96,6 +93,12 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "gps_location_id")
 	private GpsLocationEntity gpsLocation;
+
+	@EqualsAndHashCode.Exclude
+	@ToString.Exclude
+	@ManyToMany(mappedBy = "files")
+	@Builder.Default
+	private Set<FileGroupEntity> fileGroups = new HashSet<>();
 
 	@EqualsAndHashCode.Exclude
 	@ManyToMany

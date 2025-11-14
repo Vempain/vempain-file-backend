@@ -17,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -78,7 +80,7 @@ public class FileGroupService {
 		fileGroupEntity.setDescription(request.getDescription());
 		if (request.getFileIds() != null) {
 			List<FileEntity> files = fileRepository.findAllById(request.getFileIds());
-			fileGroupEntity.replaceFiles(files);                 // mutate managed collection
+			fileGroupEntity.replaceFiles(files);                 // mutate managed collection + inverse
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
 		return saved.toResponse();
@@ -92,8 +94,23 @@ public class FileGroupService {
 		fileGroupEntity.setGroupName(fileGroupRequest.getGroupName());
 		fileGroupEntity.setDescription(fileGroupRequest.getDescription());
 		if (fileGroupRequest.getFileIds() != null) {
-			List<FileEntity> files = fileRepository.findAllById(fileGroupRequest.getFileIds());
-			fileGroupEntity.replaceFiles(files);                 // avoid setFiles (dereferencing)
+			List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
+
+			// Enforce: a file must always belong to at least one group
+			Set<FileEntity> current = new HashSet<>(fileGroupEntity.getFiles());
+			Set<FileEntity> newSet  = new HashSet<>(newFiles);
+			current.removeAll(newSet); // these would be removed from this group
+			for (FileEntity f : current) {
+				if (f.getFileGroups() == null || f.getFileGroups()
+												  .size() <= 1) {
+					throw new ResponseStatusException(
+							HttpStatus.BAD_REQUEST,
+							"Cannot remove file " + f.getId() + " from its last group"
+					);
+				}
+			}
+
+			fileGroupEntity.replaceFiles(newFiles);                 // mutate managed collection + inverse
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
 		return saved.toResponse();

@@ -8,7 +8,9 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,8 +19,9 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Builder
 @Data
@@ -48,9 +51,14 @@ public class FileGroupEntity {
 	@ToString.Include
 	private String description;
 
-	@OneToMany(mappedBy = "fileGroup", fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
+	@ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
+	@JoinTable(
+			name = "file_group_files",
+			joinColumns = @JoinColumn(name = "file_group_id"),
+			inverseJoinColumns = @JoinColumn(name = "file_id")
+	)
 	@Builder.Default
-	private List<FileEntity> files = new ArrayList<>();
+	private Set<FileEntity> files = new HashSet<>();
 
 	public FileGroupResponse toResponse() {
 		return FileGroupResponse.builder()
@@ -65,13 +73,30 @@ public class FileGroupEntity {
 	}
 
 	public void replaceFiles(List<FileEntity> newFiles) {
-		if (files == null) {
-			files = new ArrayList<>();
-		} else {
-			files.clear();
+		final Set<FileEntity> newSet = newFiles == null ? Set.of() : new HashSet<>(newFiles);
+
+		// Remove unselected files and update inverse side
+		if (files != null && !files.isEmpty()) {
+			var toRemove = new HashSet<>(files);
+			toRemove.removeAll(newSet);
+			for (FileEntity f : toRemove) {
+				files.remove(f);
+				if (f.getFileGroups() != null) {
+					f.getFileGroups()
+					 .remove(this);
+				}
+			}
 		}
-		if (newFiles != null && !newFiles.isEmpty()) {
-			files.addAll(newFiles);
+
+		// Add new files and update inverse side
+		for (FileEntity f : newSet) {
+			if (!files.contains(f)) {
+				files.add(f);
+				if (f.getFileGroups() != null) {
+					f.getFileGroups()
+					 .add(this);
+				}
+			}
 		}
 	}
 }

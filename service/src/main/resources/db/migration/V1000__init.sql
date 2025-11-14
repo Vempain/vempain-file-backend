@@ -11,7 +11,6 @@ CREATE TABLE files
 	id                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	acl_id                   BIGINT       NOT NULL UNIQUE,
 	external_file_id         VARCHAR(255) NOT NULL,
-	file_group_id            BIGINT       NOT NULL,
 	filename                 VARCHAR(255) NOT NULL,
 	file_path       VARCHAR(255) NOT NULL,
 	mimetype                 VARCHAR(255) NOT NULL,
@@ -39,8 +38,16 @@ CREATE TABLE files
 	locked                   BOOLEAN      NOT NULL DEFAULT false,
 	FOREIGN KEY (creator) REFERENCES user_account (id),
 	FOREIGN KEY (modifier) REFERENCES user_account (id),
-	CONSTRAINT fk_files_file_group_id FOREIGN KEY (file_group_id) REFERENCES file_group (id) ON DELETE CASCADE,
 	CONSTRAINT uq_files_file_path_filename UNIQUE (file_path, filename)
+);
+
+CREATE TABLE file_group_files
+(
+	file_group_id BIGINT NOT NULL,
+	file_id       BIGINT NOT NULL,
+	CONSTRAINT pk_file_group_files PRIMARY KEY (file_group_id, file_id),
+	CONSTRAINT fk_fgf_group FOREIGN KEY (file_group_id) REFERENCES file_group (id) ON DELETE CASCADE,
+	CONSTRAINT fk_fgf_file FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
 );
 
 CREATE TABLE metadata

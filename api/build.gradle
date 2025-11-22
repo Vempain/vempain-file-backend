@@ -10,7 +10,7 @@ repositories {
 		url = "https://maven.pkg.github.com/Vempain/vempain-auth"
 		credentials {
 			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+			password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
 		}
 	}
 	mavenCentral()
@@ -35,22 +35,22 @@ tasks.withType(Javadoc).configureEach {
 }
 
 dependencies {
-	api "org.springframework.data:spring-data-jpa:3.5.5"
-	api "com.fasterxml.jackson.core:jackson-annotations:2.20"
-	api "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+	api "tools.jackson.core:jackson-databind:${jacksonVersion}"
 	api "org.springframework.boot:spring-boot-starter-data-jpa:${springBootVersion}"
 	api "org.springframework.boot:spring-boot-starter-web:${springBootVersion}"
 	// This needs to be built first in vempain-auth
 	api "fi.poltsi.vempain:vempain-auth-api:${vempainAuthVersion}"
+	// https://mvnrepository.com/artifact/org.springframework.data/spring-data-jpa
+	api "org.springframework.data:spring-data-jpa:3.5.6"
+	// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations
+	api "com.fasterxml.jackson.core:jackson-annotations:2.20"
 	// https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
 	api "jakarta.validation:jakarta.validation-api:3.1.1"
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
 	implementation "io.swagger.core.v3:swagger-annotations:2.2.40"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
-	// https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter
 	testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
-	// https://mvnrepository.com/artifact/org.junit.platform/junit-platform-launcher
 	testImplementation "org.junit.platform:junit-platform-launcher:${junitVersion}"
 }
 
@@ -85,7 +85,7 @@ publishing {
 			url = uri("https://maven.pkg.github.com/Vempain/vempain-file-backend")
 			credentials {
 				username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-				password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+				password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
 			}
 		}
 	}

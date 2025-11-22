@@ -32,14 +32,14 @@ repositories {
 		url = "https://maven.pkg.github.com/Vempain/vempain-auth"
 		credentials {
 			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+			password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
 		}
 	}
 	maven {
 		url = "https://maven.pkg.github.com/Vempain/vempain-admin-backend-api"
 		credentials {
 			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
-			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+			password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")
 		}
 	}
 	maven { url = 'https://repo.spring.io/milestone' }
@@ -65,7 +65,8 @@ dependencies {
 	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
 	implementation "org.flywaydb:flyway-core:${flywayVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-	implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+	// https://mvnrepository.com/artifact/tools.jackson.datatype/jackson-datatype-jsr310
+	implementation 'tools.jackson.datatype:jackson-datatype-jsr310:3.0.0-rc2'
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
 	runtimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
@@ -89,8 +90,8 @@ dependencies {
 	testImplementation platform("org.junit:junit-bom:$junitVersion")
 	testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
 	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
-	testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
-	testImplementation "org.testcontainers:postgresql:1.21.3"
+	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
+	testImplementation "org.testcontainers:testcontainers-postgresql:${testContainersVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
 	testImplementation "org.springframework.security:spring-security-test:6.5.6"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
+import static fi.poltsi.vempain.file.tools.DtoTool.toJson;
+
 @Slf4j
 @RequiredArgsConstructor
 @Component
@@ -31,26 +33,34 @@ public class VempainAdminTokenProvider {
 									   .password(adminUserPassword)
 									   .build();
 		log.info("Logging in to Vempain Admin service");
-		var responseEntity = vempainAdminLoginClient.authenticateUser(loginRequest);
 
-		if (responseEntity == null || !responseEntity.getStatusCode()
+		try {
+			var responseEntity = vempainAdminLoginClient.authenticateUser(loginRequest);
+
+			if (responseEntity == null || !responseEntity.getStatusCode()
 													 .is2xxSuccessful()) {
-			log.error("Login to Vempain admin failed");
+				log.error("Login to Vempain admin failed, the response is either empty or not successful");
+				throw new VempainAuthenticationException();
+			}
+
+			log.info("Received following login response: {}", toJson(responseEntity));
+
+			var loginResponse = responseEntity.getBody();
+
+			if (loginResponse == null || loginResponse.getToken() == null) {
+				log.error("Login response is invalid or token is missing");
+				throw new VempainAuthenticationException();
+			}
+
+			jwtTokenRegistrationTimeExpires = Instant.now()
+													 .plusSeconds(3_600L);
+			jwtToken                        = loginResponse.getToken();
+
+			log.info("Logged in to Vempain Admin");
+		} catch (Exception e) {
+			log.error("Login to Vempain admin failed: {}", e.getMessage());
 			throw new VempainAuthenticationException();
 		}
-
-		var loginResponse = responseEntity.getBody();
-
-		if (loginResponse == null || loginResponse.getToken() == null) {
-			log.error("Login response is invalid or token is missing");
-			throw new VempainAuthenticationException();
-		}
-
-		jwtTokenRegistrationTimeExpires = Instant.now()
-												 .plusSeconds(3_600L);
-		jwtToken                        = loginResponse.getToken();
-
-		log.info("Logged in to Vempain Admin");
 	}
 
 	public String getToken() {

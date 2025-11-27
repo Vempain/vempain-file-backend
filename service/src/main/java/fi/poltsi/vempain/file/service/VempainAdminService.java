@@ -46,6 +46,7 @@ public class VempainAdminService {
 				log.warn("File upload failed due to Forbidden (403). Triggering re-authentication.");
 				throw new VempainAuthenticationException();
 			}
+
 			log.error("File upload failed with FeignException (status {}): {}", e.status(), e.getMessage());
 			throw e;
 		}

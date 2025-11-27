@@ -1,7 +1,9 @@
 package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
+import fi.poltsi.vempain.file.api.response.PublishAllFileGroupsResponse;
 import fi.poltsi.vempain.file.api.response.PublishFileGroupResponse;
+import fi.poltsi.vempain.file.api.response.PublishProgressResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -35,4 +38,27 @@ public interface PublishAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(path = BASE_PATH + "/file-group", consumes = "application/json", produces = "application/json")
 	ResponseEntity<PublishFileGroupResponse> PublishFileGroup(@Valid @RequestBody PublishFileGroupRequest request);
+
+	@Operation(summary = "Publish all File Groups",
+			   description = "Triggers asynchronous publishing for all file groups and returns the number of groups scheduled.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "202", description = "Accepted, publishing started",
+						 content = {@Content(schema = @Schema(implementation = PublishAllFileGroupsResponse.class),
+											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+	})
+	@SecurityRequirement(name = "Bearer Authentication")
+	@GetMapping(path = BASE_PATH + "/all-file-groups", produces = "application/json")
+	ResponseEntity<PublishAllFileGroupsResponse> publishAllFileGroups();
+
+	@Operation(summary = "Get publishing progress", description = "Get the current progress of an ongoing publish-all operation")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Current progress",
+						 content = {@Content(schema = @Schema(implementation = PublishProgressResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
+	})
+	@SecurityRequirement(name = "Bearer Authentication")
+	@GetMapping(path = BASE_PATH + "/progress", produces = "application/json")
+	ResponseEntity<PublishProgressResponse> getPublishProgress();
 }

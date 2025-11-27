@@ -7,10 +7,39 @@
 # Vempain File service
 
 The service is part of the [Vempain](https://vempain.poltsi.fi/) project. The file service maintains a database of original files, their metadata as well as
-tracks any exported files (such as jpg-files converted from the original RAW files). The main purpose of the service is metadata management and file export. The
-service can be used in conjunction with the Vempain Admin as well as Vempain Simplex to handle document flows from source to web.
+tracks any exported files (such as jpg-files converted from the original RAW files). The service also forms general notion of file groups based on the
+directories in which the files are placed, however other groupings can also be created. The main purpose of the service is metadata management and file export.
+
+The service can be used in conjunction with the Vempain Admin as well as Vempain Simplex to handle document flows from source to web.
 
 Service exposes REST APIs designed to be used by the Vempain File frontend.
+
+## File grouping
+
+The default way to group files is based on the directory structure. Each directory forms a file group and all files within that directory belong to that group.
+This is the default behavior when files are uploaded via Vempain Simplex or Vempain Admin and is also the way which requires the least amount of of effort to
+maintain. Thus, the recommended way to store the files is to place them in leaf directories, i.e. directories that do not contain any other directories and
+also grouped on higher level according to relatedness.
+
+A clarifying example where the upper level directories group related files together:
+
+```
+Animals/
+    Cats/
+      Cats_On_The_Beach/
+         cat_beach1.raw
+         cat_beach2.raw
+      Cats_At_Home/
+         cat_home1.raw
+         cat_home2.raw
+    Dogs/
+        Dogs_In_The_Park/
+            dog_park1.raw
+            dog_park2.raw
+        Dogs_At_Home/
+            dog_home1.raw
+            dog_home2.raw
+```
 
 ## Swagger API
 

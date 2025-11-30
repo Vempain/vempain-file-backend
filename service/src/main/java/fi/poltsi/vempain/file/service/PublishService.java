@@ -227,10 +227,11 @@ public class PublishService {
 
 			for (var projection : pg) {
 				var groupId = projection.getId();
-				var req     = new PublishFileGroupRequest();
-				req.setFileGroupId(groupId);
-				req.setGalleryName(null);
-				req.setGalleryDescription(null);
+				var req = PublishFileGroupRequest.builder()
+												 .fileGroupId(groupId)
+												 .galleryName(projection.getGroupName())
+												 .galleryDescription(projection.getDescription() != null ? projection.getDescription() : "")
+												 .build();
 				// mark scheduled
 				progressStore.markScheduled(groupId);
 				proxy.publishFileGroup(req);

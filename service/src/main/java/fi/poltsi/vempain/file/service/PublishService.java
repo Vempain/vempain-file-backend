@@ -230,7 +230,9 @@ public class PublishService {
 				var req = PublishFileGroupRequest.builder()
 												 .fileGroupId(groupId)
 												 .galleryName(projection.getGroupName())
-												 .galleryDescription(projection.getDescription() != null ? projection.getDescription() : "")
+												 .galleryDescription(projection.getDescription() != null && projection.getDescription()
+																													  .length() > 2 ?
+																	 projection.getDescription() : projection.getGroupName())
 												 .build();
 				// mark scheduled
 				progressStore.markScheduled(groupId);

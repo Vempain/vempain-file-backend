@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.auth.entity.Acl;
 import fi.poltsi.vempain.auth.exception.VempainAclException;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
@@ -290,10 +291,10 @@ public class DirectoryProcessorService {
 			}
 		}
 
-		var aclId = 0L;
+		Acl fileEntityAcl;
 
 		try {
-			aclId = aclService.createNewAcl(userId, null, true, true, true, true);
+			fileEntityAcl = aclService.createUniqueAcl(userId, null, true, true, true, true);
 		} catch (VempainAclException e) {
 			throw new VempainRuntimeException();
 		}
@@ -322,7 +323,7 @@ public class DirectoryProcessorService {
 								: fileTypeEnum + sha256sum;
 
 		// Populate shared FileEntity fields once
-		entity.setAclId(aclId);
+		entity.setAclId(fileEntityAcl.getAclId());
 		entity.setCreated(Instant.now());
 		entity.setCreator(userId);
 		entity.setCreatorCountry(creatorCountry);
@@ -359,16 +360,10 @@ public class DirectoryProcessorService {
 			entity.setFileGroups(new HashSet<>());
 		}
 		// Owning side: FileGroupEntity.files
-		if (!group.getFiles()
-				  .contains(entity)) {
-			group.getFiles()
-				 .add(entity);
-		}
-		if (!entity.getFileGroups()
-				   .contains(group)) {
-			entity.getFileGroups()
-				  .add(group);
-		}
+		group.getFiles()
+			 .add(entity);
+		entity.getFileGroups()
+			  .add(group);
 		// Persist join table row
 		fileGroupRepository.save(group);
 	}

@@ -33,6 +33,10 @@ public interface FileGroupAPI {
 	@Operation(summary = "List all file groups (paged)", tags = "FileGroupAPI")
 	@Parameter(name = "page", description = "Page number (0-based)", example = "0")
 	@Parameter(name = "size", description = "Number of items per page", example = "50")
+	@Parameter(name = "sort", description = "Sorting criteria for the file groups", example = "path")
+	@Parameter(name = "direction", description = "Sorting direction: ASC or DESC", example = "ASC")
+	@Parameter(name = "search", description = "Search term for file group metadata", example = "myFileGroup")
+	@Parameter(name = "caseSensitive", description = "Flag to indicate case-sensitive search", example = "false")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved all file groups",
 						 content = {@Content(schema = @Schema(implementation = PagedResponse.class),
@@ -46,7 +50,11 @@ public interface FileGroupAPI {
 	@GetMapping(path = BASE_PATH, produces = "application/json")
 	ResponseEntity<PagedResponse<FileGroupListResponse>> getFileGroups(
 			@RequestParam(name = "page", defaultValue = "0") @PositiveOrZero int page,
-			@RequestParam(name = "size", defaultValue = "50") @Positive int size
+			@RequestParam(name = "size", defaultValue = "50") @Positive int size,
+			@RequestParam(name = "sort", defaultValue = "path") String sort,
+			@RequestParam(name = "direction", defaultValue = "ASC") String direction,
+			@RequestParam(name = "search", required = false) String search,
+			@RequestParam(name = "caseSensitive", defaultValue = "false") boolean caseSensitive
 	);
 
 	@Operation(summary = "Get a file group by id", tags = "FileGroupAPI")

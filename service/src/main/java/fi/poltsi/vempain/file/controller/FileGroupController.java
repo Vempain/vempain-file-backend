@@ -20,8 +20,8 @@ public class FileGroupController implements FileGroupAPI {
 	private final FileGroupService fileGroupService;
 
 	@Override
-	public ResponseEntity<PagedResponse<FileGroupListResponse>> getFileGroups(int page, int size) {
-		var response = fileGroupService.getAll(page, size);
+	public ResponseEntity<PagedResponse<FileGroupListResponse>> getFileGroups(int page, int size, String sort, String direction, String search, boolean caseSensitive) {
+		var response = fileGroupService.getAll(page, size, sort, direction, search, caseSensitive);
 		return ResponseEntity.ok(response);
 	}
 

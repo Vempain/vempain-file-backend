@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -219,20 +220,20 @@ public class PublishService {
 		var proxy = applicationContext.getBean(PublishService.class);
 
 		while (true) {
-			var pageable = PageRequest.of(page, size);
-			var pg       = fileGroupRepository.findAllWithFileCounts(pageable);
-			if (pg == null || pg.isEmpty()) {
+			var pageable = PageRequest.of(page, size, Sort.by("path"));
+			var pg       = fileGroupRepository.searchFileGroups(null, false, pageable);
+			if (!pg.hasContent()) {
 				break;
 			}
 
-			for (var projection : pg) {
-				var groupId = projection.getId();
+			for (var projection : pg.getContent()) {
+				var groupId = projection.id();
 				var req = PublishFileGroupRequest.builder()
 												 .fileGroupId(groupId)
-												 .galleryName(projection.getGroupName())
-												 .galleryDescription(projection.getDescription() != null && projection.getDescription()
-																													  .length() > 2 ?
-																	 projection.getDescription() : projection.getGroupName())
+												 .galleryName(projection.groupName())
+												 .galleryDescription(projection.description() != null && projection.description()
+																												   .length() > 2 ?
+																	 projection.description() : projection.groupName())
 												 .build();
 				// mark scheduled
 				progressStore.markScheduled(groupId);
@@ -241,7 +242,7 @@ public class PublishService {
 			}
 
 			page++;
-			if (pg.getTotalPages() <= page) {
+			if (page >= pg.getTotalPages()) {
 				break;
 			}
 		}

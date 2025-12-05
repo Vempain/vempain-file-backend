@@ -30,39 +30,51 @@ public class FileGroupService {
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FileGroupListResponse> getAll(int page, int size) {
-		// Default: sort by path ascending
-		return getAll(page, size, "path", Sort.Direction.ASC);
+		return getAll(page, size, "path", "ASC", null, false);
 	}
 
 	@Transactional(readOnly = true)
-	public PagedResponse<FileGroupListResponse> getAll(int page, int size, String sortBy, Sort.Direction direction) {
+	public PagedResponse<FileGroupListResponse> getAll(int page,
+													   int size,
+													   String sort,
+													   String direction,
+													   String search,
+													   boolean caseSensitive) {
 		var safePage = Math.max(0, page);
-		var safeSize = Math.max(1, size);
-		var sort     = Sort.by(direction == null ? Sort.Direction.ASC : direction, sortBy == null ? "path" : sortBy);
-		var pageable = PageRequest.of(safePage, safeSize, sort);
+		var safeSize = Math.min(Math.max(size, 1), 200);
+		var sortSpec = buildSort(sort, direction);
+		var pageable = PageRequest.of(safePage, safeSize, sortSpec);
 
-		// Use projection to avoid loading FileEntity list; fetch only counts
-		var pageResult = fileGroupRepository.findAllWithFileCounts(pageable);
+		var pageResult = fileGroupRepository.searchFileGroups(search, caseSensitive, pageable);
 		var content = pageResult.getContent()
 								.stream()
-								.map(p -> FileGroupListResponse.builder()
-															   .id(p.getId())
-															   .path(p.getPath())
-															   .groupName(p.getGroupName())
-															   .description(p.getDescription())
-															   .fileCount(p.getFileCount())
-															   .build())
+								.map(row -> FileGroupListResponse.builder()
+																 .id(row.id())
+																 .path(row.path())
+																 .groupName(row.groupName())
+																 .description(row.description())
+																 .fileCount(row.fileCount())
+																 .build())
 								.toList();
 
-		return PagedResponse.of(
-				content,
-				pageResult.getNumber(),
-				pageResult.getSize(),
-				pageResult.getTotalElements(),
-				pageResult.getTotalPages(),
-				pageResult.isFirst(),
-				pageResult.isLast()
-		);
+		return PagedResponse.of(content,
+								pageResult.getNumber(),
+								pageResult.getSize(),
+								pageResult.getTotalElements(),
+								pageResult.getTotalPages(),
+								pageResult.isFirst(),
+								pageResult.isLast());
+	}
+
+	private Sort buildSort(String sort, String direction) {
+		String property = switch (sort == null ? "path" : sort.toLowerCase()) {
+			case "id" -> "id";
+			case "groupname", "group_name" -> "groupName";
+			case "description" -> "description";
+			default -> "path";
+		};
+		Sort.Direction dir = "desc".equalsIgnoreCase(direction) ? Sort.Direction.DESC : Sort.Direction.ASC;
+		return Sort.by(dir, property);
 	}
 
 	@Transactional(readOnly = true)

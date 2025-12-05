@@ -882,7 +882,7 @@ public class MetadataTool {
 		command.add("-all:all");
 		command.add(destinationFile.getAbsolutePath());
 
-		log.info("Running exiftool copy with command: {}", command);
+		log.debug("Running exiftool copy with command: {}", command);
 
 		var processBuilder = new ProcessBuilder(command);
 		var process        = processBuilder.start();
@@ -916,7 +916,7 @@ public class MetadataTool {
 		try {
 			tempJson = File.createTempFile("vempain-meta-", ".json");
 			Files.writeString(tempJson.toPath(), metadataJson, StandardCharsets.UTF_8);
-			log.info("Temporary metadata JSON written to {}", tempJson.getAbsolutePath());
+			log.debug("Temporary metadata JSON written to {}", tempJson.getAbsolutePath());
 
 			wipeMetadataFromFile(file);
 
@@ -926,13 +926,13 @@ public class MetadataTool {
 			importCmd.add("-json=" + tempJson.getAbsolutePath());
 			importCmd.add(file.getAbsolutePath());
 
-			log.info("Importing metadata with command: {}", importCmd);
+			log.debug("Importing metadata with command: {}", importCmd);
 			var process = new ProcessBuilder(importCmd).start();
 			int exit    = process.waitFor();
 			if (exit != 0) {
 				log.error("Exiftool import (-json=) exited with code {} for file {}", exit, file.getAbsolutePath());
 			} else {
-				log.info("Metadata successfully written to {}", file.getAbsolutePath());
+				log.debug("Metadata successfully written to {}", file.getAbsolutePath());
 			}
 		} catch (Exception e) {
 			log.error("Failed to write metadata JSON to file {}", file != null ? file.getAbsolutePath() : "null", e);
@@ -1018,7 +1018,7 @@ public class MetadataTool {
 	}
 
 	private static String runExifTool(File file, String... params) throws IOException {
-		log.info("Running exiftool on file {} with tags: {}", file, String.join(", ", params));
+		log.debug("Running exiftool on file {} with tags: {}", file, String.join(", ", params));
 
 		// Prepare command: exiftool -tag1 -tag2 ... file
 		var command = new ArrayList<String>();
@@ -1027,7 +1027,7 @@ public class MetadataTool {
 		Collections.addAll(command, params);
 		command.add(file.getAbsolutePath());
 
-		log.info("Running exiftool with command: {}", command);
+		log.debug("Running exiftool with command: {}", command);
 
 		var processBuilder = new ProcessBuilder(command);
 		var process        = processBuilder.start();

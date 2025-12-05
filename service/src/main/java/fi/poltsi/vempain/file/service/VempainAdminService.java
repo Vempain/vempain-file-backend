@@ -32,7 +32,8 @@ public class VempainAdminService {
 			throw new RuntimeException(e);
 		}
 
-		log.info("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
+		log.debug("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
+
 		try {
 			var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequestString, multiPartFile);
 			if (responseEntity == null || !responseEntity.getStatusCode()
@@ -40,7 +41,7 @@ public class VempainAdminService {
 				log.error("File upload to Vempain admin failed with HTTP status {}", responseEntity != null ? responseEntity.getStatusCode() : "null");
 				throw new VempainAuthenticationException();
 			}
-			log.info("File upload successful: {}", responseEntity.getBody());
+			log.debug("File upload successful: {}", responseEntity.getBody());
 		} catch (FeignException e) {
 			if (e.status() == 403) {
 				log.warn("File upload failed due to Forbidden (403). Triggering re-authentication.");

@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.service.files;
 
-import fi.poltsi.vempain.file.api.response.PagedResponse;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.repository.files.FontFileRepository;

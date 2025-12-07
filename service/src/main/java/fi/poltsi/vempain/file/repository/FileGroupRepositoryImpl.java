@@ -39,7 +39,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count "
 						   + base + whereClause + " GROUP BY fg.id, fg.path, fg.group_name, fg.description " + orderClause
 						   + " OFFSET :offset LIMIT :limit";
-
+		log.debug("FileGroup search SQL: {}", selectSql);
 		Query dataQuery = entityManager.createNativeQuery(selectSql);
 		bindParameters(dataQuery, tokens, caseSensitive);
 		dataQuery.setParameter("offset", (int) pageable.getOffset());
@@ -52,6 +52,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 												.toList();
 
 		String countSql   = "SELECT COUNT(DISTINCT fg.id) " + base + whereClause;
+		log.debug("FileGroup count SQL: {}", countSql);
 		Query  countQuery = entityManager.createNativeQuery(countSql);
 		bindParameters(countQuery, tokens, caseSensitive);
 		Number total = (Number) countQuery.getSingleResult();

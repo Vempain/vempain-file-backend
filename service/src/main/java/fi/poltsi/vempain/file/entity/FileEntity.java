@@ -145,8 +145,17 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	}
 
 	public FileResponse toResponse() {
+		return toResponse(true);
+	}
+
+	public FileResponse toResponse(boolean includeMetadata) {
 		FileResponse response = new FileResponse();
 		populateBaseResponse(response);
+
+		if (!includeMetadata) {
+			response.setMetadataRaw(null);
+		}
+
 		return response;
 	}
 }

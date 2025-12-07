@@ -1,15 +1,17 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.request.FileGroupRequest;
 import fi.poltsi.vempain.file.api.response.FileGroupListResponse;
 import fi.poltsi.vempain.file.api.response.FileGroupResponse;
-import fi.poltsi.vempain.file.api.response.PagedResponse;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FileGroupService {
@@ -29,23 +32,15 @@ public class FileGroupService {
 	private final FileRepository fileRepository;
 
 	@Transactional(readOnly = true)
-	public PagedResponse<FileGroupListResponse> getAll(int page, int size) {
-		return getAll(page, size, "path", "ASC", null, false);
-	}
-
-	@Transactional(readOnly = true)
-	public PagedResponse<FileGroupListResponse> getAll(int page,
-													   int size,
-													   String sort,
-													   String direction,
-													   String search,
-													   boolean caseSensitive) {
-		var safePage = Math.max(0, page);
-		var safeSize = Math.min(Math.max(size, 1), 200);
-		var sortSpec = buildSort(sort, direction);
+	public PagedResponse<FileGroupListResponse> getAll(PagedRequest pagedRequest) {
+		log.debug("Got paged request: {}", pagedRequest);
+		var safePage = Math.max(0, pagedRequest.getPage());
+		var safeSize = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var sortSpec = buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+		log.debug("Page number: {}, size: {}, sort: {}", safePage, safeSize, sortSpec);
 		var pageable = PageRequest.of(safePage, safeSize, sortSpec);
-
-		var pageResult = fileGroupRepository.searchFileGroups(search, caseSensitive, pageable);
+		log.debug("Pageable parameter is: {}", pageable);
+		var pageResult = fileGroupRepository.searchFileGroups(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()), pageable);
 		var content = pageResult.getContent()
 								.stream()
 								.map(row -> FileGroupListResponse.builder()
@@ -66,14 +61,15 @@ public class FileGroupService {
 								pageResult.isLast());
 	}
 
-	private Sort buildSort(String sort, String direction) {
+	private Sort buildSort(String sort, Sort.Direction direction) {
 		String property = switch (sort == null ? "path" : sort.toLowerCase()) {
 			case "id" -> "id";
 			case "groupname", "group_name" -> "groupName";
 			case "description" -> "description";
 			default -> "path";
 		};
-		Sort.Direction dir = "desc".equalsIgnoreCase(direction) ? Sort.Direction.DESC : Sort.Direction.ASC;
+
+		Sort.Direction dir = direction == null ? Sort.Direction.ASC : direction;
 		return Sort.by(dir, property);
 	}
 
@@ -105,6 +101,7 @@ public class FileGroupService {
 		fileGroupEntity.setPath(fileGroupRequest.getPath());     // allow path update if needed
 		fileGroupEntity.setGroupName(fileGroupRequest.getGroupName());
 		fileGroupEntity.setDescription(fileGroupRequest.getDescription());
+
 		if (fileGroupRequest.getFileIds() != null) {
 			List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
 
@@ -112,6 +109,7 @@ public class FileGroupService {
 			Set<FileEntity> current = new HashSet<>(fileGroupEntity.getFiles());
 			Set<FileEntity> newSet  = new HashSet<>(newFiles);
 			current.removeAll(newSet); // these would be removed from this group
+
 			for (FileEntity f : current) {
 				if (f.getFileGroups() == null || f.getFileGroups()
 												  .size() <= 1) {

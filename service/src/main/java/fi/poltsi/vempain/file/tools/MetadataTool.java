@@ -893,7 +893,7 @@ public class MetadataTool {
 				if (exitCode != 0) {
 					log.error("Exiftool copy process exited with code: {}", exitCode);
 				} else {
-					log.info("Exiftool copy process completed successfully.");
+					log.debug("Exiftool copy process completed successfully.");
 				}
 			} catch (InterruptedException e) {
 				Thread.currentThread()
@@ -955,7 +955,7 @@ public class MetadataTool {
 		wipeCmd.add("-all=");
 		wipeCmd.add(file.getAbsolutePath());
 
-		log.info("Wiping metadata with command: {}", wipeCmd);
+		log.debug("Wiping metadata with command: {}", wipeCmd);
 		var process = new ProcessBuilder(wipeCmd).start();
 		int exit    = process.waitFor();
 		if (exit != 0) {
@@ -1075,7 +1075,7 @@ public class MetadataTool {
 
 		try {
 			var timeStamp = formatter.parse(dateTimeString, Instant::from);
-			log.info("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
+			log.debug("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
 			return timeStamp;
 		} catch (DateTimeParseException e) {
 			log.error("Failed to parse date time string: {}", dateTimeString, e);

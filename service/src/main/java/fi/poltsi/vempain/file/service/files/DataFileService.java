@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.service.files;
 
-import fi.poltsi.vempain.file.api.response.PagedResponse;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import fi.poltsi.vempain.file.entity.DataFileEntity;
 import fi.poltsi.vempain.file.repository.files.DataFileRepository;

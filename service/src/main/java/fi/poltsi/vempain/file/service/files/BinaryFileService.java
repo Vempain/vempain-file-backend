@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.service.files;
 
-import fi.poltsi.vempain.file.api.response.PagedResponse;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.BinaryFileResponse;
 import fi.poltsi.vempain.file.entity.BinaryFileEntity;
 import fi.poltsi.vempain.file.repository.files.BinaryFileRepository;

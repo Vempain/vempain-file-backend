@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
-import fi.poltsi.vempain.file.api.response.PagedResponse;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ThumbFileResponse;
 import fi.poltsi.vempain.file.rest.files.ThumbFileAPI;
 import fi.poltsi.vempain.file.service.files.ThumbFileService;

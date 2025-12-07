@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.controller;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.request.FileGroupRequest;
 import fi.poltsi.vempain.file.api.response.FileGroupListResponse;
 import fi.poltsi.vempain.file.api.response.FileGroupResponse;
-import fi.poltsi.vempain.file.api.response.PagedResponse;
 import fi.poltsi.vempain.file.rest.FileGroupAPI;
 import fi.poltsi.vempain.file.service.FileGroupService;
 import jakarta.validation.Valid;
@@ -20,8 +21,8 @@ public class FileGroupController implements FileGroupAPI {
 	private final FileGroupService fileGroupService;
 
 	@Override
-	public ResponseEntity<PagedResponse<FileGroupListResponse>> getFileGroups(int page, int size, String sort, String direction, String search, boolean caseSensitive) {
-		var response = fileGroupService.getAll(page, size, sort, direction, search, caseSensitive);
+	public ResponseEntity<PagedResponse<FileGroupListResponse>> getFileGroups(PagedRequest pagedRequest) {
+		var response = fileGroupService.getAll(pagedRequest);
 		return ResponseEntity.ok(response);
 	}
 

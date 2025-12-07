@@ -67,7 +67,7 @@ public class FileGroupEntity {
 								.groupName(groupName)
 								.description(description)
 								.files(files != null ? files.stream()
-															.map(FileEntity::toResponse)
+															.map(file -> file.toResponse(false))
 															.toList() : List.of())
 								.build();
 	}

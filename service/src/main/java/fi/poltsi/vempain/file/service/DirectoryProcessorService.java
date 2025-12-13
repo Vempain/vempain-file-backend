@@ -189,7 +189,7 @@ public class DirectoryProcessorService {
 		return resultList;
 	}
 
-	private FileEntity createFileEntity(FileTypeEnum fileTypeEnum, File file, FileGroupEntity fileGroup, String mimetype, JSONObject jsonObject, String metadata,
+	private FileEntity createFileEntity(FileTypeEnum fileTypeEnum, File file, String mimetype, JSONObject jsonObject, String metadata,
 										String relativeFilePath) {
 		var userId = 0L;
 
@@ -223,62 +223,60 @@ public class DirectoryProcessorService {
 		var gpsTimestamp           = extractGpsTime(jsonObject);
 
 		// Handle GPS data safely: only persist / associate if required coordinate fields exist.
-		if (gpsData != null) {
-			boolean hasRequired = gpsData.getLatitude() != null &&
-								  gpsData.getLatitudeRef() != null &&
-								  gpsData.getLongitude() != null &&
-								  gpsData.getLongitudeRef() != null;
+		boolean hasRequired = gpsData.getLatitude() != null &&
+							  gpsData.getLatitudeRef() != null &&
+							  gpsData.getLongitude() != null &&
+							  gpsData.getLongitudeRef() != null;
 
-			if (hasRequired) {
-				// Look up existing GPS entry
-				var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
-						gpsData.getLatitude(),
-						gpsData.getLatitudeRef(),
-						gpsData.getLongitude(),
-						gpsData.getLongitudeRef());
+		if (hasRequired) {
+			// Look up existing GPS entry
+			var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
+					gpsData.getLatitude(),
+					gpsData.getLatitudeRef(),
+					gpsData.getLongitude(),
+					gpsData.getLongitudeRef());
 
-				if (optionalExistingGps.isEmpty()) {
-					log.debug("Persisting new GPS data for file: {}", file.getName());
-					gpsData = gpsLocationRepository.save(gpsData);
-				} else {
-					var     existingGps    = optionalExistingGps.get();
-					boolean updateExisting = false;
-
-					// Enrich existing GPS record with newly available location fields
-					if (gpsData.getCountry() != null && existingGps.getCountry() == null) {
-						existingGps.setCountry(gpsData.getCountry());
-						updateExisting = true;
-					}
-					if (gpsData.getCity() != null && existingGps.getCity() == null) {
-						existingGps.setCity(gpsData.getCity());
-						updateExisting = true;
-					}
-					if (gpsData.getState() != null && existingGps.getState() == null) {
-						existingGps.setState(gpsData.getState());
-						updateExisting = true;
-					}
-					if (gpsData.getStreet() != null && existingGps.getStreet() == null) {
-						existingGps.setStreet(gpsData.getStreet());
-						updateExisting = true;
-					}
-					if (gpsData.getSubLocation() != null && existingGps.getSubLocation() == null) {
-						existingGps.setSubLocation(gpsData.getSubLocation());
-						updateExisting = true;
-					}
-
-					if (updateExisting) {
-						gpsData = gpsLocationRepository.save(existingGps);
-						log.debug("Updated existing GPS data with new location info (id={}): {}", existingGps.getId(), existingGps);
-					} else {
-						gpsData = existingGps;
-						log.debug("Using existing GPS data (id={}): {}", existingGps.getId(), existingGps);
-					}
-				}
+			if (optionalExistingGps.isEmpty()) {
+				log.debug("Persisting new GPS data for file: {}", file.getName());
+				gpsData = gpsLocationRepository.save(gpsData);
 			} else {
-				// Missing required coordinate fields -> do not associate transient instance
-				log.debug("GPS data missing required coordinate fields, skipping association for file: {}", file.getName());
-				gpsData = null;
+				var     existingGps    = optionalExistingGps.get();
+				boolean updateExisting = false;
+
+				// Enrich existing GPS record with newly available location fields
+				if (gpsData.getCountry() != null && existingGps.getCountry() == null) {
+					existingGps.setCountry(gpsData.getCountry());
+					updateExisting = true;
+				}
+				if (gpsData.getCity() != null && existingGps.getCity() == null) {
+					existingGps.setCity(gpsData.getCity());
+					updateExisting = true;
+				}
+				if (gpsData.getState() != null && existingGps.getState() == null) {
+					existingGps.setState(gpsData.getState());
+					updateExisting = true;
+				}
+				if (gpsData.getStreet() != null && existingGps.getStreet() == null) {
+					existingGps.setStreet(gpsData.getStreet());
+					updateExisting = true;
+				}
+				if (gpsData.getSubLocation() != null && existingGps.getSubLocation() == null) {
+					existingGps.setSubLocation(gpsData.getSubLocation());
+					updateExisting = true;
+				}
+
+				if (updateExisting) {
+					gpsData = gpsLocationRepository.save(existingGps);
+					log.debug("Updated existing GPS data with new location info (id={}): {}", existingGps.getId(), existingGps);
+				} else {
+					gpsData = existingGps;
+					log.debug("Using existing GPS data (id={}): {}", existingGps.getId(), existingGps);
+				}
 			}
+		} else {
+			// Missing required coordinate fields -> do not associate transient instance
+			log.debug("GPS data missing required coordinate fields, skipping association for file: {}", file.getName());
+			gpsData = null;
 		}
 
 		if (originalDocumentId != null) {
@@ -441,7 +439,7 @@ public class DirectoryProcessorService {
 			return Boolean.FALSE;
 		}
 
-		var fileEntity = createFileEntity(fileTypeEnum, file, fileGroup, mimetype, jsonObject, metadata, relativeFilePath);
+		var fileEntity = createFileEntity(fileTypeEnum, file, mimetype, jsonObject, metadata, relativeFilePath);
 
 		if (fileEntity == null) {
 			log.warn("Can not create file entity for file: {}", file.getName());
@@ -774,7 +772,7 @@ public class DirectoryProcessorService {
 		}
 		// Find first number sequence as a major version, optionally followed by dots (e.g. "Name 12.3")
 		for (String token : text.split("[^0-9.]")) {
-			if (token == null || token.isBlank()) {
+			if (token.isBlank()) {
 				continue;
 			}
 			try {

@@ -7,6 +7,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.time.Duration;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 @SuperBuilder
@@ -25,7 +27,7 @@ public class VideoFileResponse extends FileResponse {
 	private double frameRate;
 
 	@Schema(description = "Duration of the video", example = "120.0")
-	private double duration;
+	private Duration duration;
 
 	@Schema(description = "Codec used for the video", example = "H.264")
 	private String codec;

@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
+import java.time.Duration;
+
 @SuperBuilder
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -31,7 +33,7 @@ public class VideoFileEntity extends FileEntity {
 	private double frameRate;
 
 	@Column(nullable = false, precision = 5)
-	private double duration;
+	private Duration duration;
 
 	@Column
 	private String codec;

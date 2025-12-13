@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -46,6 +47,18 @@ public class FileIngestRequest {
 	@Schema(description = "Comment", example = "Some comment", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
 	@NotNull
 	private String comment;
+
+	@Schema(description = "If image or video, the width in pixels", example = "1920", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Integer width;
+
+	@Schema(description = "If image or video, the height in pixels", example = "1080", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Integer height;
+
+	@Schema(description = "If video or audio, the duration length", example = "PT2M30S", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Duration length;
+
+	@Schema(description = "If document, the number of pages", example = "10", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Integer pages;
 
 	@Schema(description = "Metadata of the file in JSON format", example = "{\"some-field\": \"some value\"}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
 	@NotNull

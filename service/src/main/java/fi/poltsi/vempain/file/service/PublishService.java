@@ -1,11 +1,16 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
+import fi.poltsi.vempain.auth.tools.JsonTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.request.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.LocationResponse;
+import fi.poltsi.vempain.file.entity.AudioFileEntity;
+import fi.poltsi.vempain.file.entity.DocumentFileEntity;
+import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
@@ -43,7 +48,7 @@ public class PublishService {
 	private final LocationService     locationService;
 
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
-	private final ImageTool          imageTool;
+	private final ImageTool imageTool;
 	private final ApplicationContext   applicationContext;
 	private final PublishProgressStore progressStore;
 
@@ -158,6 +163,27 @@ public class PublishService {
 															 .location(locationResponse)
 															 .copyright(copyrightResponse)
 															 .build();
+
+					if (fileEntity.getFileType()
+								  .equals(FileTypeEnum.IMAGE)) {
+						var imageFileEntity = (ImageFileEntity) fileEntity;
+						fileIngestRequest.setWidth(imageFileEntity.getWidth());
+						fileIngestRequest.setHeight(imageFileEntity.getHeight());
+					} else if (fileEntity.getFileType()
+										 .equals(FileTypeEnum.VIDEO)) {
+						var videoFileEntity = (VideoFileEntity) fileEntity;
+						fileIngestRequest.setLength(videoFileEntity.getDuration());
+					} else if (fileEntity.getFileType()
+										 .equals(FileTypeEnum.AUDIO)) {
+						var audioFileEntity = (AudioFileEntity) fileEntity;
+						fileIngestRequest.setLength(audioFileEntity.getDuration());
+					} else if (fileEntity.getFileType()
+										 .equals(FileTypeEnum.DOCUMENT)) {
+						var documentFileEntity = (DocumentFileEntity) fileEntity;
+						fileIngestRequest.setPages(documentFileEntity.getPageCount());
+					}
+
+					log.debug("Publishing {}", JsonTools.toJson(fileIngestRequest));
 					// Upload with authentication retry (up to 5 attempts)
 					final int maxRetries = 3;
 					int       attempt    = 0;

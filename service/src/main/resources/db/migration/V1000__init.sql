@@ -1,7 +1,7 @@
 CREATE TABLE file_group
 (
-	id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	path       VARCHAR(255) NOT NULL,
+	id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	path VARCHAR(255) NOT NULL,
 	group_name  VARCHAR(255) NOT NULL,
 	description TEXT
 );
@@ -97,7 +97,7 @@ CREATE TABLE video_files
 	width      INT              NOT NULL,
 	height     INT              NOT NULL,
 	frame_rate DOUBLE PRECISION NOT NULL,
-	duration   DOUBLE PRECISION NOT NULL,
+	duration NUMERIC(5, 0) NOT NULL,
 	codec      VARCHAR(100)     NOT NULL,
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
@@ -105,11 +105,11 @@ CREATE TABLE video_files
 CREATE TABLE audio_files
 (
 	id          BIGINT PRIMARY KEY,
-	duration    DOUBLE PRECISION NOT NULL,
-	bit_rate    INT              NOT NULL,
-	sample_rate INT              NOT NULL,
-	codec       VARCHAR(100)     NOT NULL,
-	channels    INT              NOT NULL,
+	duration    NUMERIC(5, 0) NOT NULL,
+	bit_rate    INT           NOT NULL,
+	sample_rate INT           NOT NULL,
+	codec       VARCHAR(100)  NOT NULL,
+	channels    INT           NOT NULL,
 	FOREIGN KEY (id) REFERENCES files (id) ON DELETE CASCADE
 );
 

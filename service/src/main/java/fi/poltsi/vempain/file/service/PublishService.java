@@ -9,7 +9,6 @@ import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
-import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
@@ -27,6 +26,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,12 +106,13 @@ public class PublishService {
 				var tagRequests = tagService.getTagRequestsByFileId(fileEntity.getId());
 
 				try {
+					Dimension imageVideoDimensions = null;
 					if (fileEntity.getFileType()
 								  .equals(FileTypeEnum.IMAGE)) {
 						// Create temp file with same extension in system temp dir
 						Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
 						// Resize: smaller dimension to siteImageSize, keep quality 0.7
-						imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
+						imageVideoDimensions = imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
 						tempPathToDelete = tempFile;
 						exportFilePath   = tempFile;
 						uploadPath       = tempFile;
@@ -164,12 +165,12 @@ public class PublishService {
 															 .copyright(copyrightResponse)
 															 .build();
 
+					if (imageVideoDimensions != null) {
+						fileIngestRequest.setWidth(imageVideoDimensions.width);
+						fileIngestRequest.setHeight(imageVideoDimensions.height);
+					}
+
 					if (fileEntity.getFileType()
-								  .equals(FileTypeEnum.IMAGE)) {
-						var imageFileEntity = (ImageFileEntity) fileEntity;
-						fileIngestRequest.setWidth(imageFileEntity.getWidth());
-						fileIngestRequest.setHeight(imageFileEntity.getHeight());
-					} else if (fileEntity.getFileType()
 										 .equals(FileTypeEnum.VIDEO)) {
 						var videoFileEntity = (VideoFileEntity) fileEntity;
 						fileIngestRequest.setLength(videoFileEntity.getDuration());

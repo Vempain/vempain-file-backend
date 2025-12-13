@@ -7,6 +7,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.time.Duration;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 @SuperBuilder
@@ -16,7 +18,7 @@ import lombok.experimental.SuperBuilder;
 public class AudioFileResponse extends FileResponse {
 
 	@Schema(description = "Duration of the audio", example = "3.5")
-	private double duration;
+	private Duration duration;
 
 	@Schema(description = "Bit rate of the audio", example = "320")
 	private int bitRate;

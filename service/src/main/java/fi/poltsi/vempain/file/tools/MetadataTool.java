@@ -17,11 +17,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -217,32 +219,32 @@ public class MetadataTool {
 		return getTagValue(output, "VideoCodec");
 	}
 
-	public static double extractAudioVideoDuration(File file) throws IOException {
+	public static Duration extractAudioVideoDuration(File file) throws IOException {
 		var output = runExifTool(file, "-Duration");
 		var durationStr = getTagValue(output, "Duration");
 
 		// If the string is empty or null, return 0
 		if (durationStr == null || durationStr.isBlank()) {
-			return 0.0;
+			return Duration.of(0L, ChronoUnit.MILLIS);
 		}
 
 		// If the string contains colons, it's in a time format (hh:mm:ss or mm:ss)
 		if (durationStr.contains(":")) {
 			String[] parts   = durationStr.split(":");
-			double   seconds = 0.0;
+			long seconds = 0L;
 
 			if (parts.length == 3) {
 				// Format: hh:mm:ss.ms
-				seconds += Double.parseDouble(parts[0]) * 3600; // Hours to seconds
-				seconds += Double.parseDouble(parts[1]) * 60;   // Minutes to seconds
-				seconds += Double.parseDouble(parts[2]);        // Seconds
+				seconds += Long.parseLong(parts[0]) * 3600; // Hours to seconds
+				seconds += Long.parseLong(parts[1]) * 60;   // Minutes to seconds
+				seconds += Long.parseLong(parts[2]);        // Seconds
 			} else if (parts.length == 2) {
 				// Format: mm:ss.ms
-				seconds += Double.parseDouble(parts[0]) * 60;   // Minutes to seconds
-				seconds += Double.parseDouble(parts[1]);        // Seconds
+				seconds += Long.parseLong(parts[0]) * 60;   // Minutes to seconds
+				seconds += Long.parseLong(parts[1]);        // Seconds
 			}
 
-			return seconds;
+			return Duration.of(seconds, ChronoUnit.SECONDS);
 		} else {
 			// Check if the string contains a time qualifier like "s", "sec", "seconds"
 			String trimmedStr = durationStr.trim();
@@ -254,12 +256,14 @@ public class MetadataTool {
 				int spaceIndex = trimmedStr.lastIndexOf(' ');
 				if (spaceIndex > 0) {
 					String numericPart = trimmedStr.substring(0, spaceIndex);
-					return Double.parseDouble(numericPart);
+					var seconds = Long.parseLong(numericPart);
+					return Duration.of(seconds, ChronoUnit.SECONDS);
 				}
 			}
 
 			// It's already in seconds format (possibly with decimal)
-			return Double.parseDouble(durationStr);
+			var seconds = Long.parseLong(durationStr);
+			return Duration.of(seconds, ChronoUnit.SECONDS);
 		}
 	}
 

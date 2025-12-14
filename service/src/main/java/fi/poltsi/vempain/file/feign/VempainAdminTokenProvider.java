@@ -2,14 +2,13 @@ package fi.poltsi.vempain.file.feign;
 
 import fi.poltsi.vempain.auth.api.request.LoginRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
+import fi.poltsi.vempain.auth.tools.JsonTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-
-import static fi.poltsi.vempain.file.tools.DtoTool.toJson;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -43,7 +42,7 @@ public class VempainAdminTokenProvider {
 				throw new VempainAuthenticationException();
 			}
 
-			log.info("Received following login response: {}", toJson(responseEntity));
+			log.info("Received following login response: {}", JsonTools.toJson(responseEntity));
 
 			var loginResponse = responseEntity.getBody();
 

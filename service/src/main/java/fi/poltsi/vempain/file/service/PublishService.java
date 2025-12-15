@@ -1,9 +1,9 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.auth.tools.JsonTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
-import fi.poltsi.vempain.file.api.request.FileIngestRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.LocationResponse;
@@ -48,7 +48,7 @@ public class PublishService {
 	private final LocationService     locationService;
 
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
-	private final ImageTool imageTool;
+	private final ImageTool            imageTool;
 	private final ApplicationContext   applicationContext;
 	private final PublishProgressStore progressStore;
 
@@ -63,16 +63,16 @@ public class PublishService {
 
 	@Async
 	@Transactional
-	public void publishFileGroup(PublishFileGroupRequest request) {
+	public void publishFileGroup(PublishFileGroupRequest publishFileGroupRequest) {
 		// mark started in progress store (if running under proxy we still mark here)
-		progressStore.markStarted(request.getFileGroupId());
+		progressStore.markStarted(publishFileGroupRequest.getFileGroupId());
 
 		try {
 			// Load group and files
-			var optionalGroup = fileGroupRepository.findById(request.getFileGroupId());
+			var optionalGroup = fileGroupRepository.findById(publishFileGroupRequest.getFileGroupId());
 			if (optionalGroup.isEmpty()) {
-				log.warn("File group {} not found", request.getFileGroupId());
-				progressStore.markFailed(request.getFileGroupId());
+				log.warn("File group {} not found", publishFileGroupRequest.getFileGroupId());
+				progressStore.markFailed(publishFileGroupRequest.getFileGroupId());
 				return;
 			}
 
@@ -81,10 +81,11 @@ public class PublishService {
 			if (fileGroup.getFiles() == null
 				|| fileGroup.getFiles()
 							.isEmpty()) {
-				log.info("File group {} has no files to publish", request.getFileGroupId());
-				progressStore.markCompleted(request.getFileGroupId());
+				log.info("File group {} has no files to publish", publishFileGroupRequest.getFileGroupId());
+				progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
 				return;
 			}
+			Long galleryId = null;
 
 			for (var fileEntity : fileGroup.getFiles()) {
 				var metadataList = metadataRepository.findByFile(fileEntity);
@@ -157,9 +158,9 @@ public class PublishService {
 															 .metadata(metadataJson)
 															 .sha256sum(computeSha256(uploadPath.toFile()))
 															 .originalDateTime(fileEntity.getOriginalDatetime())
-															 .galleryId(null)
-															 .galleryName(request.getGalleryName())
-															 .galleryDescription(request.getGalleryDescription())
+															 .galleryId(fileGroup.getGalleryId())
+															 .galleryName(publishFileGroupRequest.getGalleryName())
+															 .galleryDescription(publishFileGroupRequest.getGalleryDescription())
 															 .tags(tagRequests)
 															 .location(locationResponse)
 															 .copyright(copyrightResponse)
@@ -171,7 +172,7 @@ public class PublishService {
 					}
 
 					if (fileEntity.getFileType()
-										 .equals(FileTypeEnum.VIDEO)) {
+								  .equals(FileTypeEnum.VIDEO)) {
 						var videoFileEntity = (VideoFileEntity) fileEntity;
 						fileIngestRequest.setLength(videoFileEntity.getDuration());
 					} else if (fileEntity.getFileType()
@@ -191,12 +192,15 @@ public class PublishService {
 
 					while (true) {
 						try {
-							vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+							var fileIngestResponse = vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+							galleryId = fileIngestResponse.getGalleryId();
+							log.debug("Published file {} from group {} as site file to gallery ID {}", exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId(),
+									  galleryId);
 							break; // success
 						} catch (VempainAuthenticationException authEx) {
 							attempt++;
 							if (attempt >= maxRetries) {
-								log.error("Authentication failed after {} attempts for file {} in group {}", attempt, exportFilePath.getFileName(), request.getFileGroupId());
+								log.error("Authentication failed after {} attempts for file {} in group {}", attempt, exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId());
 								throw authEx;
 							}
 							log.warn("Authentication failed (attempt {}/{}). Re-authenticating and retrying...", attempt, maxRetries);
@@ -205,7 +209,7 @@ public class PublishService {
 						}
 					}
 				} catch (Exception ex) {
-					log.error("Failed to publish file {} from group {}", exportFilePath.getFileName(), request.getFileGroupId(), ex);
+					log.error("Failed to publish file {} from group {}", exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId(), ex);
 				} finally {
 					// Cleanup temp image if created
 					if (tempPathToDelete != null) {
@@ -217,10 +221,20 @@ public class PublishService {
 					}
 				}
 			}
-			progressStore.markCompleted(request.getFileGroupId());
+
+			if (galleryId != null) {
+				// Update the file group with the published gallery ID
+				fileGroup.setGalleryId(galleryId);
+				fileGroupRepository.save(fileGroup);
+				log.info("File group {} published to gallery ID {}", publishFileGroupRequest.getFileGroupId(), galleryId);
+			} else {
+				log.warn("No files were published for group {}", publishFileGroupRequest.getFileGroupId());
+			}
+
+			progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
 		} catch (Exception e) {
-			log.error("Publish group {} failed", request.getFileGroupId(), e);
-			progressStore.markFailed(request.getFileGroupId());
+			log.error("Publish group {} failed", publishFileGroupRequest.getFileGroupId(), e);
+			progressStore.markFailed(publishFileGroupRequest.getFileGroupId());
 		}
 	}
 

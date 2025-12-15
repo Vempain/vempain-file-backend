@@ -48,16 +48,11 @@ public class FileGroupService {
 																 .groupName(row.groupName())
 																 .description(row.description())
 																 .fileCount(row.fileCount())
+																 .galleryId(row.galleryId())
 																 .build())
 								.toList();
 
-		return PagedResponse.of(content,
-								pageResult.getNumber(),
-								pageResult.getSize(),
-								pageResult.getTotalElements(),
-								pageResult.getTotalPages(),
-								pageResult.isFirst(),
-								pageResult.isLast());
+		return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(), pageResult.isFirst(), pageResult.isLast());
 	}
 
 	private Sort buildSort(String sort, Sort.Direction direction) {
@@ -112,10 +107,7 @@ public class FileGroupService {
 			for (FileEntity f : current) {
 				if (f.getFileGroups() == null || f.getFileGroups()
 												  .size() <= 1) {
-					throw new ResponseStatusException(
-							HttpStatus.BAD_REQUEST,
-							"Cannot remove file " + f.getId() + " from its last group"
-					);
+					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove file " + f.getId() + " from its last group");
 				}
 			}
 

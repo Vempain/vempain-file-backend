@@ -61,6 +61,9 @@ public class FileGroupEntity {
 	@Builder.Default
 	private List<FileEntity> files = new ArrayList<>();
 
+	@Column(name = "gallery_id")
+	private Long galleryId;
+
 	public FileGroupResponse toResponse() {
 		return FileGroupResponse.builder()
 								.id(id)

@@ -32,4 +32,7 @@ public class FileGroupListResponse {
 
 	@Schema(description = "How many files belong to this group", example = "42")
 	private long fileCount;
+
+	@Schema(description = "Potential ID of the published file group as gallery", example = "123")
+	private Long galleryId;
 }

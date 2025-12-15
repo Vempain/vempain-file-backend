@@ -36,8 +36,8 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		String whereClause = buildWhereClause(tokens, caseSensitive);
 		String orderClause = buildOrderClause(pageable);
 
-		String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count "
-						   + base + whereClause + " GROUP BY fg.id, fg.path, fg.group_name, fg.description " + orderClause
+		String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count, fg.gallery_id "
+						   + base + whereClause + " GROUP BY fg.id, fg.path, fg.group_name, fg.gallery_id, fg.description " + orderClause
 						   + " OFFSET :offset LIMIT :limit";
 		log.debug("FileGroup search SQL: {}", selectSql);
 		Query dataQuery = entityManager.createNativeQuery(selectSql);
@@ -151,6 +151,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		String groupName   = tuple[2] != null ? tuple[2].toString() : null;
 		String description = tuple[3] != null ? tuple[3].toString() : null;
 		long   count       = tuple[4] != null ? ((Number) tuple[4]).longValue() : 0L;
-		return new FileGroupSummaryRow(id, path, groupName, description, count);
+		Long galleryId = tuple[5] != null ? ((Number) tuple[5]).longValue() : null;
+		return new FileGroupSummaryRow(id, path, groupName, description, count, galleryId);
 	}
 }

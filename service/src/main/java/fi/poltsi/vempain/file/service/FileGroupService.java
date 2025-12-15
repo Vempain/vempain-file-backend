@@ -19,9 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @Service
@@ -49,16 +48,11 @@ public class FileGroupService {
 																 .groupName(row.groupName())
 																 .description(row.description())
 																 .fileCount(row.fileCount())
+																 .galleryId(row.galleryId())
 																 .build())
 								.toList();
 
-		return PagedResponse.of(content,
-								pageResult.getNumber(),
-								pageResult.getSize(),
-								pageResult.getTotalElements(),
-								pageResult.getTotalPages(),
-								pageResult.isFirst(),
-								pageResult.isLast());
+		return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(), pageResult.isFirst(), pageResult.isLast());
 	}
 
 	private Sort buildSort(String sort, Sort.Direction direction) {
@@ -106,17 +100,14 @@ public class FileGroupService {
 			List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
 
 			// Enforce: a file must always belong to at least one group
-			Set<FileEntity> current = new HashSet<>(fileGroupEntity.getFiles());
-			Set<FileEntity> newSet  = new HashSet<>(newFiles);
-			current.removeAll(newSet); // these would be removed from this group
+			var current = new ArrayList<>(fileGroupEntity.getFiles());
+			var newList = new ArrayList<>(newFiles);
+			current.removeAll(newList); // these would be removed from this group
 
 			for (FileEntity f : current) {
 				if (f.getFileGroups() == null || f.getFileGroups()
 												  .size() <= 1) {
-					throw new ResponseStatusException(
-							HttpStatus.BAD_REQUEST,
-							"Cannot remove file " + f.getId() + " from its last group"
-					);
+					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove file " + f.getId() + " from its last group");
 				}
 			}
 

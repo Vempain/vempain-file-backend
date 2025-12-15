@@ -352,7 +352,7 @@ public class DirectoryProcessorService {
 	// Helper to safely link a persisted file to its group
 	private void linkFileToGroup(FileEntity entity, FileGroupEntity group) {
 		if (group.getFiles() == null) {
-			group.setFiles(new HashSet<>());
+			group.setFiles(new ArrayList<>());
 		}
 		if (entity.getFileGroups() == null) {
 			entity.setFileGroups(new HashSet<>());

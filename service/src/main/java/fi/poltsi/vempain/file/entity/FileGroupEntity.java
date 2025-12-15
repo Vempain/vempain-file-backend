@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,9 +20,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Builder
 @Data
@@ -57,8 +57,12 @@ public class FileGroupEntity {
 			joinColumns = @JoinColumn(name = "file_group_id"),
 			inverseJoinColumns = @JoinColumn(name = "file_id")
 	)
+	@OrderBy("filename ASC")
 	@Builder.Default
-	private Set<FileEntity> files = new HashSet<>();
+	private List<FileEntity> files = new ArrayList<>();
+
+	@Column(name = "gallery_id")
+	private Long galleryId;
 
 	public FileGroupResponse toResponse() {
 		return FileGroupResponse.builder()
@@ -73,12 +77,12 @@ public class FileGroupEntity {
 	}
 
 	public void replaceFiles(List<FileEntity> newFiles) {
-		final Set<FileEntity> newSet = newFiles == null ? Set.of() : new HashSet<>(newFiles);
+		final List<FileEntity> newList = newFiles == null ? List.of() : new ArrayList<>(newFiles);
 
 		// Remove unselected files and update inverse side
 		if (files != null && !files.isEmpty()) {
-			var toRemove = new HashSet<>(files);
-			toRemove.removeAll(newSet);
+			var toRemove = new ArrayList<>(files);
+			newList.forEach(toRemove::remove);
 			for (FileEntity f : toRemove) {
 				files.remove(f);
 				if (f.getFileGroups() != null) {
@@ -89,7 +93,9 @@ public class FileGroupEntity {
 		}
 
 		// Add new files and update inverse side
-		for (FileEntity f : newSet) {
+		for (FileEntity f : newList) {
+			assert files != null;
+
 			if (!files.contains(f)) {
 				files.add(f);
 				if (f.getFileGroups() != null) {

@@ -45,10 +45,6 @@ repositories {
 	maven { url = 'https://repo.spring.io/milestone' }
 }
 
-ext {
-	set('springAiVersion', "1.0.0-M5")
-}
-
 dependencies {
 	implementation project(':api')
 	// This needs to be built first in vempain-auth
@@ -65,8 +61,6 @@ dependencies {
 	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
 	implementation "org.flywaydb:flyway-core:${flywayVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-	// https://mvnrepository.com/artifact/tools.jackson.datatype/jackson-datatype-jsr310
-	implementation 'tools.jackson.datatype:jackson-datatype-jsr310:3.0.0-rc2'
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
 	runtimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
@@ -100,7 +94,6 @@ dependencies {
 
 dependencyManagement {
 	imports {
-		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
 		// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-dependencies
 		mavenBom "org.springframework.cloud:spring-cloud-dependencies:2025.0.0"
 	}

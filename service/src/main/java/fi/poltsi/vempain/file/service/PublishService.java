@@ -86,6 +86,8 @@ public class PublishService {
 				return;
 			}
 			Long galleryId = null;
+			// The order of the file group files should be by file name ascending so we use a simple counter here
+			long sortOrder = 0L;
 
 			for (var fileEntity : fileGroup.getFiles()) {
 				var metadataList = metadataRepository.findByFile(fileEntity);
@@ -152,6 +154,7 @@ public class PublishService {
 
 					var fileIngestRequest = FileIngestRequest.builder()
 															 .fileName(siteFileName)
+															 .sortOrder(sortOrder)
 															 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
 															 .mimeType(mimetype)
 															 .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
@@ -165,6 +168,8 @@ public class PublishService {
 															 .location(locationResponse)
 															 .copyright(copyrightResponse)
 															 .build();
+
+					sortOrder++;
 
 					if (imageVideoDimensions != null) {
 						fileIngestRequest.setWidth(imageVideoDimensions.width);

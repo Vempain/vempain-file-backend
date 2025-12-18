@@ -50,7 +50,7 @@ class SetupVerification implements ApplicationContextAware {
 
 		for (String[] keyPair : requiredKeys) {
 			var value = env.getProperty(keyPair[0]);
-			log.info("Verifying that key {} is defined and not empty: {}", keyPair[0], value);
+			log.debug("Verifying that key {} is defined and not empty: {}", keyPair[0], value);
 
 			if (value == null || value.isEmpty()) {
 				closeApplication("Missing configuration value for key: " + keyPair[0]);
@@ -104,8 +104,8 @@ class SetupVerification implements ApplicationContextAware {
 	public void printAllConfiguration(ContextRefreshedEvent event) {
 		final Environment env = event.getApplicationContext()
 									 .getEnvironment();
-		log.info("====== Environment and configuration ======");
-		log.info("Active profiles: {}", Arrays.toString(env.getActiveProfiles()));
+		log.debug("====== Environment and configuration ======");
+		log.debug("Active profiles: {}", Arrays.toString(env.getActiveProfiles()));
 		final MutablePropertySources sources = ((AbstractEnvironment) env).getPropertySources();
 		List<String> propertyNames = StreamSupport.stream(sources.spliterator(), false)
 												  .filter(ps -> ps instanceof EnumerablePropertySource)
@@ -117,13 +117,13 @@ class SetupVerification implements ApplicationContextAware {
 												  .toList();
 
 		propertyNames.forEach(prop -> printProperty(env, prop));
-		log.info("===========================================");
+		log.debug("===========================================");
 	}
 
 
 	private void printProperty(Environment env, String key) {
 		try {
-			log.info("{}: {}", key, env.getProperty(key));
+			log.debug("{}: {}", key, env.getProperty(key));
 		} catch (Exception e) {
 			log.error("Failed to fetch property value for {}", key);
 		}

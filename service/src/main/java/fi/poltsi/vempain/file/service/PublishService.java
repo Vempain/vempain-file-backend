@@ -81,7 +81,7 @@ public class PublishService {
 			if (fileGroup.getFiles() == null
 				|| fileGroup.getFiles()
 							.isEmpty()) {
-				log.info("File group {} has no files to publish", publishFileGroupRequest.getFileGroupId());
+				log.debug("File group {} has no files to publish", publishFileGroupRequest.getFileGroupId());
 				progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
 				return;
 			}
@@ -146,9 +146,9 @@ public class PublishService {
 						if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
 							locationResponse = fileEntity.getGpsLocation()
 														 .toResponse();
-							log.info("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
+							log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
 						} else {
-							log.info("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
+							log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
 						}
 					}
 
@@ -231,7 +231,7 @@ public class PublishService {
 				// Update the file group with the published gallery ID
 				fileGroup.setGalleryId(galleryId);
 				fileGroupRepository.save(fileGroup);
-				log.info("File group {} published to gallery ID {}", publishFileGroupRequest.getFileGroupId(), galleryId);
+				log.debug("File group {} published to gallery ID {}", publishFileGroupRequest.getFileGroupId(), galleryId);
 			} else {
 				log.warn("No files were published for group {}", publishFileGroupRequest.getFileGroupId());
 			}

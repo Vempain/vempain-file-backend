@@ -143,7 +143,7 @@ public class DirectoryProcessorService {
 		var             optionalExistingGroup = fileGroupRepository.findByPathAndGroupName(relativeDirectory, groupName);
 
 		if (optionalExistingGroup.isPresent()) {
-			log.info("File group already exists for path {} and group name {}, using existing group", relativeDirectory, groupName);
+			log.debug("File group already exists for path {} and group name {}, using existing group", relativeDirectory, groupName);
 			// If it exists, we use the existing one
 			fileGroup = optionalExistingGroup.get();
 		} else {
@@ -368,13 +368,13 @@ public class DirectoryProcessorService {
 
 	@Transactional
 	protected Boolean processOriginalFile(File file, FileGroupEntity fileGroup) throws IOException {
-		log.info("Processing file: {}", file.getAbsolutePath());
+		log.debug("Processing file: {}", file.getAbsolutePath());
 
 		var sha256sum        = computeSha256(file);
 		var relativeFilePath = computeRelativeFilePath(originalRootDirectory, file);
 
 		// Check first if it already exists in the database
-		log.info("Checking if file already exists in the database: {} in path {}", file.getName(), relativeFilePath);
+		log.debug("Checking if file already exists in the database: {} in path {}", file.getName(), relativeFilePath);
 		var optionalExistingFile = fileRepository.findByFilePathAndFilename(relativeFilePath, file.getName());
 
 		if (optionalExistingFile.isPresent()) {
@@ -383,10 +383,10 @@ public class DirectoryProcessorService {
 			// Next check if the sha256sum matches
 			if (existingFile.getSha256sum()
 							.equals(sha256sum)) {
-				log.info("File has already been scanned to the database: {}", file.getName());
+				log.debug("File has already been scanned to the database: {}", file.getName());
 				return null;
 			} else {
-				log.info("Original file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
+				log.debug("Original file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
 						 file.getName());
 				// Remove the existing file so that it can be reprocessed
 				fileRepository.delete(existingFile);
@@ -394,7 +394,7 @@ public class DirectoryProcessorService {
 		}
 
 		// Get all metadata entries using exiftool
-		log.info("Extracting metadata for file: {}", file.getAbsolutePath());
+		log.debug("Extracting metadata for file: {}", file.getAbsolutePath());
 
 		String metadata = null;
 
@@ -419,7 +419,7 @@ public class DirectoryProcessorService {
 		}
 
 		var mimetype = Files.probeContentType(file.toPath());
-		log.info("Probed MIME type: {}", mimetype);
+		log.debug("Probed MIME type: {}", mimetype);
 
 		if (mimetype == null) {
 			log.warn("Could not determine MIME type for file: {} by probing. Using exiftool to probe it", file.getName());
@@ -432,7 +432,7 @@ public class DirectoryProcessorService {
 		}
 
 		var fileTypeEnum = FileTypeEnum.getFileTypeByMimetype(mimetype);
-		log.info("Determined file type: {}", fileTypeEnum);
+		log.debug("Determined file type: {}", fileTypeEnum);
 
 		if (fileTypeEnum == FileTypeEnum.UNKNOWN) {
 			log.warn("Unsupported file type: {}", file.getName());
@@ -515,7 +515,7 @@ public class DirectoryProcessorService {
 			}
 			case IMAGE -> {
 				var imageFile = (ImageFileEntity) fileEntity;
-				log.info("Extracting resolution and metadata for image file: {}", file);
+				log.debug("Extracting resolution and metadata for image file: {}", file);
 				var res = extractImageResolution(jsonObject);
 
 				if (res != null) {
@@ -603,7 +603,7 @@ public class DirectoryProcessorService {
 
 			if (optionalExportFile.isPresent()) {
 				var exportFile = optionalExportFile.get();
-				log.info("Exported file already exists in the database: {} in path {}, skipping", file.getName(), relativeFilePath);
+				log.debug("Exported file already exists in the database: {} in path {}, skipping", file.getName(), relativeFilePath);
 
 				// If the sha256sum matches, we skip it
 				if (sha256sum != null
@@ -612,7 +612,7 @@ public class DirectoryProcessorService {
 				}
 
 				// If the sha256sum does not match, we remove the existing entry so that it can be reprocessed
-				log.info("Export file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
+				log.debug("Export file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
 						 file.getName());
 				exportFileRepository.delete(exportFile);
 			}
@@ -635,7 +635,7 @@ public class DirectoryProcessorService {
 
 			if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
 				|| exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
-				log.info("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
+				log.debug("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
 				continue;
 			}
 
@@ -667,7 +667,7 @@ public class DirectoryProcessorService {
 
 			// Save the exported file entity onto the database.
 			var storedExportFile = exportedFilesService.save(exportFileEntity);
-			log.info("Successfully registered exported file: {}", storedExportFile.getFilename());
+			log.debug("Successfully registered exported file: {}", storedExportFile.getFilename());
 			successfulFileResponses.add(storedExportFile.toResponse());
 
 			// If there is no existing file entity, we may not create a new one

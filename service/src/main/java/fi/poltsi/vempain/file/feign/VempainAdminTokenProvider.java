@@ -31,7 +31,7 @@ public class VempainAdminTokenProvider {
 									   .login(adminUsername)
 									   .password(adminUserPassword)
 									   .build();
-		log.info("Logging in to Vempain Admin service");
+		log.debug("Logging in to Vempain Admin service");
 
 		try {
 			var responseEntity = vempainAdminLoginClient.authenticateUser(loginRequest);
@@ -42,7 +42,7 @@ public class VempainAdminTokenProvider {
 				throw new VempainAuthenticationException();
 			}
 
-			log.info("Received following login response: {}", JsonTools.toJson(responseEntity));
+			log.debug("Received following login response: {}", JsonTools.toJson(responseEntity));
 
 			var loginResponse = responseEntity.getBody();
 
@@ -55,7 +55,7 @@ public class VempainAdminTokenProvider {
 													 .plusSeconds(3_600L);
 			jwtToken                        = loginResponse.getToken();
 
-			log.info("Logged in to Vempain Admin");
+			log.debug("Logged in to Vempain Admin");
 		} catch (Exception e) {
 			log.error("Login to Vempain admin failed: {}", e.getMessage());
 			throw new VempainAuthenticationException();
@@ -68,7 +68,7 @@ public class VempainAdminTokenProvider {
 			|| jwtTokenRegistrationTimeExpires == null
 			|| Instant.now()
 					  .isAfter(jwtTokenRegistrationTimeExpires)) {
-			log.info("JWT token is not set, logging in to Vempain Admin service");
+			log.debug("JWT token is not set, logging in to Vempain Admin service");
 			login();
 		}
 

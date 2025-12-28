@@ -16,7 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class VempainFileServiceApplicationITC {
 	@Container
-	public static PostgreSQLContainer<?> vempainAdminContainer = new PostgreSQLContainer<>("postgres:latest")
+	public static PostgreSQLContainer<?> vempainAdminContainer = new PostgreSQLContainer<>("postgres:18-alpine")
 			.withDatabaseName("vempain_file_db")
 			.withUsername("test")
 			.withPassword("test");

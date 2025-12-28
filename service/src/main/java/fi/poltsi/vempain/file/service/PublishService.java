@@ -98,7 +98,7 @@ public class PublishService {
 
 				if (exportFilePath == null
 					|| !Files.exists(exportFilePath)) {
-					log.warn("Export file does not exist, skipping: {}", exportFilePath);
+					log.debug("Export file does not exist, skipping: {}", exportFilePath);
 					continue;
 				}
 
@@ -301,7 +301,7 @@ public class PublishService {
 		var optionalExportFileEntity = exportFileRepository.findByFileId(fileId);
 
 		if (optionalExportFileEntity.isEmpty()) {
-			log.warn("No exported file found for file entity with ID {}", fileId);
+			log.debug("No exported file found for file entity with ID {}", fileId);
 			return null;
 		}
 

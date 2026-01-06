@@ -35,19 +35,15 @@ tasks.withType(Javadoc).configureEach {
 }
 
 dependencies {
-	api "tools.jackson.core:jackson-databind:${jacksonVersion}"
 	api "org.springframework.boot:spring-boot-starter-data-jpa:${springBootVersion}"
-	api "org.springframework.boot:spring-boot-starter-web:${springBootVersion}"
+	api "org.springframework.boot:spring-boot-starter-webmvc:${springBootVersion}"
+	api "org.springframework.boot:spring-boot-starter-jackson:${springBootVersion}"
+	api "org.springframework.boot:spring-boot-starter-validation:${springBootVersion}"
+	api "org.springframework.data:spring-data-jpa:${springBootVersion}"
 	// This needs to be built first in vempain-auth
 	api "fi.poltsi.vempain:vempain-auth-api:${vempainAuthVersion}"
-	// https://mvnrepository.com/artifact/org.springframework.data/spring-data-jpa
-	api "org.springframework.data:spring-data-jpa:3.5.6"
-	// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations
-	api "com.fasterxml.jackson.core:jackson-annotations:3.0-rc5"
-	// https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api
-	api "jakarta.validation:jakarta.validation-api:3.1.1"
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
-	implementation "io.swagger.core.v3:swagger-annotations:2.2.40"
+	implementation "io.swagger.core.v3:swagger-annotations:${swaggerVersion}"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
 	testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"

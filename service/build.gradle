@@ -53,18 +53,17 @@ dependencies {
 	implementation "fi.poltsi.vempain:vempain-admin-backend-api:${vempainAdminVersion}"
 	// Spring
 	implementation "org.springframework.boot:spring-boot-starter-security:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-web:${springBootVersion}"
+	implementation "org.springframework.boot:spring-boot-starter-webmvc:${springBootVersion}"
 	implementation "org.springframework.boot:spring-boot-starter-web-services:${springBootVersion}"
 	implementation "org.springframework.boot:spring-boot-starter-data-jpa:${springBootVersion}"
-	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${springBootVersion}"
-	implementation "org.springframework.session:spring-session-core:3.5.3"
 	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
-	implementation "org.flywaydb:flyway-core:${flywayVersion}"
+	implementation "org.springframework.boot:spring-boot-starter-flyway:${springBootVersion}"
+	implementation "org.springframework.boot:spring-boot-starter-jackson:${springBootVersion}"
+	implementation "org.springframework.boot:spring-boot-starter-validation:${springBootVersion}"
+	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${springBootVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
-	runtimeOnly "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
-	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1"
 	// https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api
 	implementation "jakarta.xml.bind:jakarta.xml.bind-api:4.0.4"
 	// https://mvnrepository.com/artifact/jakarta.annotation/jakarta.annotation-api
@@ -74,20 +73,22 @@ dependencies {
 	// https://mvnrepository.com/artifact/org.json/json
 	implementation "org.json:json:20250517"
 	// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-openfeign
-	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:4.3.0"
+	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:5.0.0"
 	// https://mvnrepository.com/artifact/net.coobird/thumbnailator
 	implementation "net.coobird:thumbnailator:0.4.21"
 	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly "org.postgresql:postgresql:42.7.8"
+	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
+	testImplementation "org.springframework.boot:spring-boot-starter-security-test:${springBootVersion}"
+	testImplementation "org.springframework.boot:spring-boot-starter-webmvc-test:${springBootVersion}"
+	testImplementation "org.springframework.boot:spring-boot-starter-data-jpa-test:${springBootVersion}"
 	testImplementation platform("org.junit:junit-bom:$junitVersion")
 	testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
 	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
 	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
 	testImplementation "org.testcontainers:testcontainers-postgresql:${testContainersVersion}"
-	// https://mvnrepository.com/artifact/org.springframework.security/spring-security-test
-	testImplementation "org.springframework.security:spring-security-test:6.5.6"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
 }
@@ -95,7 +96,7 @@ dependencies {
 dependencyManagement {
 	imports {
 		// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-dependencies
-		mavenBom "org.springframework.cloud:spring-cloud-dependencies:2025.0.0"
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:2025.1.0"
 	}
 }
 

@@ -1,7 +1,6 @@
 package fi.poltsi.vempain.file.tools;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
@@ -9,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import tools.jackson.databind.ObjectMapper;
 
 import java.awt.*;
 import java.io.File;

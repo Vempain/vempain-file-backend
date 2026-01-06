@@ -1,7 +1,5 @@
 package fi.poltsi.vempain.file.api.response;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import fi.poltsi.vempain.file.api.AbstractFileGroup;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -13,6 +11,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
 
 import java.util.List;
 

@@ -1,7 +1,5 @@
 package fi.poltsi.vempain.file.api.request;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import fi.poltsi.vempain.file.api.GeoCoordinate;
 import fi.poltsi.vempain.file.api.GuardTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
 
 import java.math.BigDecimal;
 

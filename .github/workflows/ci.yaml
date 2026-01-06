@@ -38,6 +38,11 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: false
+
       - name: Install exifdata for test setup
         run: sudo apt-get install -y exiftool
 
@@ -104,6 +109,11 @@ jobs:
         with:
           java-version: '25'
           distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: false
 
       - name: Build jar-file with Gradle
         shell: bash

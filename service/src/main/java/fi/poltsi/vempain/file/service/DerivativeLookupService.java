@@ -1,7 +1,6 @@
 // File: `service/src/main/java/fi/poltsi/vempain/file/service/DerivativeLookupService.java`
 package fi.poltsi.vempain.file.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
@@ -10,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;

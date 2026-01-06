@@ -1,7 +1,5 @@
 package fi.poltsi.vempain.file.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
@@ -10,6 +8,7 @@ import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
 
@@ -27,11 +26,7 @@ public class VempainAdminService {
 												.build();
 		String fileIngestRequestString;
 
-		try {
-			fileIngestRequestString = objectMapper.writeValueAsString(fileIngestRequest);
-		} catch (JsonProcessingException e) {
-			throw new RuntimeException(e);
-		}
+		fileIngestRequestString = objectMapper.writeValueAsString(fileIngestRequest);
 
 		log.debug("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
 

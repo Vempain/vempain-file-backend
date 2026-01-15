@@ -244,7 +244,7 @@ CREATE TABLE gps_locations
 
 CREATE TABLE location_guard
 (
-	id                  BIGSERIAL PRIMARY KEY,
+	id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	guard_type          VARCHAR(16)    NOT NULL,
 	primary_longitude   NUMERIC(10, 5) NOT NULL,
 	primary_latitude    NUMERIC(10, 5) NOT NULL,
@@ -254,11 +254,26 @@ CREATE TABLE location_guard
 );
 
 -- Data
-
 -- Add administrator account
 INSERT INTO user_account (id, acl_id, birthday, created, creator, locked, email, login_name, name, nick, password, priv_type, public_account, street, status)
 	OVERRIDING SYSTEM VALUE
 VALUES (1, 1, '1900-01-01 00:00:00', NOW(), 1, false, 'admin@nohost.nodomain', 'admin', 'Vempain Administrator', 'Admin', 'Disabled', 'PRIVATE', false, '',
 		'ACTIVE');
+INSERT INTO acl (id, acl_id, user_id, unit_id, create_privilege, read_privilege, modify_privilege, delete_privilege)
+	OVERRIDING SYSTEM VALUE
+VALUES (1, 1, 1, null, true, true, true, true);
 
 SELECT setval('user_account_id_seq', (SELECT MAX(id) + 1 FROM user_account));
+
+-- Default Site Style file
+INSERT INTO acl (id, acl_id, user_id, unit_id, create_privilege, read_privilege, modify_privilege, delete_privilege)
+	OVERRIDING SYSTEM VALUE
+VALUES (2, 1000, 1, null, true, true, true, true);
+
+INSERT INTO files (id, acl_id, external_file_id, filename, file_path, mimetype, filesize, sha256sum, file_type, creator, created, locked)
+	OVERRIDING SYSTEM VALUE
+VALUES (1, 1000, 'default-site-style', 'default-style.json', '/document/site', 'text/json', 0,
+		'fea66b008bcd1753c1ede5711e42b4274b956761c9e386a61450b7ebfe250a5f', 'DOCUMENT', 1, NOW(), false);
+
+SELECT setval('acl_id_seq', 2000);
+SELECT setval('files_id_seq', 1000);

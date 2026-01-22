@@ -275,5 +275,9 @@ INSERT INTO files (id, acl_id, external_file_id, filename, file_path, mimetype, 
 VALUES (1, 1000, 'default-site-style', 'default-style.json', '/document/site', 'text/json', 0,
 		'fea66b008bcd1753c1ede5711e42b4274b956761c9e386a61450b7ebfe250a5f', 'DOCUMENT', 1, NOW(), false);
 
+INSERT INTO document_files (id, page_count, format)
+	OVERRIDING SYSTEM VALUE
+VALUES (1, 0, 'JSON');
+
 SELECT setval('acl_id_seq', 2000);
 SELECT setval('files_id_seq', 1000);

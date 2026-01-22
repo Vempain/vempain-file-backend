@@ -45,7 +45,7 @@ dependencies {
 	// https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
 	implementation "io.swagger.core.v3:swagger-annotations:${swaggerVersion}"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
-	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
+	testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
 	testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
 	testImplementation "org.junit.platform:junit-platform-launcher:${junitVersion}"
 }

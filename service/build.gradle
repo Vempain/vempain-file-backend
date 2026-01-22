@@ -71,7 +71,7 @@ dependencies {
 	// https://mvnrepository.com/artifact/commons-codec/commons-codec
 	implementation "commons-codec:commons-codec:1.20.0"
 	// https://mvnrepository.com/artifact/org.json/json
-	implementation "org.json:json:20250517"
+	implementation "org.json:json:${jsonVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-openfeign
 	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:5.0.0"
 	// https://mvnrepository.com/artifact/net.coobird/thumbnailator
@@ -79,7 +79,7 @@ dependencies {
 	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
-	runtimeOnly "org.postgresql:postgresql:42.7.8"
+	runtimeOnly "org.postgresql:postgresql:${postgresqlVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-security-test:${springBootVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-webmvc-test:${springBootVersion}"
@@ -90,7 +90,7 @@ dependencies {
 	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
 	testImplementation "org.testcontainers:testcontainers-postgresql:${testContainersVersion}"
 	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
-	testImplementation "org.mockito:mockito-junit-jupiter:5.20.0"
+	testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
 }
 
 dependencyManagement {

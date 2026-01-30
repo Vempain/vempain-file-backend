@@ -26,16 +26,16 @@ public class AudioFileEntity extends FileEntity {
 	@Column(nullable = false, precision = 5)
 	private Duration duration;
 
-	@Column(name = "bit_rate")
+	@Column(name = "bit_rate", nullable = false)
 	private int bitRate;
 
-	@Column(name = "sample_rate")
+	@Column(name = "sample_rate", nullable = false)
 	private int sampleRate;
 
-	@Column
+	@Column(name = "codec", nullable = false)
 	private String codec;
 
-	@Column
+	@Column(name = "channels", nullable = false)
 	private int channels;
 
 	@Override

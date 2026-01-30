@@ -21,10 +21,10 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "document_files")
 public class DocumentFileEntity extends FileEntity {
 
-	@Column(name = "page_count")
+	@Column(name = "page_count", nullable = false)
 	private int pageCount; // Number of pages in the document
 
-	@Column
+	@Column(name = "format", nullable = false)
 	private String format; // Document format (e.g., PDF, DOCX)
 
 	@Override

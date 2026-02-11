@@ -27,7 +27,7 @@ public class VectorFileEntity extends FileEntity {
 	@Column(name = "height", nullable = false)
 	private int height;
 
-	@Column(name = "layers_count")
+	@Column(name = "layers_count", nullable = false)
 	private int layersCount; // Optional: Number of layers
 
 	@Override

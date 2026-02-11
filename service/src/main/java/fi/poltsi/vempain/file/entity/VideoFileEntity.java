@@ -29,13 +29,13 @@ public class VideoFileEntity extends FileEntity {
 	@Column(name = "height", nullable = false)
 	private int height;
 
-	@Column(name = "frame_rate", precision = 5)
+	@Column(name = "frame_rate", precision = 5, nullable = false)
 	private double frameRate;
 
-	@Column(nullable = false, precision = 5)
+	@Column(name = "duration", precision = 5, nullable = false)
 	private Duration duration;
 
-	@Column
+	@Column(name = "codec", nullable = false)
 	private String codec;
 
 	@Override

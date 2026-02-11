@@ -27,13 +27,13 @@ public class ImageFileEntity extends FileEntity {
 	@Column(name = "height", nullable = false)
 	private int height;
 
-	@Column(name = "color_depth")
+	@Column(name = "color_depth", nullable = false)
 	private int colorDepth;
 
-	@Column(name = "dpi")
+	@Column(name = "dpi", nullable = false)
 	private int dpi;
 
-	@Column(name = "group_label")
+	@Column(name = "group_label", nullable = false)
 	private String groupLabel;
 
 	@Override

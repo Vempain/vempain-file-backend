@@ -31,7 +31,7 @@ public class ExecutableFileEntity extends FileEntity {
 	// Example values: WINDOWS, LINUX, MACOS, ANDROID, JVM, OTHER
 	@ElementCollection(fetch = FetchType.EAGER)
 	@CollectionTable(name = "executable_os", joinColumns = @JoinColumn(name = "file_id"))
-	@Column(name = "os")
+	@Column(name = "os", nullable = false)
 	@lombok.Builder.Default
 	private Set<String> operatingSystems = new HashSet<>();
 

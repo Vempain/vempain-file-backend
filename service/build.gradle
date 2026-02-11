@@ -70,7 +70,6 @@ dependencies {
 	implementation "jakarta.annotation:jakarta.annotation-api:3.0.0"
 	// https://mvnrepository.com/artifact/commons-codec/commons-codec
 	implementation "commons-codec:commons-codec:1.20.0"
-	// https://mvnrepository.com/artifact/org.json/json
 	implementation "org.json:json:${jsonVersion}"
 	// https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-openfeign
 	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:5.0.0"
@@ -78,7 +77,6 @@ dependencies {
 	implementation "net.coobird:thumbnailator:0.4.21"
 	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
-	// https://mvnrepository.com/artifact/org.postgresql/postgresql
 	runtimeOnly "org.postgresql:postgresql:${postgresqlVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
 	testImplementation "org.springframework.boot:spring-boot-starter-security-test:${springBootVersion}"
@@ -86,10 +84,8 @@ dependencies {
 	testImplementation "org.springframework.boot:spring-boot-starter-data-jpa-test:${springBootVersion}"
 	testImplementation platform("org.junit:junit-bom:$junitVersion")
 	testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
-	// https://mvnrepository.com/artifact/org.testcontainers/junit-jupiter
 	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
 	testImplementation "org.testcontainers:testcontainers-postgresql:${testContainersVersion}"
-	// https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
 	testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
 }
 

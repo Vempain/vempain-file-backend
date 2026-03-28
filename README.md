@@ -62,3 +62,5 @@ This will build the project, run the tests, create a JAR file, and start the app
 
 Note that the `vempain.app.frontend-url` argument is used to specify the frontend URL for the application. You can change it according to your needs. You need
 to include the `http://localhost:8081` if you want to use the Swagger UI.
+
+[AGENTS.md](docs/AGENTS.md) has more detailed orientation and workflow guidance for agents working in this codebase.

@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.service.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VectorFileResponse;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
@@ -7,6 +8,7 @@ import fi.poltsi.vempain.file.repository.files.VectorFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,9 +21,13 @@ public class VectorFileService {
 	private final VectorFileRepository vectorFileRepository;
 
 	@Transactional(readOnly = true)
-	public PagedResponse<VectorFileResponse> findAll(int page, int size) {
-		var pageable   = PageRequest.of(Math.max(0, page), Math.max(1, size));
-		var pageResult = vectorFileRepository.findAll(pageable);
+	public PagedResponse<VectorFileResponse> findAll(PagedRequest pagedRequest) {
+		var                             safePage   = Math.max(0, pagedRequest.getPage());
+		var                             safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var                             sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+		Specification<VectorFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		var                             pageable   = PageRequest.of(safePage, safeSize, sort);
+		var                             pageResult = vectorFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
 								.stream()
 								.map(VectorFileEntity::toResponse)
@@ -35,7 +41,6 @@ public class VectorFileService {
 				pageResult.isFirst(),
 				pageResult.isLast()
 		);
-
 	}
 
 	@Transactional(readOnly = true)
@@ -46,12 +51,11 @@ public class VectorFileService {
 	}
 
 	public HttpStatus delete(long id) {
-		try {
-			vectorFileRepository.deleteById(id);
-			return HttpStatus.OK;
-		} catch (Exception e) {
-			log.warn("Failed to delete archive file with id {}: {}", id, e.getMessage());
+		if (!vectorFileRepository.existsById(id)) {
+			log.warn("Vector file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		vectorFileRepository.deleteById(id);
+		return HttpStatus.OK;
 	}
 }

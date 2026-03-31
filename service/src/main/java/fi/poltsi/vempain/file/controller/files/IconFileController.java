@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.IconFileResponse;
 import fi.poltsi.vempain.file.rest.files.IconFileAPI;
@@ -15,8 +16,8 @@ public class IconFileController implements IconFileAPI {
 	private final IconFileService iconFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<IconFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(iconFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<IconFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(iconFileService.findAll(pagedRequest));
 	}
 
 	@Override

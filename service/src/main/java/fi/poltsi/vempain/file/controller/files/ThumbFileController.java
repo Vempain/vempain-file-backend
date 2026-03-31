@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ThumbFileResponse;
 import fi.poltsi.vempain.file.rest.files.ThumbFileAPI;
@@ -15,8 +16,8 @@ public class ThumbFileController implements ThumbFileAPI {
 	private final ThumbFileService service;
 
 	@Override
-	public ResponseEntity<PagedResponse<ThumbFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(service.findAll(page, size));
+	public ResponseEntity<PagedResponse<ThumbFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(service.findAll(pagedRequest));
 	}
 
 	@Override

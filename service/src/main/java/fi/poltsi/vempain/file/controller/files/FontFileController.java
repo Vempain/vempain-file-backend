@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
 import fi.poltsi.vempain.file.rest.files.FontFileAPI;
@@ -15,8 +16,8 @@ public class FontFileController implements FontFileAPI {
 	private final FontFileService fontFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<FontFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(fontFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<FontFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(fontFileService.findAll(pagedRequest));
 	}
 
 	@Override

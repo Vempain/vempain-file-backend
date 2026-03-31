@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.BinaryFileResponse;
 import fi.poltsi.vempain.file.rest.files.BinaryFileAPI;
@@ -15,8 +16,8 @@ public class BinaryFileController implements BinaryFileAPI {
 	private final BinaryFileService service;
 
 	@Override
-	public ResponseEntity<PagedResponse<BinaryFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(service.findAll(page, size));
+	public ResponseEntity<PagedResponse<BinaryFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(service.findAll(pagedRequest));
 	}
 
 	@Override

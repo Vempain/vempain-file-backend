@@ -94,6 +94,7 @@ class FileTypeServicesUTC {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	void findAll_returnsPagedResponse_forAllFileTypeServices() {
 		var pagedRequest = new PagedRequest();
 		pagedRequest.setPage(0);

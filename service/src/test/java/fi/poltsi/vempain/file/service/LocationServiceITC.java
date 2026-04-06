@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,7 +65,8 @@ class LocationServiceITC {
 
 	@BeforeEach
 	void resetMocks() {
-		reset(locationRepository, locationGuardRepository);
+		reset(locationRepository);
+		reset(locationGuardRepository);
 	}
 
 	@Nested
@@ -163,8 +165,8 @@ class LocationServiceITC {
 			verify(locationGuardRepository).save(captor.capture());
 			var toSave = captor.getValue();
 			assertThat(toSave.getGuardType()).isEqualTo(GuardTypeEnum.CIRCLE);
-			assertThat(toSave.getPrimaryLatitude()).isEqualTo(valueOf(60.16952).setScale(5, BigDecimal.ROUND_HALF_UP));
-			assertThat(toSave.getPrimaryLongitude()).isEqualTo(valueOf(24.93545).setScale(5, BigDecimal.ROUND_HALF_UP));
+			assertThat(toSave.getPrimaryLatitude()).isEqualTo(valueOf(60.16952).setScale(5, RoundingMode.HALF_UP));
+			assertThat(toSave.getPrimaryLongitude()).isEqualTo(valueOf(24.93545).setScale(5, RoundingMode.HALF_UP));
 		}
 
 		@Test

@@ -1049,7 +1049,7 @@ public class MetadataTool {
 				&& !root.isEmpty()) {
 				var first     = root.get(0);
 				var valueNode = first.get(tag);
-				return valueNode != null ? valueNode.asText() : "";
+				return valueNode != null ? mapper.convertValue(valueNode, String.class) : "";
 			}
 		} catch (Exception e) {
 			log.error("Failed to parse exiftool JSON output", e);

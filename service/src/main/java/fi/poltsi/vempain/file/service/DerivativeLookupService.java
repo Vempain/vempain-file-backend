@@ -94,12 +94,10 @@ public class DerivativeLookupService {
 				if (xmpSection == null) {
 					return false;
 				}
-				var derived = xmpSection.has("DerivedFromOriginalDocumentID")
-							  ? xmpSection.get("DerivedFromOriginalDocumentID")
-										  .asText() : null;
-				var original = xmpSection.has("OriginalDocumentID")
-							   ? xmpSection.get("OriginalDocumentID")
-										   .asText() : null;
+				var derivedNode  = xmpSection.get("DerivedFromOriginalDocumentID");
+				var originalNode = xmpSection.get("OriginalDocumentID");
+				var derived      = derivedNode != null ? mapper.convertValue(derivedNode, String.class) : null;
+				var original     = originalNode != null ? mapper.convertValue(originalNode, String.class) : null;
 				return Objects.equals(documentId, derived) || Objects.equals(documentId, original);
 			}
 		} catch (Exception e) {

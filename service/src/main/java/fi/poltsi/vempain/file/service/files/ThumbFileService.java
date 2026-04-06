@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.service.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ThumbFileResponse;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
@@ -7,7 +8,7 @@ import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +21,26 @@ public class ThumbFileService {
 	private final ThumbFileRepository repository;
 
 	@Transactional(readOnly = true)
-	public PagedResponse<ThumbFileResponse> findAll(int page, int size) {
-		var pageable = PageRequest.of(Math.max(0, page), Math.max(1, size), Sort.by("filename")
-																				.ascending());
-		var p        = repository.findAll(pageable);
-		var content  = p.getContent()
-						.stream()
-						.map(ThumbFileEntity::toResponse)
-						.toList();
-		return PagedResponse.of(content, p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages(), p.isFirst(), p.isLast());
+	public PagedResponse<ThumbFileResponse> findAll(PagedRequest pagedRequest) {
+		var                            safePage   = Math.max(0, pagedRequest.getPage());
+		var                            safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+		Specification<ThumbFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
+		var                            pageResult = repository.findAll(spec, pageable);
+		var content = pageResult.getContent()
+		                        .stream()
+		                        .map(ThumbFileEntity::toResponse)
+		                        .toList();
+		return PagedResponse.of(
+				content,
+				pageResult.getNumber(),
+				pageResult.getSize(),
+				pageResult.getTotalElements(),
+				pageResult.getTotalPages(),
+				pageResult.isFirst(),
+				pageResult.isLast()
+		);
 	}
 
 	@Transactional(readOnly = true)
@@ -39,13 +51,12 @@ public class ThumbFileService {
 	}
 
 	public HttpStatus delete(long id) {
-		try {
-			repository.deleteById(id);
-			return HttpStatus.OK;
-		} catch (Exception e) {
-			log.warn("Failed to delete thumb file {}: {}", id, e.getMessage());
+		if (!repository.existsById(id)) {
+			log.warn("Thumb file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		repository.deleteById(id);
+		return HttpStatus.OK;
 	}
 }
 

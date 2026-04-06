@@ -53,7 +53,7 @@ public class FileScannerService {
 		var failedFiles             = new ArrayList<String>();
 		var successfulFileResponses = new ArrayList<FileResponse>();
 		var leafDirectories         = new ArrayList<Path>();
-		var scanDirectory           = Path.of(originalRootDirectory, selectedDirectory);
+		var scanDirectory = resolveScanDirectory(originalRootDirectory, selectedDirectory);
 
 		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
 
@@ -83,7 +83,7 @@ public class FileScannerService {
 		var orphanedFiles           = new ArrayList<String>();
 		var successfulFileResponses = new ArrayList<ExportFileResponse>();
 		var leafDirectories         = new ArrayList<Path>();
-		var scanDirectory           = Path.of(exportRootDirectory, exportedDirectory);
+		var scanDirectory = resolveScanDirectory(exportRootDirectory, exportedDirectory);
 
 		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
 
@@ -118,6 +118,14 @@ public class FileScannerService {
 			log.error("Error checking if directory is leaf: {}", path, e);
 			return false;
 		}
+	}
+
+	private Path resolveScanDirectory(String configuredRoot, String selectedDirectory) {
+		if (selectedDirectory == null || "/".equals(selectedDirectory)) {
+			return Path.of(configuredRoot);
+		}
+		var relativePath = selectedDirectory.startsWith("/") ? selectedDirectory.substring(1) : selectedDirectory;
+		return Path.of(configuredRoot, relativePath);
 	}
 
 	private boolean populateLeafDirectory(ArrayList<Path> leafDirectories, StringBuilder errorMessage, Path scanDirectory) {

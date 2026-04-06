@@ -21,7 +21,7 @@ public class ScanRequest {
 
 	@Nullable
 	@Size.List({
-			@Size(min = 2, message = "String length must be at least 2 characters"),
+			@Size(min = 1, message = "String length must be at least 1 characters"),
 			@Size(max = 4096, message = "String length must be at most 4096 characters")
 	})
 	@Pattern(message = "Directory name must start with a slash and contain only valid characters",
@@ -33,7 +33,7 @@ public class ScanRequest {
 
 	@Nullable
 	@Size.List({
-			@Size(min = 2, message = "String length must be at least 2 characters"),
+			@Size(min = 1, message = "String length must be at least 1 characters"),
 			@Size(max = 4096, message = "String length must be at most 4096 characters")
 	})
 	@Pattern(message = "Directory name must start with a slash and contain only valid characters",

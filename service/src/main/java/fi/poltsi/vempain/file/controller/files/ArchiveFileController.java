@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ArchiveFileResponse;
 import fi.poltsi.vempain.file.rest.files.ArchiveFileAPI;
@@ -15,8 +16,8 @@ public class ArchiveFileController implements ArchiveFileAPI {
 	private final ArchiveFileService archiveFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(archiveFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(archiveFileService.findAll(pagedRequest));
 	}
 
 	@Override

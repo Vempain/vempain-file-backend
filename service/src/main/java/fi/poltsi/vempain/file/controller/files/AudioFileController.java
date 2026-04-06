@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.AudioFileResponse;
 import fi.poltsi.vempain.file.rest.files.AudioFileAPI;
@@ -15,8 +16,8 @@ public class AudioFileController implements AudioFileAPI {
 	private final AudioFileService audioFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<AudioFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(audioFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<AudioFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(audioFileService.findAll(pagedRequest));
 	}
 
 	@Override

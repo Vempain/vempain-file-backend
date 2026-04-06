@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DocumentFileResponse;
 import fi.poltsi.vempain.file.rest.files.DocumentFileAPI;
@@ -15,8 +16,8 @@ public class DocumentFileController implements DocumentFileAPI {
 	private final DocumentFileService documentFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<DocumentFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(documentFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<DocumentFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(documentFileService.findAll(pagedRequest));
 	}
 
 	@Override

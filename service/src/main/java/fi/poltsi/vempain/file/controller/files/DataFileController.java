@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import fi.poltsi.vempain.file.rest.files.DataFileAPI;
@@ -15,8 +16,8 @@ public class DataFileController implements DataFileAPI {
 	private final DataFileService service;
 
 	@Override
-	public ResponseEntity<PagedResponse<DataFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(service.findAll(page, size));
+	public ResponseEntity<PagedResponse<DataFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(service.findAll(pagedRequest));
 	}
 
 	@Override

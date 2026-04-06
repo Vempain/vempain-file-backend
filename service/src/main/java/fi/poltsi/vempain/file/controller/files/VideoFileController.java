@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import fi.poltsi.vempain.file.rest.files.VideoFileAPI;
@@ -15,8 +16,8 @@ public class VideoFileController implements VideoFileAPI {
 	private final VideoFileService videoFileService;
 
 	@Override
-	public ResponseEntity<PagedResponse<VideoFileResponse>> findAll(int page, int size) {
-		return ResponseEntity.ok(videoFileService.findAll(page, size));
+	public ResponseEntity<PagedResponse<VideoFileResponse>> findAll(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(videoFileService.findAll(pagedRequest));
 	}
 
 	@Override

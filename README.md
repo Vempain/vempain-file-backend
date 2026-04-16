@@ -14,6 +14,25 @@ The service can be used in conjunction with the Vempain Admin as well as Vempain
 
 Service exposes REST APIs designed to be used by the Vempain File frontend.
 
+## Scheduled refresh for modified files
+
+The service now includes a scheduler that revisits already-registered source files and refreshes their DB data when the filesystem timestamp indicates updates.
+
+- Only files already present in the `files` table are considered.
+- Last run state is persisted in `scheduler_checkpoint` (`task_name=updated_file_refresh`).
+- On first run (no checkpoint yet), all DB-known files are treated as candidates.
+- For candidate files, refresh is done only when SHA-256 differs from the stored value.
+- Linked `export_files` rows are refreshed, and site file refresh is attempted for files known to be published in admin.
+
+Configuration:
+
+```yaml
+vempain:
+  refresh-updated-files:
+    enabled: true
+    cron: "0 */10 * * * *"
+```
+
 ## File grouping
 
 The default way to group files is based on the directory structure. Each directory forms a file group and all files within that directory belong to that group.

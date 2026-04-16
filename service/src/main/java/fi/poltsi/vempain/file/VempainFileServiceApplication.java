@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableJpaRepositories(basePackages = {"fi.poltsi.vempain.auth.repository", "fi.poltsi.vempain.file.repository"})
 @EntityScan(basePackages = {"fi.poltsi.vempain.auth.entity", "fi.poltsi.vempain.file.entity"})
@@ -13,6 +14,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 		"fi.poltsi.vempain.auth",
 })
 @EnableFeignClients(basePackages = "fi.poltsi.vempain.file.feign")
+@EnableScheduling
 public class VempainFileServiceApplication {
 
 	public static void main(String[] args) {

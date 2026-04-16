@@ -20,6 +20,7 @@ import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
+import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
@@ -576,6 +577,224 @@ public class DirectoryProcessorService {
 		saveTags(jsonObject, fileEntity);
 		processMetadata(jsonObject, fileEntity);
 		return Boolean.TRUE;
+	}
+
+	@Transactional
+	public boolean refreshExistingOriginalFile(FileEntity existingFile, File file) throws IOException {
+		if (existingFile == null || file == null || !file.exists()) {
+			return false;
+		}
+
+		String metadata;
+		try {
+			metadata = extractMetadataJson(file);
+		} catch (IOException e) {
+			log.error("Failed to extract metadata for updated file: {}", file.getAbsolutePath(), e);
+			return false;
+		}
+
+		if (metadata == null || metadata.isBlank()) {
+			log.warn("Updated file metadata was empty: {}", file.getAbsolutePath());
+			return false;
+		}
+
+		var jsonObject = metadataToJsonObject(metadata);
+		if (jsonObject == null) {
+			log.warn("Updated file metadata could not be parsed: {}", file.getAbsolutePath());
+			return false;
+		}
+
+		var mimetype = Files.probeContentType(file.toPath());
+		if (mimetype == null) {
+			mimetype = extractMimetype(jsonObject);
+		}
+		if (mimetype == null) {
+			return false;
+		}
+
+		var resolvedType = FileTypeEnum.getFileTypeByMimetype(mimetype);
+		if (resolvedType == FileTypeEnum.UNKNOWN || resolvedType != existingFile.getFileType()) {
+			log.warn("Skipping update for file {} because type changed/unknown (existing={}, resolved={})",
+			         file.getName(), existingFile.getFileType(), resolvedType);
+			return false;
+		}
+
+		var gpsData      = extractGpsData(jsonObject);
+		var resolvedGps  = resolveGpsLocation(gpsData, file.getName());
+		var sha256sum    = computeSha256(file);
+		var relativePath = computeRelativeFilePath(originalRootDirectory, file);
+
+		existingFile.setFilename(file.getName());
+		existingFile.setFilePath(relativePath);
+		existingFile.setFilesize(file.length());
+		existingFile.setSha256sum(sha256sum);
+		existingFile.setMimetype(mimetype);
+		existingFile.setMetadataRaw(metadata);
+		existingFile.setDescription(extractDescription(jsonObject));
+		existingFile.setOriginalDatetime(dateTimeParser(extractOriginalDateTime(jsonObject)));
+		existingFile.setOriginalSecondFraction(extractOriginalSecondFraction(jsonObject));
+		existingFile.setOriginalDocumentId(extractOriginalDocumentId(jsonObject));
+		existingFile.setRightsHolder(extractRightsHolder(jsonObject));
+		existingFile.setRightsTerms(extractRightsTerms(jsonObject));
+		existingFile.setRightsUrl(extractRightsUrl(jsonObject));
+		existingFile.setCreatorName(extractCreatorName(jsonObject));
+		existingFile.setCreatorEmail(extractCreatorEmail(jsonObject));
+		existingFile.setCreatorCountry(extractCreatorCountry(jsonObject));
+		existingFile.setCreatorUrl(extractCreatorUrl(jsonObject));
+		existingFile.setGpsTimestamp(extractGpsTime(jsonObject));
+		existingFile.setGpsLocation(resolvedGps);
+
+		updateTypeSpecificFields(existingFile, file, jsonObject, mimetype);
+		fileRepository.save(existingFile);
+
+		var existingMetadata = metadataRepository.findByFile(existingFile);
+		if (!existingMetadata.isEmpty()) {
+			metadataRepository.deleteAll(existingMetadata);
+		}
+		var existingFileTags = fileTagRepository.findByFile(existingFile);
+		if (!existingFileTags.isEmpty()) {
+			fileTagRepository.deleteAll(existingFileTags);
+		}
+
+		saveTags(jsonObject, existingFile);
+		processMetadata(jsonObject, existingFile);
+		return true;
+	}
+
+	private GpsLocationEntity resolveGpsLocation(GpsLocationEntity gpsData, String fileName) {
+		if (gpsData == null) {
+			return null;
+		}
+
+		boolean hasRequired = gpsData.getLatitude() != null
+		                      && gpsData.getLatitudeRef() != null
+		                      && gpsData.getLongitude() != null
+		                      && gpsData.getLongitudeRef() != null;
+
+		if (!hasRequired) {
+			log.debug("GPS data missing required coordinate fields, skipping association for file: {}", fileName);
+			return null;
+		}
+
+		var optionalExistingGps = gpsLocationRepository.findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(
+				gpsData.getLatitude(), gpsData.getLatitudeRef(), gpsData.getLongitude(), gpsData.getLongitudeRef());
+
+		if (optionalExistingGps.isEmpty()) {
+			return gpsLocationRepository.save(gpsData);
+		}
+
+		var     existingGps    = optionalExistingGps.get();
+		boolean updateExisting = false;
+		if (gpsData.getCountry() != null && existingGps.getCountry() == null) {
+			existingGps.setCountry(gpsData.getCountry());
+			updateExisting = true;
+		}
+		if (gpsData.getCity() != null && existingGps.getCity() == null) {
+			existingGps.setCity(gpsData.getCity());
+			updateExisting = true;
+		}
+		if (gpsData.getState() != null && existingGps.getState() == null) {
+			existingGps.setState(gpsData.getState());
+			updateExisting = true;
+		}
+		if (gpsData.getStreet() != null && existingGps.getStreet() == null) {
+			existingGps.setStreet(gpsData.getStreet());
+			updateExisting = true;
+		}
+		if (gpsData.getSubLocation() != null && existingGps.getSubLocation() == null) {
+			existingGps.setSubLocation(gpsData.getSubLocation());
+			updateExisting = true;
+		}
+
+		return updateExisting ? gpsLocationRepository.save(existingGps) : existingGps;
+	}
+
+	private void updateTypeSpecificFields(FileEntity existingFile, File file, JSONObject jsonObject, String mimetype) throws IOException {
+		switch (existingFile.getFileType()) {
+			case ARCHIVE -> {
+				var archiveFile = (ArchiveFileEntity) existingFile;
+				archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
+				archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
+				archiveFile.setContentCount(extractArchiveContentCount(file));
+				archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
+			}
+			case AUDIO -> {
+				var audioFile = (AudioFileEntity) existingFile;
+				audioFile.setDuration(extractAudioVideoDuration(file));
+				audioFile.setBitRate(extractAudioBitRate(file));
+				audioFile.setSampleRate(extractAudioSampleRate(file));
+				audioFile.setCodec(extractAudioCodec(file));
+				audioFile.setChannels(extractAudioChannels(file));
+			}
+			case BINARY -> {
+				var binary = (BinaryFileEntity) existingFile;
+				var label  = extractLabel(jsonObject);
+				binary.setSoftwareName(label);
+				binary.setSoftwareMajorVersion(parseMajorVersionFromText(label != null ? label : file.getName()));
+			}
+			case DATA -> ((DataFileEntity) existingFile).setDataStructure(determineDataStructure(mimetype));
+			case DOCUMENT -> {
+				var documentFile = (DocumentFileEntity) existingFile;
+				documentFile.setPageCount(extractDocumentPageCount(file));
+				documentFile.setFormat(extractDocumentFormat(file));
+			}
+			case EXECUTABLE -> {
+				var exe = (ExecutableFileEntity) existingFile;
+				exe.setOperatingSystems(determineOperatingSystems(mimetype, file.getName()));
+				exe.setScript(isScript(mimetype, file.getName()));
+			}
+			case FONT -> {
+				var fontFile = (FontFileEntity) existingFile;
+				fontFile.setFontFamily(extractFontFamily(file));
+				fontFile.setWeight(extractFontWeight(file));
+				fontFile.setStyle(extractFontStyle(file));
+			}
+			case ICON -> {
+				var iconFile = (IconFileEntity) existingFile;
+				var res      = extractXYResolution(file);
+				iconFile.setWidth(res.width);
+				iconFile.setHeight(res.height);
+				iconFile.setIsScalable(extractIconIsScalable(file));
+			}
+			case IMAGE -> {
+				var imageFile = (ImageFileEntity) existingFile;
+				var res       = extractImageResolution(jsonObject);
+				if (res != null) {
+					imageFile.setWidth(res.width);
+					imageFile.setHeight(res.height);
+				}
+				imageFile.setColorDepth(extractImageColorDepth(jsonObject));
+				imageFile.setDpi(extractImageDpi(jsonObject));
+				imageFile.setGroupLabel(extractLabel(jsonObject));
+			}
+			case INTERACTIVE -> ((InteractiveFileEntity) existingFile).setTechnology(determineInteractiveTechnology(mimetype));
+			case THUMB -> {
+				var thumb = (ThumbFileEntity) existingFile;
+				thumb.setRelationType("thumbnail");
+				if (existingFile.getOriginalDocumentId() != null) {
+					var target = fileRepository.findByOriginalDocumentId(existingFile.getOriginalDocumentId());
+					thumb.setTargetFile(target);
+				}
+			}
+			case VECTOR -> {
+				var vectorFile = (VectorFileEntity) existingFile;
+				var res        = extractXYResolution(file);
+				vectorFile.setWidth(res.width);
+				vectorFile.setHeight(res.height);
+				vectorFile.setLayersCount(extractVectorLayersCount(file));
+			}
+			case VIDEO -> {
+				var videoFile = (VideoFileEntity) existingFile;
+				var res       = extractXYResolution(file);
+				videoFile.setWidth(res.width);
+				videoFile.setHeight(res.height);
+				videoFile.setFrameRate(extractFrameRate(file));
+				videoFile.setDuration(extractAudioVideoDuration(file));
+				videoFile.setCodec(extractVideoCodec(file));
+			}
+			default -> {
+			}
+		}
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -20,6 +20,9 @@
   already exist (`DirectoryProcessorService.processExportDirectory`).
 - Publishing runs through `PublishService`: it resolves the derivative file from `export_files`, optionally resizes images, builds `FileIngestRequest`, and
   uploads to Vempain Admin.
+- Periodic modified-file refresh runs in `UpdatedFileRefreshSchedulerService`: it checks `files` rows against filesystem mtime since `scheduler_checkpoint`,
+  verifies content changes by SHA-256, updates file metadata/type tables via `DirectoryProcessorService.refreshExistingOriginalFile`, refreshes linked
+  `export_files`, and re-publishes site files only when `files.site_file_published` is known true.
 - `publishAllFileGroups()` pages through groups with the native-query search in `FileGroupRepositoryImpl`, then calls `PublishService` through the Spring proxy
   so `@Async` works. Progress is only in-memory via `PublishProgressStore`.
 - GPS privacy is business logic here: `PublishService` only includes `fileEntity.getGpsLocation()` when `LocationService.isGuardedLocation(...)` says it is

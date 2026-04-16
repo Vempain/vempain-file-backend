@@ -89,6 +89,9 @@ public abstract class FileEntity extends AbstractVempainEntity {
 	@Column(name = "gps_timestamp")
 	private Instant gpsTimestamp;
 
+	@Column(name = "site_file_published")
+	private Boolean siteFilePublished;
+
 	// Replace raw FK id with relation
 	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "gps_location_id")

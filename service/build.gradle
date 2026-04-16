@@ -64,7 +64,7 @@ dependencies {
 	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${springBootVersion}"
 	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
 	// https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui
-	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 	// https://mvnrepository.com/artifact/jakarta.xml.bind/jakarta.xml.bind-api
 	implementation "jakarta.xml.bind:jakarta.xml.bind-api:4.0.5"
 	// https://mvnrepository.com/artifact/jakarta.annotation/jakarta.annotation-api

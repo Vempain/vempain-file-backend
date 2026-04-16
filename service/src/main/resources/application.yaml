@@ -105,6 +105,9 @@ vempain:
     admin-backend-password: override-me
   site-image-size: 1400
   site-video-size: 720p
+  refresh-updated-files:
+    enabled: true
+    cron: "0 */10 * * * *"
 
 ---
 ### Local machine ###

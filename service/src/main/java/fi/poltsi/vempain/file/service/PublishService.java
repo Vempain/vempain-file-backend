@@ -9,6 +9,7 @@ import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
+import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
@@ -248,6 +249,104 @@ public class PublishService {
 	 */
 	public long countFilesInGroup(long fileGroupId) {
 		return fileGroupRepository.countById(fileGroupId);
+	}
+
+	@Transactional
+	public boolean republishSiteFile(FileEntity fileEntity) {
+		if (fileEntity == null) {
+			return false;
+		}
+
+		var exportFilePath = resolveExportedPath(fileEntity.getId());
+		if (exportFilePath == null || !Files.exists(exportFilePath)) {
+			log.debug("No exported file found on disk for file id {}", fileEntity.getId());
+			return false;
+		}
+
+		Path uploadPath       = exportFilePath;
+		Path tempPathToDelete = null;
+
+		try {
+			var metadataList = metadataRepository.findByFile(fileEntity);
+			var metadataJson = collectStandardMetadataAsJson(metadataList, fileEntity);
+			var siteFileName = fileEntity.getFilename();
+
+			Dimension imageVideoDimensions = null;
+			if (fileEntity.getFileType()
+			              .equals(FileTypeEnum.IMAGE)) {
+				Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-refresh-", "." + exportFileType);
+				imageVideoDimensions = imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
+				tempPathToDelete     = tempFile;
+				uploadPath           = tempFile;
+
+				int suffixIndex = siteFileName.lastIndexOf('.');
+				if (suffixIndex > 0) {
+					siteFileName = siteFileName.substring(0, suffixIndex) + "." + exportFileType;
+				}
+			}
+
+			var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(uploadPath.toFile());
+			var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
+
+			var copyrightResponse = CopyrightResponse.builder()
+			                                         .creatorName(fileEntity.getCreatorName())
+			                                         .creatorEmail(fileEntity.getCreatorEmail())
+			                                         .creatorCountry(fileEntity.getCreatorCountry())
+			                                         .creatorUrl(fileEntity.getCreatorUrl())
+			                                         .rightsHolder(fileEntity.getRightsHolder())
+			                                         .rightsTerms(fileEntity.getRightsTerms())
+			                                         .rightsUrl(fileEntity.getRightsUrl())
+			                                         .build();
+
+			LocationResponse locationResponse = null;
+			if (fileEntity.getGpsLocation() != null && !locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
+				locationResponse = fileEntity.getGpsLocation()
+				                             .toResponse();
+			}
+
+			var fileIngestRequest = FileIngestRequest.builder()
+			                                         .sortOrder(0)
+			                                         .fileName(siteFileName)
+			                                         .filePath(normalizeIngestPath(fileEntity.getFilePath()))
+			                                         .mimeType(mimetype)
+			                                         .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
+			                                         .metadata(metadataJson)
+			                                         .sha256sum(computeSha256(uploadPath.toFile()))
+			                                         .originalDateTime(fileEntity.getOriginalDatetime())
+			                                         .tags(tagService.getTagRequestsByFileId(fileEntity.getId()))
+			                                         .location(locationResponse)
+			                                         .copyright(copyrightResponse)
+			                                         .build();
+
+			if (imageVideoDimensions != null) {
+				fileIngestRequest.setWidth(imageVideoDimensions.width);
+				fileIngestRequest.setHeight(imageVideoDimensions.height);
+			}
+			if (fileEntity.getFileType()
+			              .equals(FileTypeEnum.VIDEO)) {
+				fileIngestRequest.setLength(((VideoFileEntity) fileEntity).getDuration());
+			} else if (fileEntity.getFileType()
+			                     .equals(FileTypeEnum.AUDIO)) {
+				fileIngestRequest.setLength(((AudioFileEntity) fileEntity).getDuration());
+			} else if (fileEntity.getFileType()
+			                     .equals(FileTypeEnum.DOCUMENT)) {
+				fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
+			}
+
+			vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+			return true;
+		} catch (Exception e) {
+			log.warn("Failed to republish site file for file id {}", fileEntity.getId(), e);
+			return false;
+		} finally {
+			if (tempPathToDelete != null) {
+				try {
+					Files.deleteIfExists(tempPathToDelete);
+				} catch (IOException e) {
+					log.warn("Failed to delete temporary refresh file {}", tempPathToDelete, e);
+				}
+			}
+		}
 	}
 
 	/**

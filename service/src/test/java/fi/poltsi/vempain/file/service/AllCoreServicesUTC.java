@@ -10,6 +10,7 @@ import fi.poltsi.vempain.file.api.request.PathCompletionRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
+import fi.poltsi.vempain.file.feign.VempainAdminFileClient;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
@@ -85,6 +86,8 @@ class AllCoreServicesUTC {
 	private GpsLocationRepository                                  gpsLocationRepository;
 	@Mock
 	private VempainAdminFileIngestClient                           ingestClient;
+	@Mock
+	private VempainAdminFileClient                                 fileClient;
 	@Mock
 	private ObjectMapper                                           objectMapper;
 	@Mock
@@ -191,7 +194,7 @@ class AllCoreServicesUTC {
 
 	@Test
 	void vempainAdminServiceUTC_throwsOnNon2xx() {
-		var service = new VempainAdminService(ingestClient, objectMapper);
+		var service = new VempainAdminService(ingestClient, fileClient, objectMapper);
 		var request = FileIngestRequest.builder()
 		                               .fileName("a.jpg")
 		                               .mimeType("image/jpeg")

@@ -17,6 +17,8 @@ vempain:
   original-root-directory: /var/tmp
   export-root-directory: /var/tmp
   export-file-type: jpeg
+  refresh-updated-files:
+    enabled: false
   cors:
     allowed-origins: "${vempain.app.frontend-url},http://localhost:8081"
     cors-pattern: '/**'

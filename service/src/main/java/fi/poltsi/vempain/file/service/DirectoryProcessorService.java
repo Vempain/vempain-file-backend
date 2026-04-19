@@ -26,6 +26,7 @@ import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
+import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
@@ -87,6 +88,12 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractLabel;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbum;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicArtist;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicGenre;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTitle;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackNumber;
+import static fi.poltsi.vempain.file.tools.MetadataTool.hasMusicMetadata;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDateTime;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDocumentId;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalSecondFraction;
@@ -310,6 +317,7 @@ public class DirectoryProcessorService {
 			case ICON -> new IconFileEntity();
 			case IMAGE -> new ImageFileEntity();
 			case INTERACTIVE -> new InteractiveFileEntity();
+			case MUSIC -> new MusicFileEntity();
 			case THUMB -> new ThumbFileEntity();
 			case VECTOR -> new VectorFileEntity();
 			case VIDEO -> new VideoFileEntity();
@@ -435,6 +443,12 @@ public class DirectoryProcessorService {
 		var fileTypeEnum = FileTypeEnum.getFileTypeByMimetype(mimetype);
 		log.debug("Determined file type: {}", fileTypeEnum);
 
+		// Upgrade AUDIO to MUSIC if the file has music-specific metadata
+		if (fileTypeEnum == FileTypeEnum.AUDIO && hasMusicMetadata(jsonObject)) {
+			log.debug("Audio file has music metadata, upgrading type to MUSIC: {}", file.getName());
+			fileTypeEnum = FileTypeEnum.MUSIC;
+		}
+
 		if (fileTypeEnum == FileTypeEnum.UNKNOWN) {
 			log.warn("Unsupported file type: {}", file.getName());
 			return Boolean.FALSE;
@@ -466,6 +480,21 @@ public class DirectoryProcessorService {
 				audioFile.setChannels(extractAudioChannels(file));
 				fileRepository.save(audioFile);
 				linkFileToGroup(audioFile, fileGroup);
+			}
+			case MUSIC -> {
+				var musicFile = (MusicFileEntity) fileEntity;
+				musicFile.setDuration(extractAudioVideoDuration(file));
+				musicFile.setBitRate(extractAudioBitRate(file));
+				musicFile.setSampleRate(extractAudioSampleRate(file));
+				musicFile.setCodec(extractAudioCodec(file));
+				musicFile.setChannels(extractAudioChannels(file));
+				musicFile.setArtist(extractMusicArtist(jsonObject));
+				musicFile.setAlbum(extractMusicAlbum(jsonObject));
+				musicFile.setTrackName(extractMusicTitle(jsonObject));
+				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
+				musicFile.setGenre(extractMusicGenre(jsonObject));
+				fileRepository.save(musicFile);
+				linkFileToGroup(musicFile, fileGroup);
 			}
 			case BINARY -> {
 				var binary = (BinaryFileEntity) fileEntity;
@@ -725,6 +754,19 @@ public class DirectoryProcessorService {
 				audioFile.setSampleRate(extractAudioSampleRate(file));
 				audioFile.setCodec(extractAudioCodec(file));
 				audioFile.setChannels(extractAudioChannels(file));
+			}
+			case MUSIC -> {
+				var musicFile = (MusicFileEntity) existingFile;
+				musicFile.setDuration(extractAudioVideoDuration(file));
+				musicFile.setBitRate(extractAudioBitRate(file));
+				musicFile.setSampleRate(extractAudioSampleRate(file));
+				musicFile.setCodec(extractAudioCodec(file));
+				musicFile.setChannels(extractAudioChannels(file));
+				musicFile.setArtist(extractMusicArtist(jsonObject));
+				musicFile.setAlbum(extractMusicAlbum(jsonObject));
+				musicFile.setTrackName(extractMusicTitle(jsonObject));
+				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
+				musicFile.setGenre(extractMusicGenre(jsonObject));
 			}
 			case BINARY -> {
 				var binary = (BinaryFileEntity) existingFile;

@@ -13,6 +13,7 @@ public enum FileTypeEnum {
 	ARCHIVE("(Un)Compressed archive files", "archive"),
 	AUDIO("Audio files", "audio"),
 	BINARY("Binary file", "binary"),
+	MUSIC("Music files with artist/album/track metadata", "music"),
 	DATA("Various data files, binary or ascii", "data"),
 	DOCUMENT("Document files", "document"),
 	EXECUTABLE("Executable files including scripts", "executable"),

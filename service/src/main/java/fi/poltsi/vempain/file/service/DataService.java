@@ -142,8 +142,13 @@ public class DataService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Directory path must not be empty");
 		}
 
-		// Normalise: ensure leading slash, no trailing slash
-		var normPath = "/" + directoryPath.replaceAll("^/+|/+$", "");
+		// Normalise: strip leading/trailing slash characters, then re-add one leading slash.
+		// Uses simple character-by-character scanning to avoid ReDoS risk with complex regex.
+		int start = 0;
+		int end   = directoryPath.length();
+		while (start < end && directoryPath.charAt(start) == '/') start++;
+		while (end > start && directoryPath.charAt(end - 1) == '/') end--;
+		var normPath = "/" + directoryPath.substring(start, end);
 		log.info("Generating GPS time-series dataset for directory: {}", normPath);
 
 		var images = imageFileRepository.findByFilePathWithGpsOrderedByTime(normPath);
@@ -163,16 +168,48 @@ public class DataService {
 	/**
 	 * Derives a valid data-store identifier from the directory path.
 	 * Identifier rules: starts with a-z, only a-z0-9_ allowed.
+	 *
+	 * <p>Uses only simple, non-backtracking regex patterns to avoid ReDoS risk.</p>
 	 */
 	String buildGpsIdentifier(String path) {
-		var cleaned = path.toLowerCase()
-						  .replaceAll("^[^a-z]+", "")   // strip leading non-alpha
-						  .replaceAll("[^a-z0-9_/]", "_") // replace invalid chars
-						  .replace('/', '_')              // slashes → underscore
-						  .replaceAll("_+", "_")          // collapse multiple underscores
-						  .replaceAll("_$", "");          // strip trailing underscore
-		var identifier = GPS_IDENTIFIER_PREFIX + cleaned;
-		// Ensure total length is reasonable (Admin identifier max is not specified but keep it sane)
+		// Lower-case and replace every non-alphanumeric/underscore/slash character with '_'
+		var lower    = path.toLowerCase();
+		var sb       = new StringBuilder(lower.length());
+		for (char c : lower.toCharArray()) {
+			if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+				sb.append(c);
+			} else {
+				sb.append('_');
+			}
+		}
+		// Collapse consecutive underscores (simple linear scan, no regex)
+		var collapsed = new StringBuilder();
+		boolean prevUnderscore = false;
+		for (int i = 0; i < sb.length(); i++) {
+			char c = sb.charAt(i);
+			if (c == '_') {
+				if (!prevUnderscore) {
+					collapsed.append(c);
+				}
+				prevUnderscore = true;
+			} else {
+				collapsed.append(c);
+				prevUnderscore = false;
+			}
+		}
+		// Strip leading characters until we find an [a-z] start
+		var str = collapsed.toString();
+		int alphaStart = 0;
+		while (alphaStart < str.length() && !(str.charAt(alphaStart) >= 'a' && str.charAt(alphaStart) <= 'z')) {
+			alphaStart++;
+		}
+		str = alphaStart < str.length() ? str.substring(alphaStart) : "dir";
+		// Strip trailing underscore
+		if (!str.isEmpty() && str.charAt(str.length() - 1) == '_') {
+			str = str.substring(0, str.length() - 1);
+		}
+		var identifier = GPS_IDENTIFIER_PREFIX + str;
+		// Ensure total length is reasonable
 		if (identifier.length() > 60) {
 			identifier = identifier.substring(0, 60);
 		}
@@ -256,19 +293,13 @@ public class DataService {
 	 * After creation/update, publishes the dataset to the site database.
 	 */
 	private DataResponse createOrUpdate(DataRequest request) {
-		DataResponse dataResponse;
 		try {
-			// Try to update first (the Admin side returns 404 if not found)
-			var updateResponse = vempainAdminDataClient.updateDataSet(request);
-			if (updateResponse != null && updateResponse.getStatusCode().is2xxSuccessful()) {
-				log.debug("Updated existing dataset: {}", request.getIdentifier());
-				dataResponse = updateResponse.getBody();
-			} else {
-				dataResponse = create(request);
-			}
+			// Try to update first (the Admin side throws FeignException.NotFound if dataset doesn't exist)
+			vempainAdminDataClient.updateDataSet(request);
+			log.debug("Updated existing dataset: {}", request.getIdentifier());
 		} catch (FeignException.NotFound e) {
 			log.debug("Dataset not found, creating: {}", request.getIdentifier());
-			dataResponse = create(request);
+			create(request);
 		} catch (FeignException e) {
 			log.error("Failed to create/update dataset '{}': status={}, msg={}",
 					  request.getIdentifier(), e.status(), e.getMessage());

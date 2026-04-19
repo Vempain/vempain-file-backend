@@ -287,6 +287,118 @@ public class MetadataTool {
 		return Integer.parseInt(getTagValue(output, "AudioChannels"));
 	}
 
+	/**
+	 * Extract the artist/performer from audio file metadata (ID3, Vorbis, etc.)
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Artist string or null if not found
+	 */
+	public static String extractMusicArtist(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Artist", "TPE1", "TPE2", "AlbumArtist", "Performer"));
+		locations.put("Vorbis", List.of("Artist", "Performer", "AlbumArtist"));
+		locations.put("iTunes", List.of("Artist"));
+		locations.put("QuickTime", List.of("Artist", "TPE1"));
+		locations.put("RIFF", List.of("Artist", "IART"));
+		locations.put("XMP-dm", List.of("Artist", "AlbumArtist"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the album name from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Album name string or null if not found
+	 */
+	public static String extractMusicAlbum(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Album", "TALB"));
+		locations.put("Vorbis", List.of("Album"));
+		locations.put("iTunes", List.of("Album"));
+		locations.put("QuickTime", List.of("Album", "TALB"));
+		locations.put("RIFF", List.of("Product", "IPRD"));
+		locations.put("XMP-dm", List.of("Album"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the track title from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Track title string or null if not found
+	 */
+	public static String extractMusicTitle(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Title", "TIT2", "TIT1"));
+		locations.put("Vorbis", List.of("Title"));
+		locations.put("iTunes", List.of("Title"));
+		locations.put("QuickTime", List.of("Title", "TIT2"));
+		locations.put("RIFF", List.of("Name", "INAM"));
+		locations.put("XMP-dm", List.of("TrackName"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the track number from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Track number or null if not found or not parseable
+	 */
+	public static Integer extractMusicTrackNumber(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("TrackNumber", "TRCK"));
+		locations.put("Vorbis", List.of("Tracknumber", "Track"));
+		locations.put("iTunes", List.of("TrackNumber"));
+		locations.put("QuickTime", List.of("TrackNumber", "TRCK"));
+		locations.put("XMP-dm", List.of("TrackNumber"));
+
+		var trackStr = extractJsonString(jsonObject, locations);
+		if (trackStr == null || trackStr.isBlank()) {
+			return null;
+		}
+		// Track may be in format "1/12" (track/total); take only the track part
+		var parts = trackStr.split("/");
+		try {
+			return Integer.parseInt(parts[0].trim());
+		} catch (NumberFormatException e) {
+			log.debug("Could not parse track number from: {}", trackStr);
+			return null;
+		}
+	}
+
+	/**
+	 * Extract the genre from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Genre string or null if not found
+	 */
+	public static String extractMusicGenre(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Genre", "TCON"));
+		locations.put("Vorbis", List.of("Genre"));
+		locations.put("iTunes", List.of("Genre"));
+		locations.put("QuickTime", List.of("Genre", "TCON"));
+		locations.put("RIFF", List.of("Genre", "IGNR"));
+		locations.put("XMP-dm", List.of("Genre"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Checks whether the given metadata JSON object contains music-specific metadata
+	 * (at minimum an artist or title field).
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return true if music metadata is present, false otherwise
+	 */
+	public static boolean hasMusicMetadata(JSONObject jsonObject) {
+		if (jsonObject == null) {
+			return false;
+		}
+		return extractMusicArtist(jsonObject) != null
+			   || extractMusicTitle(jsonObject) != null
+			   || extractMusicAlbum(jsonObject) != null;
+	}
+
 	public static int extractDocumentPageCount(File file) throws IOException {
 		var output = runExifTool(file, "-PageCount");
 		return Integer.parseInt(getTagValue(output, "PageCount"));

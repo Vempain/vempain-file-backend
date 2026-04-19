@@ -65,3 +65,59 @@
 - The database schema is Flyway-managed; if you change entities or repository SQL, update `service/src/main/resources/db/migration/**` and the native SQL in
   `FileGroupRepositoryImpl` together.
 
+## Music files and CSV dataset generation
+
+### MusicFileEntity
+
+Music files are a specialised subtype of `AudioFileEntity`. When `DirectoryProcessorService` processes an audio MIME-type file it probes the metadata via
+`MetadataTool.hasMusicMetadata()` (checks for ID3/Vorbis artist, title, or album tags) and, if music metadata is present, stores the file as a
+`MusicFileEntity` (type `MUSIC`) instead of a plain `AudioFileEntity` (type `AUDIO`).
+
+Extra fields persisted in `music_files` (3-level JOINED inheritance: `files` → `audio_files` → `music_files`):
+`artist`, `album`, `track_name`, `track_number`, `genre`.
+
+Flyway migration: `V1002__music_files.sql`.
+
+### DataService and DataPublishAPI
+
+`DataService` generates CSV datasets on-demand and publishes them to Vempain Admin via `VempainAdminDataClient`
+(a Feign client extending `fi.poltsi.vempain.admin.rest.DataAPI`).
+
+Datasets are **ephemeral** — never stored in the file database. They are built at call time and sent straight to Admin.
+
+Two dataset types are supported:
+
+| Dataset | Endpoint | Identifier | CSV columns |
+|---------|----------|------------|-------------|
+| Music library | `POST /api/data-publish/music` | `music_library` | `artist, album, track_number, track_name, genre, duration_seconds` |
+| GPS time-series | `POST /api/data-publish/gps-timeseries/{directoryPath}` | `gps_timeseries_<path>` | `timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename` |
+
+#### Music dataset example
+
+```
+POST /api/data-publish/music
+```
+
+Reads all `MusicFileEntity` rows ordered by artist → album → track\_number, builds the CSV, and calls
+`DataAPI.createDataSet` / `updateDataSet` + `publishDataSet` on Vempain Admin.
+
+#### GPS time-series example
+
+```
+POST /api/data-publish/gps-timeseries/holidays_2024
+```
+
+Reads all `ImageFileEntity` rows whose `file_path` matches `/holidays/2024` and that have a non-null
+`gps_location`, ordered by GPS timestamp (falls back to original-datetime). The resulting CSV is
+published to Admin under identifier `gps_timeseries_holidays_2024`.
+
+The `directoryPath` parameter in the URL is the path segment **after** the leading slash. Slashes must
+not appear inside the segment (use underscores instead, or URL-encode). The service re-adds the leading
+`/` before querying the database.
+
+#### Create-or-update logic
+
+`DataService.createOrUpdate()` first attempts `PUT` (update). If the Admin service responds with 404 it
+falls back to `POST` (create). After a successful create/update it always calls the `publish` endpoint.
+
+

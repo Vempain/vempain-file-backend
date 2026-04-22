@@ -40,8 +40,17 @@ public class PathCompletionService {
 								   .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
 
 		try {
-			// Determine the working directory by joining the configured root with the request path.
-			var fullPath = Paths.get(rootDirectory, requestPath);
+			var rootPath = Paths.get(rootDirectory)
+								.normalize()
+								.toAbsolutePath();
+			var sanitizedRequestPath = requestPath.replaceFirst("^[\\\\/]+", "");
+			// Resolve user path against root and ensure it cannot escape the configured root directory.
+			var fullPath = rootPath.resolve(sanitizedRequestPath)
+							   .normalize();
+			if (!fullPath.startsWith(rootPath)) {
+				log.warn("Rejected path completion request outside configured root: {}", requestPath);
+				return new PathCompletionResponse(completions);
+			}
 
 			if (Files.exists(fullPath) && Files.isDirectory(fullPath)) {
 				// If an exact directory exists, list its immediate subdirectories.
@@ -66,7 +75,7 @@ public class PathCompletionService {
 			} else {
 				// Else, perform prefix matching in the parent directory.
 				var parentPath = fullPath.getParent();
-				if (parentPath != null && Files.exists(parentPath)) {
+				if (parentPath != null && parentPath.startsWith(rootPath) && Files.exists(parentPath)) {
 					var prefix = fullPath.getFileName()
 										 .toString();
 					try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath)) {

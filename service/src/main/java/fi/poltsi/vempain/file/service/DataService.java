@@ -72,14 +72,20 @@ public class DataService {
 	 */
 	String buildMusicCsv(List<MusicFileEntity> musicFiles) {
 		var sb = new StringBuilder();
-		sb.append("artist,album,track_number,track_name,genre,duration_seconds\n");
+		sb.append("artist,album_artist,album,year,track_number,track_total,track_name,genre,duration_seconds\n");
 
 		for (var f : musicFiles) {
 			sb.append(escapeCsv(f.getArtist()))
 			  .append(',')
+			  .append(escapeCsv(f.getAlbumArtist()))
+			  .append(',')
 			  .append(escapeCsv(f.getAlbum()))
 			  .append(',')
+			  .append(f.getYear() != null ? f.getYear() : "")
+			  .append(',')
 			  .append(f.getTrackNumber() != null ? f.getTrackNumber() : "")
+			  .append(',')
+			  .append(f.getTrackTotal() != null ? f.getTrackTotal() : "")
 			  .append(',')
 			  .append(escapeCsv(f.getTrackName()))
 			  .append(',')
@@ -96,30 +102,42 @@ public class DataService {
 		request.setIdentifier(MUSIC_IDENTIFIER);
 		request.setType("tabulated");
 		request.setDescription("Music library — all music files with artist, album, track, genre and duration");
-		request.setColumnDefinitions(
-				"[{\"name\":\"artist\",\"type\":\"string\"},"
-				+ "{\"name\":\"album\",\"type\":\"string\"},"
-				+ "{\"name\":\"track_number\",\"type\":\"integer\"},"
-				+ "{\"name\":\"track_name\",\"type\":\"string\"},"
-				+ "{\"name\":\"genre\",\"type\":\"string\"},"
-				+ "{\"name\":\"duration_seconds\",\"type\":\"integer\"}]"
-		);
-		request.setCreateSql(
-				"CREATE TABLE website_data__" + MUSIC_IDENTIFIER
-				+ " (id BIGSERIAL PRIMARY KEY, artist VARCHAR(255), album VARCHAR(255),"
-				+ " track_number INTEGER, track_name VARCHAR(255), genre VARCHAR(100),"
-				+ " duration_seconds INTEGER)"
-		);
-		request.setFetchAllSql(
-				"SELECT id, artist, album, track_number, track_name, genre, duration_seconds"
-				+ " FROM website_data__" + MUSIC_IDENTIFIER
-				+ " ORDER BY artist, album, track_number"
-		);
-		request.setFetchSubsetSql(
-				"SELECT id, artist, album, track_number, track_name, genre, duration_seconds"
-				+ " FROM website_data__" + MUSIC_IDENTIFIER
-				+ " WHERE artist = :artist ORDER BY album, track_number"
-		);
+		request.setColumnDefinitions("""
+											 [{"name":"artist","type":"string"},
+											  {"name":"album_artist","type":"string"},
+											  {"name":"album","type":"string"},
+											  {"name":"year","type":"integer"},
+											  {"name":"track_number","type":"integer"},
+											  {"name":"track_total","type":"integer"},
+											  {"name":"track_name","type":"string"},
+											  {"name":"genre","type":"string"},
+											  {"name":"duration_seconds","type":"integer"}]
+											 """);
+		request.setCreateSql("""
+									 CREATE TABLE website_data__%s (
+									     id BIGSERIAL PRIMARY KEY,
+									     artist VARCHAR(255),
+									     album_artist VARCHAR(255),
+									     album VARCHAR(255),
+									     year INTEGER,
+									     track_number INTEGER,
+									     track_total INTEGER,
+									     track_name VARCHAR(255),
+									     genre VARCHAR(100),
+									     duration_seconds INTEGER
+									 )
+									 """.formatted(MUSIC_IDENTIFIER));
+		request.setFetchAllSql("""
+									   SELECT id, artist, album_artist, album, year, track_number, track_total, track_name, genre, duration_seconds
+									   FROM website_data__%s
+									   ORDER BY artist, album, track_number
+									   """.formatted(MUSIC_IDENTIFIER));
+		request.setFetchSubsetSql("""
+										  SELECT id, artist, album_artist, album, year, track_number, track_total, track_name, genre, duration_seconds
+										  FROM website_data__%s
+										  WHERE artist = :artist
+										  ORDER BY album, track_number
+										  """.formatted(MUSIC_IDENTIFIER));
 		request.setGenerated(Instant.now());
 		request.setCsvData(csvData);
 		return request;
@@ -148,7 +166,7 @@ public class DataService {
 		int end   = directoryPath.length();
 		while (start < end && directoryPath.charAt(start) == '/') start++;
 		while (end > start && directoryPath.charAt(end - 1) == '/') end--;
-		var normPath = "/" + directoryPath.substring(start, end);
+		var normPath = "/%s".formatted(directoryPath.substring(start, end));
 		log.info("Generating GPS time-series dataset for directory: {}", normPath);
 
 		var images = imageFileRepository.findByFilePathWithGpsOrderedByTime(normPath);
@@ -156,7 +174,10 @@ public class DataService {
 		if (images.isEmpty()) {
 			log.warn("No GPS-tagged images found in directory: {}", normPath);
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-											  "No GPS-tagged images found in directory: " + normPath);
+			                                  """
+													  No GPS-tagged images found in directory: %s
+													  """.formatted(normPath)
+			                                             .strip());
 		}
 
 		var identifier = buildGpsIdentifier(normPath);
@@ -208,7 +229,7 @@ public class DataService {
 		if (!str.isEmpty() && str.charAt(str.length() - 1) == '_') {
 			str = str.substring(0, str.length() - 1);
 		}
-		var identifier = GPS_IDENTIFIER_PREFIX + str;
+		var identifier = "%s%s".formatted(GPS_IDENTIFIER_PREFIX, str);
 		// Ensure total length is reasonable
 		if (identifier.length() > 60) {
 			identifier = identifier.substring(0, 60);
@@ -250,35 +271,46 @@ public class DataService {
 	}
 
 	private DataRequest buildGpsDataRequest(String identifier, String path, String csvData) {
-		var tableBase = "website_data__" + identifier;
+		var tableBase = "website_data__%s".formatted(identifier);
 		var request   = new DataRequest();
 		request.setIdentifier(identifier);
 		request.setType("time_series");
-		request.setDescription("GPS time-series for directory: " + path);
-		request.setColumnDefinitions(
-				"[{\"name\":\"timestamp\",\"type\":\"string\"},"
-				+ "{\"name\":\"latitude\",\"type\":\"decimal\"},"
-				+ "{\"name\":\"latitude_ref\",\"type\":\"string\"},"
-				+ "{\"name\":\"longitude\",\"type\":\"decimal\"},"
-				+ "{\"name\":\"longitude_ref\",\"type\":\"string\"},"
-				+ "{\"name\":\"altitude\",\"type\":\"decimal\"},"
-				+ "{\"name\":\"filename\",\"type\":\"string\"}]"
-		);
-		request.setCreateSql(
-				"CREATE TABLE " + tableBase
-				+ " (id BIGSERIAL PRIMARY KEY, timestamp TIMESTAMP,"
-				+ " latitude DECIMAL(15,5), latitude_ref CHAR(1),"
-				+ " longitude DECIMAL(15,5), longitude_ref CHAR(1),"
-				+ " altitude DOUBLE PRECISION, filename VARCHAR(255))"
-		);
-		request.setFetchAllSql(
-				"SELECT id, timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename"
-				+ " FROM " + tableBase + " ORDER BY timestamp ASC"
-		);
-		request.setFetchSubsetSql(
-				"SELECT id, timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename"
-				+ " FROM " + tableBase + " WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp ASC"
-		);
+		request.setDescription("""
+									   GPS time-series for directory: %s
+									   """.formatted(path)
+		                                  .strip());
+		request.setColumnDefinitions("""
+											 [{"name":"timestamp","type":"string"},
+											  {"name":"latitude","type":"decimal"},
+											  {"name":"latitude_ref","type":"string"},
+											  {"name":"longitude","type":"decimal"},
+											  {"name":"longitude_ref","type":"string"},
+											  {"name":"altitude","type":"decimal"},
+											  {"name":"filename","type":"string"}]
+											 """);
+		request.setCreateSql("""
+									 CREATE TABLE %s (
+									     id BIGSERIAL PRIMARY KEY,
+									     timestamp TIMESTAMP,
+									     latitude DECIMAL(15,5),
+									     latitude_ref CHAR(1),
+									     longitude DECIMAL(15,5),
+									     longitude_ref CHAR(1),
+									     altitude DOUBLE PRECISION,
+									     filename VARCHAR(255)
+									 )
+									 """.formatted(tableBase));
+		request.setFetchAllSql("""
+									   SELECT id, timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename
+									   FROM %s
+									   ORDER BY timestamp ASC
+									   """.formatted(tableBase));
+		request.setFetchSubsetSql("""
+										  SELECT id, timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename
+										  FROM %s
+										  WHERE timestamp BETWEEN :from AND :to
+										  ORDER BY timestamp ASC
+										  """.formatted(tableBase));
 		request.setGenerated(Instant.now());
 		request.setCsvData(csvData);
 		return request;
@@ -293,26 +325,39 @@ public class DataService {
 	 * After creation/update, publishes the dataset to the site database.
 	 */
 	private DataResponse createOrUpdate(DataRequest request) {
+		var alreadyExists = true;
+
 		try {
-			// Try to update first (the Admin side throws FeignException.NotFound if dataset doesn't exist)
-			vempainAdminDataClient.updateDataSet(request);
-			log.debug("Updated existing dataset: {}", request.getIdentifier());
+			log.debug("Checking if the identifier {} already exists on Venpain Admin", request.getIdentifier());
+			vempainAdminDataClient.getDataSetByIdentifier(request.getIdentifier());
 		} catch (FeignException.NotFound e) {
-			log.debug("Dataset not found, creating: {}", request.getIdentifier());
-			create(request);
-		} catch (FeignException e) {
-			log.error("Failed to create/update dataset '{}': status={}, msg={}",
-					  request.getIdentifier(), e.status(), e.getMessage());
-			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-											  "Failed to create/update dataset in Admin service: " + e.getMessage(), e);
+			alreadyExists = false;
 		}
 
-		return publish(request.getIdentifier());
+		if (alreadyExists) {
+			try {
+				log.debug("Updating existing dataset: {}", request.getIdentifier());
+				return vempainAdminDataClient.updateDataSet(request)
+				                             .getBody();
+			} catch (FeignException e) {
+				log.error("Failed to create/update dataset '{}': status={}, msg={}",
+				          request.getIdentifier(), e.status(), e.getMessage(), e);
+				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+				                                  """
+														  Failed to create/update dataset in Admin service: %s
+														  """.formatted(e.getMessage())
+				                                             .strip(), e);
+			}
+		} else {
+			log.debug("identifier {} did not exist on Vempain Admin, creating it", request.getIdentifier());
+			return create(request);
+		}
 	}
 
 	private DataResponse create(DataRequest request) {
 		try {
 			var createResponse = vempainAdminDataClient.createDataSet(request);
+
 			if (createResponse == null || !createResponse.getStatusCode().is2xxSuccessful()) {
 				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
 												  "Failed to create dataset in Admin service");
@@ -323,24 +368,10 @@ public class DataService {
 			log.error("Failed to create dataset '{}': status={}, msg={}",
 					  request.getIdentifier(), e.status(), e.getMessage());
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-											  "Failed to create dataset in Admin service: " + e.getMessage(), e);
-		}
-	}
-
-	private DataResponse publish(String identifier) {
-		try {
-			var publishResponse = vempainAdminDataClient.publishDataSet(identifier);
-			if (publishResponse == null || !publishResponse.getStatusCode().is2xxSuccessful()) {
-				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-												  "Failed to publish dataset in Admin service");
-			}
-			log.info("Published dataset: {}", identifier);
-			return publishResponse.getBody();
-		} catch (FeignException e) {
-			log.error("Failed to publish dataset '{}': status={}, msg={}",
-					  identifier, e.status(), e.getMessage());
-			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-											  "Failed to publish dataset in Admin service: " + e.getMessage(), e);
+			                                  """
+													  Failed to create dataset in Admin service: %s
+													  """.formatted(e.getMessage())
+			                                             .strip(), e);
 		}
 	}
 
@@ -357,7 +388,7 @@ public class DataService {
 			return "";
 		}
 		if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-			return "\"" + value.replace("\"", "\"\"") + "\"";
+			return "\"%s\"".formatted(value.replace("\"", "\"\""));
 		}
 		return value;
 	}

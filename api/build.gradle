@@ -41,6 +41,7 @@ dependencies {
 	api "org.springframework.boot:spring-boot-starter-validation:${springBootVersion}"
 	// This needs to be built first in vempain-auth
 	api "fi.poltsi.vempain:vempain-auth-api:${vempainAuthVersion}"
+	api "fi.poltsi.vempain:vempain-admin-backend-api:${vempainAdminVersion}"
 	implementation "io.swagger.core.v3:swagger-annotations:${swaggerVersion}"
 	testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
 	testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"

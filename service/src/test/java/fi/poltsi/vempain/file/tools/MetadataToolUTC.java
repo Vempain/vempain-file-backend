@@ -1,18 +1,17 @@
 package fi.poltsi.vempain.file.tools;
 
-import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Slf4j
 class MetadataToolUTC {
 
 	private static final double DELTA = 1e-6;
@@ -141,7 +140,6 @@ class MetadataToolUTC {
 			root.put("GPS", gpsObj);
 		}
 
-		log.info("Scenario {}: input JSON: {}", scenario, root.toString());
 		var entity = MetadataTool.extractGpsData(root);
 
 		if (expectedLat == null) {
@@ -190,7 +188,6 @@ class MetadataToolUTC {
 	 * but accepts a string directly instead of requiring a file.
 	 */
 	private double parseDurationStringHelper(String durationStr) {
-		log.info("Parsing duration string: '{}'", durationStr);
 		// If the string is empty or null, return 0
 		if (durationStr == null || durationStr.isBlank()) {
 			return 0.0;
@@ -230,6 +227,166 @@ class MetadataToolUTC {
 
 			// It's already in seconds format (possibly with decimal)
 			return Double.parseDouble(durationStr);
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"0:04:17,257",
+			"0:02:50 (approx),170",
+			"24.47 s,24.47",
+			"42.5,42.5",
+			"100:00:00,99999",
+			"'',0"
+	})
+	void durationFromString_handlesExifVariants(String input, double expectedSeconds) {
+		var duration = MetadataTool.durationFromString(input);
+		assertEquals(expectedSeconds, duration.toMillis() / 1000.0, DELTA);
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"[{\"AudioBitrate\":\"280 kbps\"}], 0, 280",
+			"[{\"AvgBitrate\":\"764 kbps\"}], 0, 764",
+			"[{\"NominalBitrate\":\"1.4 Mbps\"}], 0, 1400",
+			"[{\"Duration\":\"0:04:17\"}], 32000000, 996"
+	})
+	void parseAudioBitRateKbps_usesFallbacks(String output, long fileSize, int expected) {
+		assertEquals(expected, MetadataTool.parseAudioBitRateKbps(output, fileSize));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"ID3,Artist,Motorhead,artist",
+			"ID3,Band,Various Artists,album_artist",
+			"ID3,Year,2005,year",
+			"ID3,Track,03/03,track_total",
+			"Vorbis,Album,Uurnapolyjen Paluu,album",
+			"Vorbis,Albumartist,Sur-Rur,album_artist",
+			"Vorbis,Date,2007,year",
+			"Vorbis,Title,Maisema,title",
+			"Vorbis,TrackNumber,03,track",
+			"Vorbis,Tracktotal,10,track_total",
+			"Vorbis,Genre,Punk Rock,genre",
+			"ROOT,Artist,Sur-Rur,artist"
+	})
+	void musicExtraction_handlesGroupedAndFlatMetadata(String group, String key, String value, String expectedField) {
+		var root = new JSONObject();
+		if ("ROOT".equals(group)) {
+			root.put(key, value);
+		} else {
+			root.put(group, new JSONObject().put(key, value));
+		}
+
+		switch (expectedField) {
+			case "artist" -> assertEquals(value, MetadataTool.extractMusicArtist(root));
+			case "album_artist" -> assertEquals(value, MetadataTool.extractMusicAlbumArtist(root));
+			case "album" -> assertEquals(value, MetadataTool.extractMusicAlbum(root));
+			case "year" -> assertEquals(Integer.parseInt(value), MetadataTool.extractMusicYear(root));
+			case "title" -> assertEquals(value, MetadataTool.extractMusicTitle(root));
+			case "track" -> assertEquals(Integer.parseInt(value), MetadataTool.extractMusicTrackNumber(root));
+			case "track_total" -> {
+				int expectedTotal = value.contains("/") ? Integer.parseInt(value.split("/")[1]) : Integer.parseInt(value);
+				assertEquals(expectedTotal, MetadataTool.extractMusicTrackTotal(root));
+			}
+			case "genre" -> assertEquals(value, MetadataTool.extractMusicGenre(root));
+			default -> throw new IllegalArgumentException("Unexpected field: " + expectedField);
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource(value = {
+			"03/10,3",
+			"Track 7,7",
+			"'',0",
+			"abc,0"
+	})
+	void extractMusicTrackNumber_parsesCommonFormats(String input, Integer expected) {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("TrackNumber", input));
+		assertEquals(expected, MetadataTool.extractMusicTrackNumber(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"10,10",
+			"0,0"
+	})
+	void extractMusicTrackNumber_handlesNumericJsonValues(int input, int expected) {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("TrackNumber", input));
+		assertEquals(expected, MetadataTool.extractMusicTrackNumber(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"TrackNumber,10,10",
+			"Tracknumber,11,11"
+	})
+	void extractMusicTrackNumber_supportsFlatAndVariantKeys(String key, int input, int expected) {
+		var root = new JSONObject().put(key, input);
+		assertEquals(expected, MetadataTool.extractMusicTrackNumber(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource(value = {
+			"03/10,10",
+			"Tracktotal 12,12",
+			"'',0",
+			"abc,0"
+	})
+	void extractMusicTrackTotal_parsesCommonFormats(String input, Integer expected) {
+		var root = new JSONObject().put("ID3", new JSONObject().put("Track", input));
+		assertEquals(expected, MetadataTool.extractMusicTrackTotal(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"10,10",
+			"0,0"
+	})
+	void extractMusicTrackTotal_handlesNumericJsonValues(int input, int expected) {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("Tracktotal", input));
+		assertEquals(expected, MetadataTool.extractMusicTrackTotal(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"2005,2005",
+			"2005-11-19,2005",
+			"'',0",
+			"unknown,0"
+	})
+	void extractMusicYear_parsesYearFromCommonFormats(String input, Integer expected) {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("Date", input));
+		assertEquals(expected, MetadataTool.extractMusicYear(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"Band,Various Artists",
+			"Artist,Bombers",
+			"Albumartist,Sur-Rur"
+	})
+	void extractMusicAlbumArtist_supportsDifferentTagNames(String key, String expected) {
+		var group = "Albumartist".equals(key) ? "Vorbis" : "ID3";
+		var root  = new JSONObject().put(group, new JSONObject().put(key, expected));
+		assertEquals(expected, MetadataTool.extractMusicAlbumArtist(root));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"Artist,yes",
+			"Title,yes",
+			"Album,yes",
+			"Genre,yes",
+			"Comment,no"
+	})
+	void hasMusicMetadata_detectsGenreAlso(String key, String expectedYesNo) {
+		var vorbis = new JSONObject().put(key, "X");
+		var root   = new JSONObject().put("Vorbis", vorbis);
+		if ("yes".equals(expectedYesNo)) {
+			assertTrue(MetadataTool.hasMusicMetadata(root));
+		} else {
+			assertFalse(MetadataTool.hasMusicMetadata(root));
 		}
 	}
 }

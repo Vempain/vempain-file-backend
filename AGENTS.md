@@ -61,6 +61,7 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 - JSON field names use snake_case (`@JsonNaming(SnakeCaseStrategy.class)` in DTOs)
 - Test class suffix `ITC` = integration test, `UTC` = unit test
+- After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
 - Background refresh of modified source files runs via `UpdatedFileRefreshSchedulerService` (`vempain.refresh-updated-files.*`)

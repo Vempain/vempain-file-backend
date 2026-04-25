@@ -50,7 +50,11 @@ class MusicFileControllerCTC extends AbstractControllerCTC {
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.id").value(TEST_ID))
 					.andExpect(jsonPath("$.file_type").value("MUSIC"))
-					.andExpect(jsonPath("$.artist").value("Test Artist"));
+					.andExpect(jsonPath("$.artist").value("Test Artist"))
+					.andExpect(jsonPath("$.album_artist").value("Various Artists"))
+					.andExpect(jsonPath("$.year").value(2005))
+					.andExpect(jsonPath("$.track_number").value(1))
+					.andExpect(jsonPath("$.track_total").value(12));
 		} finally {
 			deleteFileRow(TEST_ID);
 		}
@@ -91,7 +95,7 @@ class MusicFileControllerCTC extends AbstractControllerCTC {
 				"INSERT INTO audio_files (id, duration, bit_rate, sample_rate, codec, channels) VALUES (?, 240, 320000, 44100, 'MP3', 2)",
 				id);
 		jdbcTemplate.update(
-				"INSERT INTO music_files (id, artist, album, track_name, track_number, genre) VALUES (?, 'Test Artist', 'Test Album', 'Test Track', 1, 'Rock')",
+				"INSERT INTO music_files (id, artist, album_artist, album, year, track_name, track_number, track_total, genre) VALUES (?, 'Test Artist', 'Various Artists', 'Test Album', 2005, 'Test Track', 1, 12, 'Rock')",
 				id);
 	}
 }

@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
+import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.DataRequest;
 import fi.poltsi.vempain.admin.api.response.DataResponse;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
@@ -25,6 +26,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,16 +56,19 @@ class DataServiceUTC {
 	void buildMusicCsv_basicRow() {
 		var music = new MusicFileEntity();
 		music.setArtist("The Beatles");
+		music.setAlbumArtist("The Beatles");
 		music.setAlbum("Abbey Road");
+		music.setYear(1969);
 		music.setTrackNumber(1);
+		music.setTrackTotal(17);
 		music.setTrackName("Come Together");
 		music.setGenre("Rock");
 		music.setDuration(Duration.ofSeconds(259));
 
 		var csv = dataService.buildMusicCsv(List.of(music));
 
-		assertThat(csv).contains("artist,album,track_number,track_name,genre,duration_seconds");
-		assertThat(csv).contains("The Beatles,Abbey Road,1,Come Together,Rock,259");
+		assertThat(csv).contains("artist,album_artist,album,year,track_number,track_total,track_name,genre,duration_seconds");
+		assertThat(csv).contains("The Beatles,The Beatles,Abbey Road,1969,1,17,Come Together,Rock,259");
 	}
 
 	@Test
@@ -165,22 +171,22 @@ class DataServiceUTC {
 	void generateAndPublishMusicDataset_publishesCorrectIdentifier() {
 		var music = new MusicFileEntity();
 		music.setArtist("Miles Davis");
+		music.setAlbumArtist("Miles Davis");
 		music.setAlbum("Kind of Blue");
+		music.setYear(1959);
 		music.setTrackName("So What");
 		music.setTrackNumber(1);
+		music.setTrackTotal(5);
 		music.setGenre("Jazz");
 		music.setDuration(Duration.ofSeconds(565));
 
 		when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER))
+				.thenThrow(mock(FeignException.NotFound.class));
 
 		var dataResponse = new DataResponse();
 		dataResponse.setIdentifier(DataService.MUSIC_IDENTIFIER);
-		// Simulate update returning 404 (not found) and create returning a response
-		when(vempainAdminDataClient.updateDataSet(any(DataRequest.class)))
-				.thenThrow(feign.FeignException.NotFound.class);
 		when(vempainAdminDataClient.createDataSet(any(DataRequest.class)))
-				.thenReturn(ResponseEntity.ok(dataResponse));
-		when(vempainAdminDataClient.publishDataSet(DataService.MUSIC_IDENTIFIER))
 				.thenReturn(ResponseEntity.ok(dataResponse));
 
 		var result = dataService.generateAndPublishMusicDataset();
@@ -194,7 +200,16 @@ class DataServiceUTC {
 		var req = captor.getValue();
 		assertThat(req.getIdentifier()).isEqualTo(DataService.MUSIC_IDENTIFIER);
 		assertThat(req.getCreateSql()).startsWith("CREATE TABLE");
+		assertThat(req.getCreateSql()).contains("album_artist");
+		assertThat(req.getCreateSql()).contains("year");
+		assertThat(req.getCreateSql()).contains("track_total");
 		assertThat(req.getCsvData()).contains("Miles Davis");
+		assertThat(req.getCsvData()).contains("1959");
+		assertThat(req.getCsvData()).contains("album_artist");
+		assertThat(req.getCsvData()).contains("track_total");
+		verify(vempainAdminDataClient).getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER);
+		verify(vempainAdminDataClient, never()).updateDataSet(any(DataRequest.class));
+		verify(vempainAdminDataClient, never()).publishDataSet(any(String.class));
 	}
 
 	// -----------------------------------------------------------------------

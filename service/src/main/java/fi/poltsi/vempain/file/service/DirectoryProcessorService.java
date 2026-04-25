@@ -25,8 +25,8 @@ import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
-import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
+import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
@@ -89,11 +89,13 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbum;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbumArtist;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicArtist;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicGenre;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTitle;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackNumber;
-import static fi.poltsi.vempain.file.tools.MetadataTool.hasMusicMetadata;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackTotal;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicYear;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDateTime;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDocumentId;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalSecondFraction;
@@ -104,6 +106,7 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractSubjects;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractVectorLayersCount;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractVideoCodec;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractXYResolution;
+import static fi.poltsi.vempain.file.tools.MetadataTool.hasMusicMetadata;
 import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
@@ -489,9 +492,12 @@ public class DirectoryProcessorService {
 				musicFile.setCodec(extractAudioCodec(file));
 				musicFile.setChannels(extractAudioChannels(file));
 				musicFile.setArtist(extractMusicArtist(jsonObject));
+				musicFile.setAlbumArtist(extractMusicAlbumArtist(jsonObject));
 				musicFile.setAlbum(extractMusicAlbum(jsonObject));
+				musicFile.setYear(extractMusicYear(jsonObject));
 				musicFile.setTrackName(extractMusicTitle(jsonObject));
 				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
+				musicFile.setTrackTotal(extractMusicTrackTotal(jsonObject));
 				musicFile.setGenre(extractMusicGenre(jsonObject));
 				fileRepository.save(musicFile);
 				linkFileToGroup(musicFile, fileGroup);
@@ -763,9 +769,12 @@ public class DirectoryProcessorService {
 				musicFile.setCodec(extractAudioCodec(file));
 				musicFile.setChannels(extractAudioChannels(file));
 				musicFile.setArtist(extractMusicArtist(jsonObject));
+				musicFile.setAlbumArtist(extractMusicAlbumArtist(jsonObject));
 				musicFile.setAlbum(extractMusicAlbum(jsonObject));
+				musicFile.setYear(extractMusicYear(jsonObject));
 				musicFile.setTrackName(extractMusicTitle(jsonObject));
 				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
+				musicFile.setTrackTotal(extractMusicTrackTotal(jsonObject));
 				musicFile.setGenre(extractMusicGenre(jsonObject));
 			}
 			case BINARY -> {

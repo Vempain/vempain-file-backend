@@ -11,8 +11,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 
 @Tag(name = "Data publish API", description = "API for generating and publishing CSV datasets to Vempain Admin")
 public interface DataPublishAPI {
@@ -32,7 +32,7 @@ public interface DataPublishAPI {
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
-	@PostMapping(path = BASE_PATH + "/music", produces = MediaType.APPLICATION_JSON_VALUE)
+	@GetMapping(path = BASE_PATH + "/music", produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<DataResponse> publishMusicDataset();
 
 	@Operation(
@@ -51,6 +51,6 @@ public interface DataPublishAPI {
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
-	@PostMapping(path = BASE_PATH + "/gps-timeseries/{directoryPath}", produces = MediaType.APPLICATION_JSON_VALUE)
+	@GetMapping(path = BASE_PATH + "/gps-timeseries/{directoryPath}", produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<DataResponse> publishGpsTimeSeries(@PathVariable("directoryPath") String directoryPath);
 }

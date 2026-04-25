@@ -31,14 +31,23 @@ public class MusicFileEntity extends AudioFileEntity {
 	@Column(name = "artist")
 	private String artist;
 
+	@Column(name = "album_artist")
+	private String albumArtist;
+
 	@Column(name = "album")
 	private String album;
+
+	@Column(name = "year")
+	private Integer year;
 
 	@Column(name = "track_name")
 	private String trackName;
 
 	@Column(name = "track_number")
 	private Integer trackNumber;
+
+	@Column(name = "track_total")
+	private Integer trackTotal;
 
 	@Column(name = "genre")
 	private String genre;
@@ -59,9 +68,12 @@ public class MusicFileEntity extends AudioFileEntity {
 
 		// Populate music-specific fields
 		response.setArtist(getArtist());
+		response.setAlbumArtist(getAlbumArtist());
 		response.setAlbum(getAlbum());
+		response.setYear(getYear());
 		response.setTrackName(getTrackName());
 		response.setTrackNumber(getTrackNumber());
+		response.setTrackTotal(getTrackTotal());
 		response.setGenre(getGenre());
 
 		return response;

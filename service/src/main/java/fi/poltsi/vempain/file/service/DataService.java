@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Service responsible for generating CSV datasets from the file database and
@@ -38,6 +39,7 @@ public class DataService {
 
 	private static final DateTimeFormatter TIMESTAMP_FMT =
 			DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
+	private static final Pattern ADMIN_IDENTIFIER_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*$");
 
 	private final MusicFileService      musicFileService;
 	private final ImageFileRepository   imageFileRepository;
@@ -187,6 +189,46 @@ public class DataService {
 	}
 
 	/**
+	 * Generates a GPS time-series CSV from images with GPS data in the given
+	 * file group, then creates or updates the dataset in Vempain Admin and publishes it.
+	 *
+	 * @param fileGroupId    ID of the file group containing images with GPS data
+	 * @param timeSeriesName the identifier/name of the time-series dataset
+	 * @return the {@link DataResponse} returned by the Admin service after publishing
+	 */
+	public DataResponse generateAndPublishGpsTimeSeriesByFileGroup(Long fileGroupId, String timeSeriesName) {
+		if (fileGroupId == null || fileGroupId <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File group ID must be a positive number");
+		}
+
+		if (timeSeriesName == null || timeSeriesName.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Time series name must not be empty");
+		}
+
+		var normalizedIdentifier = normalizeAdminIdentifier(timeSeriesName);
+		if (!normalizedIdentifier.equals(timeSeriesName)) {
+			log.info("Normalized requested time-series name '{}' to Admin identifier '{}'", timeSeriesName, normalizedIdentifier);
+		}
+
+		log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, normalizedIdentifier);
+
+		var images = imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(fileGroupId);
+
+		if (images.isEmpty()) {
+			log.warn("No GPS-tagged images found in file group: {}", fileGroupId);
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+			                                  """
+													  No GPS-tagged images found in file group: %d
+													  """.formatted(fileGroupId)
+			                                             .strip());
+		}
+
+		var csvData = buildGpsCsv(images);
+		var request = buildGpsDataRequest(normalizedIdentifier, "file group: " + fileGroupId, csvData);
+		return createOrUpdate(request);
+	}
+
+	/**
 	 * Derives a valid data-store identifier from the directory path.
 	 * Identifier rules: starts with a-z, only a-z0-9_ allowed.
 	 *
@@ -327,6 +369,10 @@ public class DataService {
 	private DataResponse createOrUpdate(DataRequest request) {
 		var alreadyExists = true;
 
+		log.debug("Prepared Admin DataRequest identifier='{}', type='{}', csv_header='{}', csv_length={} chars",
+		          request.getIdentifier(), request.getType(), csvHeaderPreview(request.getCsvData()),
+		          request.getCsvData() != null ? request.getCsvData().length() : 0);
+
 		try {
 			log.debug("Checking if the identifier {} already exists on Venpain Admin", request.getIdentifier());
 			vempainAdminDataClient.getDataSetByIdentifier(request.getIdentifier());
@@ -340,13 +386,9 @@ public class DataService {
 				return vempainAdminDataClient.updateDataSet(request)
 				                             .getBody();
 			} catch (FeignException e) {
-				log.error("Failed to create/update dataset '{}': status={}, msg={}",
-				          request.getIdentifier(), e.status(), e.getMessage(), e);
-				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-				                                  """
-														  Failed to create/update dataset in Admin service: %s
-														  """.formatted(e.getMessage())
-				                                             .strip(), e);
+				log.error("Failed to create/update dataset '{}': status={}, msg={}, body={}",
+				          request.getIdentifier(), e.status(), e.getMessage(), e.contentUTF8(), e);
+				throw mapAdminException(e, "create/update", request.getIdentifier());
 			}
 		} else {
 			log.debug("identifier {} did not exist on Vempain Admin, creating it", request.getIdentifier());
@@ -365,14 +407,85 @@ public class DataService {
 			log.debug("Created dataset: {}", request.getIdentifier());
 			return createResponse.getBody();
 		} catch (FeignException e) {
-			log.error("Failed to create dataset '{}': status={}, msg={}",
-					  request.getIdentifier(), e.status(), e.getMessage());
-			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-			                                  """
-													  Failed to create dataset in Admin service: %s
-													  """.formatted(e.getMessage())
-			                                             .strip(), e);
+			log.error("Failed to create dataset '{}': status={}, msg={}, body={}",
+			          request.getIdentifier(), e.status(), e.getMessage(), e.contentUTF8());
+			throw mapAdminException(e, "create", request.getIdentifier());
 		}
+	}
+
+	private String normalizeAdminIdentifier(String candidate) {
+		var lower = candidate.trim()
+		                     .toLowerCase();
+		var sb    = new StringBuilder(lower.length());
+		for (char c : lower.toCharArray()) {
+			if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+				sb.append(c);
+			} else {
+				sb.append('_');
+			}
+		}
+
+		// Collapse duplicate underscores and trim the edges.
+		var     collapsed          = new StringBuilder(sb.length());
+		boolean previousUnderscore = false;
+		for (int i = 0; i < sb.length(); i++) {
+			char c = sb.charAt(i);
+			if (c == '_') {
+				if (!previousUnderscore) {
+					collapsed.append(c);
+				}
+				previousUnderscore = true;
+			} else {
+				collapsed.append(c);
+				previousUnderscore = false;
+			}
+		}
+		while (!collapsed.isEmpty() && collapsed.charAt(0) == '_') {
+			collapsed.deleteCharAt(0);
+		}
+		while (!collapsed.isEmpty() && collapsed.charAt(collapsed.length() - 1) == '_') {
+			collapsed.deleteCharAt(collapsed.length() - 1);
+		}
+
+		if (collapsed.isEmpty()) {
+			collapsed.append("gps_timeseries");
+		}
+		if (!(collapsed.charAt(0) >= 'a' && collapsed.charAt(0) <= 'z')) {
+			collapsed.insert(0, "gps_timeseries_");
+		}
+
+		var normalized = collapsed.toString();
+		if (normalized.length() > 60) {
+			normalized = normalized.substring(0, 60);
+		}
+
+		if (!ADMIN_IDENTIFIER_PATTERN.matcher(normalized)
+		                             .matches()) {
+			log.error("Failed to normalize Admin identifier from '{}' to a valid value. Produced '{}'", candidate, normalized);
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid time series name");
+		}
+		return normalized;
+	}
+
+	private String csvHeaderPreview(String csvData) {
+		if (csvData == null || csvData.isBlank()) {
+			return "";
+		}
+		var newlineIndex = csvData.indexOf('\n');
+		return newlineIndex >= 0 ? csvData.substring(0, newlineIndex)
+		                                  .trim() : csvData.trim();
+	}
+
+	private ResponseStatusException mapAdminException(FeignException exception, String action, String identifier) {
+		var body = exception.contentUTF8();
+		var reason = "Admin service failed to %s dataset '%s': %s".formatted(action, identifier,
+		                                                                     body != null && !body.isBlank() ? body : exception.getMessage());
+		return switch (exception.status()) {
+			case 400 -> new ResponseStatusException(HttpStatus.BAD_REQUEST, reason, exception);
+			case 404 -> new ResponseStatusException(HttpStatus.NOT_FOUND, reason, exception);
+			case 409 -> new ResponseStatusException(HttpStatus.CONFLICT, reason, exception);
+			default -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, reason, exception);
+		};
 	}
 
 	// -----------------------------------------------------------------------

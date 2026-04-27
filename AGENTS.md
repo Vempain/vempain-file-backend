@@ -66,6 +66,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
 - Background refresh of modified source files runs via `UpdatedFileRefreshSchedulerService` (`vempain.refresh-updated-files.*`)
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
+- GPS dataset publication has two flows now:
+    - `POST /api/data-publish/gps-timeseries/{directoryPath}` builds a canonical `gps_timeseries_<path>` identifier from the directory path.
+    - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and
+      publishes that dataset for the selected file group.
 
 ## Further Reading
 

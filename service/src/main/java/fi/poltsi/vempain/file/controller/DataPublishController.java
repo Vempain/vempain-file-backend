@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.controller;
 
 import fi.poltsi.vempain.admin.api.response.DataResponse;
+import fi.poltsi.vempain.file.api.request.CreateGpsTimeSeriesRequest;
 import fi.poltsi.vempain.file.rest.DataPublishAPI;
 import fi.poltsi.vempain.file.service.DataService;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,8 @@ public class DataPublishController implements DataPublishAPI {
 	}
 
 	@Override
-	public ResponseEntity<DataResponse> publishGpsTimeSeries(String directoryPath) {
-		var result = dataService.generateAndPublishGpsTimeSeries(directoryPath);
+	public ResponseEntity<DataResponse> publishGpsTimeSeries(CreateGpsTimeSeriesRequest request) {
+		var result = dataService.generateAndPublishGpsTimeSeriesByFileGroup(request.getFileGroupId(), request.getTimeSeriesName());
 		return ResponseEntity.ok(result);
 	}
 }

@@ -235,6 +235,177 @@ class DataServiceUTC {
 	}
 
 	// -----------------------------------------------------------------------
+	// generateAndPublishGpsTimeSeriesByFileGroup — no GPS images
+	// -----------------------------------------------------------------------
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_noGpsImages_throws404() {
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(any())).thenReturn(List.of());
+
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(1L, "test-series"));
+	}
+
+	// -----------------------------------------------------------------------
+	// generateAndPublishGpsTimeSeriesByFileGroup — invalid fileGroupId
+	// -----------------------------------------------------------------------
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_nullFileGroupId_throws400() {
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(null, "test-series"));
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_zeroFileGroupId_throws400() {
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(0L, "test-series"));
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_negativeFileGroupId_throws400() {
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(-1L, "test-series"));
+	}
+
+	// -----------------------------------------------------------------------
+	// generateAndPublishGpsTimeSeriesByFileGroup — blank timeSeriesName
+	// -----------------------------------------------------------------------
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_blankTimeSeriesName_throws400() {
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(1L, "  "));
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_nullTimeSeriesName_throws400() {
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(1L, null));
+	}
+
+	// -----------------------------------------------------------------------
+	// generateAndPublishGpsTimeSeriesByFileGroup — happy path
+	// -----------------------------------------------------------------------
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_publishesCorrectIdentifier() {
+		var gps = GpsLocationEntity.builder()
+		                           .latitude(new BigDecimal("60.12345"))
+		                           .latitudeRef('N')
+		                           .longitude(new BigDecimal("24.98765"))
+		                           .longitudeRef('E')
+		                           .altitude(130.0)
+		                           .build();
+
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsTimestamp(Instant.parse("2024-06-01T12:00:00Z"));
+		image.setGpsLocation(gps);
+
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(42L)).thenReturn(List.of(image));
+		when(vempainAdminDataClient.getDataSetByIdentifier("holidays_2024"))
+				.thenThrow(mock(FeignException.NotFound.class));
+
+		var dataResponse = new DataResponse();
+		dataResponse.setIdentifier("holidays_2024");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class)))
+				.thenReturn(ResponseEntity.ok(dataResponse));
+
+		var result = dataService.generateAndPublishGpsTimeSeriesByFileGroup(42L, "holidays_2024");
+
+		assertThat(result).isNotNull();
+		assertThat(result.getIdentifier()).isEqualTo("holidays_2024");
+
+		// Verify create was called with correct request fields
+		var captor = ArgumentCaptor.forClass(DataRequest.class);
+		verify(vempainAdminDataClient).createDataSet(captor.capture());
+		var req = captor.getValue();
+		assertThat(req.getIdentifier()).isEqualTo("holidays_2024");
+		assertThat(req.getType()).isEqualTo("time_series");
+		assertThat(req.getCreateSql()).startsWith("CREATE TABLE");
+		assertThat(req.getCreateSql()).contains("timestamp");
+		assertThat(req.getCreateSql()).contains("latitude");
+		assertThat(req.getCsvData()).contains("2024-06-01T12:00:00Z");
+		assertThat(req.getCsvData()).contains("60.12345");
+		assertThat(req.getCsvData()).contains("photo.jpg");
+		verify(vempainAdminDataClient).getDataSetByIdentifier("holidays_2024");
+		verify(vempainAdminDataClient, never()).updateDataSet(any(DataRequest.class));
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_hyphenatedName_normalizesIdentifier() {
+		var gps = GpsLocationEntity.builder()
+		                           .latitude(new BigDecimal("60.12345"))
+		                           .latitudeRef('N')
+		                           .longitude(new BigDecimal("24.98765"))
+		                           .longitudeRef('E')
+		                           .altitude(130.0)
+		                           .build();
+
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsTimestamp(Instant.parse("2024-06-01T12:00:00Z"));
+		image.setGpsLocation(gps);
+
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(473L)).thenReturn(List.of(image));
+		when(vempainAdminDataClient.getDataSetByIdentifier("matkailu_etiopia_2016"))
+				.thenThrow(mock(FeignException.NotFound.class));
+
+		var dataResponse = new DataResponse();
+		dataResponse.setIdentifier("matkailu_etiopia_2016");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class)))
+				.thenReturn(ResponseEntity.ok(dataResponse));
+
+		var result = dataService.generateAndPublishGpsTimeSeriesByFileGroup(473L, "matkailu-etiopia-2016");
+
+		assertThat(result).isNotNull();
+		assertThat(result.getIdentifier()).isEqualTo("matkailu_etiopia_2016");
+		verify(vempainAdminDataClient).getDataSetByIdentifier("matkailu_etiopia_2016");
+
+		var captor = ArgumentCaptor.forClass(DataRequest.class);
+		verify(vempainAdminDataClient).createDataSet(captor.capture());
+		assertThat(captor.getValue()
+		                 .getIdentifier()).isEqualTo("matkailu_etiopia_2016");
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_digitPrefixName_getsSafePrefix() {
+		var gps = GpsLocationEntity.builder()
+		                           .latitude(new BigDecimal("60.12345"))
+		                           .latitudeRef('N')
+		                           .longitude(new BigDecimal("24.98765"))
+		                           .longitudeRef('E')
+		                           .altitude(130.0)
+		                           .build();
+
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsTimestamp(Instant.parse("2024-06-01T12:00:00Z"));
+		image.setGpsLocation(gps);
+
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(474L)).thenReturn(List.of(image));
+		when(vempainAdminDataClient.getDataSetByIdentifier("gps_timeseries_2016_trip"))
+				.thenThrow(mock(FeignException.NotFound.class));
+
+		var dataResponse = new DataResponse();
+		dataResponse.setIdentifier("gps_timeseries_2016_trip");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class)))
+				.thenReturn(ResponseEntity.ok(dataResponse));
+
+		var result = dataService.generateAndPublishGpsTimeSeriesByFileGroup(474L, "2016-trip");
+
+		assertThat(result).isNotNull();
+		assertThat(result.getIdentifier()).isEqualTo("gps_timeseries_2016_trip");
+		verify(vempainAdminDataClient).getDataSetByIdentifier("gps_timeseries_2016_trip");
+
+		var captor = ArgumentCaptor.forClass(DataRequest.class);
+		verify(vempainAdminDataClient).createDataSet(captor.capture());
+		assertThat(captor.getValue()
+		                 .getIdentifier()).isEqualTo("gps_timeseries_2016_trip");
+	}
+
+	// -----------------------------------------------------------------------
 	// escapeCsv
 	// -----------------------------------------------------------------------
 

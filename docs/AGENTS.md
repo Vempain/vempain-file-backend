@@ -87,10 +87,11 @@ Datasets are **ephemeral** — never stored in the file database. They are built
 
 Two dataset types are supported:
 
-| Dataset | Endpoint | Identifier | CSV columns |
-|---------|----------|------------|-------------|
-| Music library | `POST /api/data-publish/music` | `music_library` | `artist, album, track_number, track_name, genre, duration_seconds` |
-| GPS time-series | `POST /api/data-publish/gps-timeseries/{directoryPath}` | `gps_timeseries_<path>` | `timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename` |
+| Dataset                      | Endpoint                                                | Identifier                                                                 | CSV columns                                                                       |
+|------------------------------|---------------------------------------------------------|----------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| Music library                | `POST /api/data-publish/music`                          | `music_library`                                                            | `artist, album, track_number, track_name, genre, duration_seconds`                |
+| GPS time-series              | `POST /api/data-publish/gps-timeseries/{directoryPath}` | `gps_timeseries_<path>`                                                    | `timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename` |
+| GPS time-series (file group) | `POST /api/data-publish/gps-timeseries`                 | caller-provided `time_series_name`, normalized to an Admin-safe identifier | `timestamp, latitude, latitude_ref, longitude, longitude_ref, altitude, filename` |
 
 #### Music dataset example
 
@@ -114,6 +115,20 @@ published to Admin under identifier `gps_timeseries_holidays_2024`.
 The `directoryPath` parameter in the URL is the path segment **after** the leading slash. Slashes must
 not appear inside the segment (use underscores instead, or URL-encode). The service re-adds the leading
 `/` before querying the database.
+
+#### GPS time-series by file group example
+
+```json
+POST /api/data-publish/gps-timeseries
+{
+  "file_group_id": 473,
+  "time_series_name": "matkailu-etiopia-2016"
+}
+```
+
+This path uses `ImageFileRepository.findByFileGroupIdWithGpsOrderedByTime(...)` instead of the directory-path lookup.
+`time_series_name` is normalized to the Admin identifier rules (`[a-z][a-z0-9_]*`): separators become underscores,
+empty values are rejected, and names that would otherwise start with a digit are prefixed with `gps_timeseries_`.
 
 #### Create-or-update logic
 

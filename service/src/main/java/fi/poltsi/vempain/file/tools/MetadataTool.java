@@ -23,7 +23,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,6 +74,7 @@ public class MetadataTool {
 
 	// GPS coordinate precision
 	private static final int GPS_DECIMAL_PRECISION = 5;
+	private static final long MAX_DURATION_SECONDS = 99_999L;
 
 	public static String extractMetadataJson(File file) throws IOException {
 		return runExifTool(file, "-a", "-u", "-ee", "-api", "RequestAll=3", "-g1", "-J");
@@ -222,59 +222,24 @@ public class MetadataTool {
 	public static Duration extractAudioVideoDuration(File file) throws IOException {
 		var output = runExifTool(file, "-Duration");
 		var durationStr = getTagValue(output, "Duration");
-
-		// If the string is empty or null, return 0
-		if (durationStr == null || durationStr.isBlank()) {
-			return Duration.of(0L, ChronoUnit.MILLIS);
-		}
-
-		// If the string contains colons, it's in a time format (hh:mm:ss or mm:ss)
-		if (durationStr.contains(":")) {
-			String[] parts   = durationStr.split(":");
-			long seconds = 0L;
-
-			if (parts.length == 3) {
-				// Format: hh:mm:ss.ms
-				seconds += Long.parseLong(parts[0]) * 3600; // Hours to seconds
-				seconds += Long.parseLong(parts[1]) * 60;   // Minutes to seconds
-				seconds += Long.parseLong(parts[2]);        // Seconds
-			} else if (parts.length == 2) {
-				// Format: mm:ss.ms
-				seconds += Long.parseLong(parts[0]) * 60;   // Minutes to seconds
-				seconds += Long.parseLong(parts[1]);        // Seconds
-			}
-
-			return Duration.of(seconds, ChronoUnit.SECONDS);
-		} else {
-			// Check if the string contains a time qualifier like "s", "sec", "seconds"
-			String trimmedStr = durationStr.trim();
-			if (trimmedStr.endsWith(" s") ||
-				trimmedStr.endsWith(" sec") ||
-				trimmedStr.endsWith(" seconds")) {
-
-				// Extract the numeric part before the qualifier
-				int spaceIndex = trimmedStr.lastIndexOf(' ');
-				if (spaceIndex > 0) {
-					String numericPart = trimmedStr.substring(0, spaceIndex);
-					var seconds = Long.parseLong(numericPart);
-					return Duration.of(seconds, ChronoUnit.SECONDS);
-				}
-			}
-
-			// It's already in seconds format (possibly with decimal)
-			var seconds = Long.parseLong(durationStr);
-			return Duration.of(seconds, ChronoUnit.SECONDS);
-		}
+		return durationFromString(durationStr);
 	}
 
 	public static int extractAudioBitRate(File file) throws IOException {
-		var output = runExifTool(file, "-AudioBitrate");
-		return Integer.parseInt(getTagValue(output, "AudioBitrate"));
+		var output = runExifTool(file, "-AudioBitrate", "-AvgBitrate", "-NominalBitrate", "-BitRate", "-Duration");
+		return parseAudioBitRateKbps(output, file.length());
 	}
 
 	public static int extractAudioSampleRate(File file) throws IOException {
-		var output = runExifTool(file, "-AudioSampleRate");
-		return Integer.parseInt(getTagValue(output, "AudioSampleRate"));
+		var output = runExifTool(file, "-AudioSampleRate", "-SampleRate");
+		var parsed = parseIntegerWithUnits(getTagValue(output, "AudioSampleRate"));
+
+		if (parsed != null && parsed > 0) {
+			return parsed;
+		}
+
+		parsed = parseIntegerWithUnits(getTagValue(output, "SampleRate"));
+		return parsed != null ? parsed : 0;
 	}
 
 	public static String extractAudioCodec(File file) throws IOException {
@@ -283,8 +248,247 @@ public class MetadataTool {
 	}
 
 	public static int extractAudioChannels(File file) throws IOException {
-		var output = runExifTool(file, "-AudioChannels");
-		return Integer.parseInt(getTagValue(output, "AudioChannels"));
+		var output = runExifTool(file, "-AudioChannels", "-Channels");
+		var parsed = parseIntegerWithUnits(getTagValue(output, "AudioChannels"));
+
+		if (parsed != null && parsed > 0) {
+			return parsed;
+		}
+
+		parsed = parseIntegerWithUnits(getTagValue(output, "Channels"));
+		return parsed != null ? parsed : 0;
+	}
+
+	/**
+	 * Extract the artist/performer from audio file metadata (ID3, Vorbis, etc.)
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Artist string or null if not found
+	 */
+	public static String extractMusicArtist(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Artist", "TPE1", "TPE2", "AlbumArtist", "Performer"));
+		locations.put("Vorbis", List.of("Artist", "Performer", "AlbumArtist"));
+		locations.put("iTunes", List.of("Artist"));
+		locations.put("QuickTime", List.of("Artist", "TPE1"));
+		locations.put("RIFF", List.of("Artist", "IART"));
+		locations.put("XMP-dm", List.of("Artist", "AlbumArtist"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the album name from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Album name string or null if not found
+	 */
+	public static String extractMusicAlbum(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Album", "TALB"));
+		locations.put("Vorbis", List.of("Album"));
+		locations.put("iTunes", List.of("Album"));
+		locations.put("QuickTime", List.of("Album", "TALB"));
+		locations.put("RIFF", List.of("Product", "IPRD"));
+		locations.put("XMP-dm", List.of("Album"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the album artist from audio file metadata.
+	 * Falls back to the track artist if no dedicated album artist field exists.
+	 */
+	public static String extractMusicAlbumArtist(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("AlbumArtist", "Albumartist", "Band", "TPE2", "Artist"));
+		locations.put("Vorbis", List.of("AlbumArtist", "Albumartist", "Artist"));
+		locations.put("iTunes", List.of("AlbumArtist", "Artist"));
+		locations.put("QuickTime", List.of("AlbumArtist", "Artist", "TPE2"));
+		locations.put("RIFF", List.of("Band", "Artist", "IART"));
+		locations.put("XMP-dm", List.of("AlbumArtist", "Artist"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the release year from audio file metadata.
+	 * Only the year part is returned, even if a full date is stored.
+	 */
+	public static Integer extractMusicYear(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Year", "Date", "TDRC"));
+		locations.put("Vorbis", List.of("Date", "Year"));
+		locations.put("iTunes", List.of("Year", "Date"));
+		locations.put("QuickTime", List.of("Year", "Date"));
+		locations.put("Composite", List.of("DateTimeOriginal"));
+		locations.put("XMP-dm", List.of("ReleaseDate"));
+
+		var yearValue = extractJsonScalar(jsonObject, locations);
+		if (yearValue == null) {
+			return null;
+		}
+
+		if (yearValue instanceof Number number) {
+			return number.intValue();
+		}
+
+		var yearString = Objects.toString(yearValue, null);
+		if (yearString == null || yearString.isBlank()) {
+			return 0;
+		}
+
+		var matcher = java.util.regex.Pattern.compile("(\\d{4})")
+		                                     .matcher(yearString);
+		if (matcher.find()) {
+			return Integer.parseInt(matcher.group(1));
+		}
+
+		var fallback = parseIntegerWithUnits(yearString);
+		if (fallback != null) {
+			return fallback;
+		}
+
+		log.debug("Could not parse music year from: {}", yearString);
+		return 0;
+	}
+
+	/**
+	 * Extract the track title from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Track title string or null if not found
+	 */
+	public static String extractMusicTitle(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Title", "TIT2", "TIT1"));
+		locations.put("Vorbis", List.of("Title"));
+		locations.put("iTunes", List.of("Title"));
+		locations.put("QuickTime", List.of("Title", "TIT2"));
+		locations.put("RIFF", List.of("Name", "INAM"));
+		locations.put("XMP-dm", List.of("TrackName"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Extract the track number from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Track number or null if not found or not parseable
+	 */
+	public static Integer extractMusicTrackNumber(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("TrackNumber", "TRCK"));
+		locations.put("Vorbis", List.of("TrackNumber", "Tracknumber", "Track"));
+		locations.put("iTunes", List.of("TrackNumber"));
+		locations.put("QuickTime", List.of("TrackNumber", "TRCK"));
+		locations.put("XMP-dm", List.of("TrackNumber"));
+
+		var trackValue = extractJsonScalar(jsonObject, locations);
+		if (trackValue == null) {
+			return null;
+		}
+
+		if (trackValue instanceof Number number) {
+			return number.intValue();
+		}
+
+		var trackStr = Objects.toString(trackValue, null);
+		if (trackStr == null || trackStr.isBlank()) {
+			return 0;
+		}
+		// Track may be in format "1/12" (track/total); take only the track part
+		var parts = trackStr.split("/");
+		try {
+			return Integer.parseInt(parts[0].trim());
+		} catch (NumberFormatException e) {
+			var fallback = parseIntegerWithUnits(trackStr);
+			if (fallback != null) {
+				return fallback;
+			}
+			log.debug("Could not parse track number from: {}", trackStr);
+			return 0;
+		}
+	}
+
+	/**
+	 * Extract the total track count from audio file metadata.
+	 */
+	public static Integer extractMusicTrackTotal(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("TrackTotal", "Track", "TRCK"));
+		locations.put("Vorbis", List.of("TrackTotal", "Tracktotal", "TrackNumber", "Track"));
+		locations.put("iTunes", List.of("TrackTotal", "TrackCount", "TrackNumber"));
+		locations.put("QuickTime", List.of("TrackTotal", "TrackNumber", "TRCK"));
+		locations.put("XMP-dm", List.of("TrackTotal", "TrackNumber"));
+
+		var trackValue = extractJsonScalar(jsonObject, locations);
+		if (trackValue == null) {
+			return null;
+		}
+
+		if (trackValue instanceof Number number) {
+			return number.intValue();
+		}
+
+		var trackStr = Objects.toString(trackValue, null);
+		if (trackStr == null || trackStr.isBlank()) {
+			return 0;
+		}
+
+		if (trackStr.contains("/")) {
+			var parts = trackStr.split("/");
+			if (parts.length > 1) {
+				var totalPart = parts[1].trim();
+				try {
+					return Integer.parseInt(totalPart);
+				} catch (NumberFormatException ignored) {
+					var fallbackTotal = parseIntegerWithUnits(totalPart);
+					if (fallbackTotal != null) {
+						return fallbackTotal;
+					}
+				}
+			}
+		}
+
+		var fallback = parseIntegerWithUnits(trackStr);
+		if (fallback != null) {
+			return fallback;
+		}
+
+		log.debug("Could not parse track total from: {}", trackStr);
+		return 0;
+	}
+
+	/**
+	 * Extract the genre from audio file metadata.
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return Genre string or null if not found
+	 */
+	public static String extractMusicGenre(JSONObject jsonObject) {
+		var locations = new HashMap<String, List<String>>();
+		locations.put("ID3", List.of("Genre", "TCON"));
+		locations.put("Vorbis", List.of("Genre"));
+		locations.put("iTunes", List.of("Genre"));
+		locations.put("QuickTime", List.of("Genre", "TCON"));
+		locations.put("RIFF", List.of("Genre", "IGNR"));
+		locations.put("XMP-dm", List.of("Genre"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
+	 * Checks whether the given metadata JSON object contains music-specific metadata
+	 * (at minimum an artist or title field).
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata
+	 * @return true if music metadata is present, false otherwise
+	 */
+	public static boolean hasMusicMetadata(JSONObject jsonObject) {
+		if (jsonObject == null) {
+			return false;
+		}
+		return extractMusicArtist(jsonObject) != null
+			   || extractMusicTitle(jsonObject) != null
+		       || extractMusicAlbum(jsonObject) != null
+		       || extractMusicGenre(jsonObject) != null;
 	}
 
 	public static int extractDocumentPageCount(File file) throws IOException {
@@ -982,9 +1186,16 @@ public class MetadataTool {
 		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
 			for (String key : location.getValue()) {
 				if (jsonObject.has(location.getKey()) && jsonObject.getJSONObject(location.getKey())
-																   .has(key)) {
-					return jsonObject.getJSONObject(location.getKey())
-									 .getString(key);
+				                                                   .has(key)) {
+					// Use opt() so that numeric values (e.g. a track title stored as an integer)
+					// are converted to String instead of throwing JSONException.
+					return Objects.toString(jsonObject.getJSONObject(location.getKey())
+					                                  .opt(key), null);
+				}
+
+				// Also support flat exiftool JSON where fields are on root level.
+				if (jsonObject.has(key) && !(jsonObject.opt(key) instanceof JSONObject)) {
+					return Objects.toString(jsonObject.opt(key), null);
 				}
 			}
 		}
@@ -1014,6 +1225,38 @@ public class MetadataTool {
 							log.error("Key {} exists but can not be parsed as number", key);
 						}
 					}
+				}
+
+				if (jsonObject.has(key) && !(jsonObject.opt(key) instanceof JSONObject)) {
+					var flat = jsonObject.opt(key);
+					if (flat instanceof Number n) {
+						return n;
+					}
+					var parsed = parseDoubleSafe(Objects.toString(flat, null));
+					if (parsed != null) {
+						return parsed;
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private static Object extractJsonScalar(JSONObject jsonObject, Map<String, List<String>> locations) {
+		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
+			for (String key : location.getValue()) {
+				if (jsonObject.has(location.getKey()) && jsonObject.getJSONObject(location.getKey())
+				                                                   .has(key)) {
+					var value = jsonObject.getJSONObject(location.getKey())
+					                      .opt(key);
+					if (!(value instanceof JSONObject) && value != null) {
+						return value;
+					}
+				}
+
+				if (jsonObject.has(key) && !(jsonObject.opt(key) instanceof JSONObject)) {
+					return jsonObject.opt(key);
 				}
 			}
 		}
@@ -1056,6 +1299,89 @@ public class MetadataTool {
 		}
 
 		return "";
+	}
+
+	static Duration durationFromString(String durationStr) {
+		if (durationStr == null || durationStr.isBlank()) {
+			return Duration.ZERO;
+		}
+
+		var normalized = durationStr.trim();
+
+		// Exiftool may emit "0:02:50 (approx)".
+		var approxIndex = normalized.indexOf(' ');
+		if (approxIndex > 0) {
+			normalized = normalized.substring(0, approxIndex)
+			                       .trim();
+		}
+
+		if (normalized.contains(":")) {
+			var parts = normalized.split(":");
+			try {
+				double seconds;
+				if (parts.length == 3) {
+					seconds = Double.parseDouble(parts[0].trim()) * 3600
+					          + Double.parseDouble(parts[1].trim()) * 60
+					          + Double.parseDouble(parts[2].trim());
+				} else if (parts.length == 2) {
+					seconds = Double.parseDouble(parts[0].trim()) * 60
+					          + Double.parseDouble(parts[1].trim());
+				} else {
+					return Duration.ZERO;
+				}
+				return clampDurationToSchema(Duration.ofMillis(Math.round(seconds * 1000)));
+			} catch (NumberFormatException e) {
+				log.warn("Could not parse duration string: {}", durationStr);
+				return Duration.ZERO;
+			}
+		}
+
+		var numericPart = normalized.replaceAll("(?i)\\s*(seconds?|sec|s)$", "")
+		                            .trim();
+		var seconds = parseDoubleSafe(numericPart);
+		if (seconds == null || seconds < 0) {
+			return Duration.ZERO;
+		}
+
+		return clampDurationToSchema(Duration.ofMillis(Math.round(seconds * 1000)));
+	}
+
+	private static Duration clampDurationToSchema(Duration duration) {
+		if (duration == null || duration.isNegative()) {
+			return Duration.ZERO;
+		}
+		if (duration.getSeconds() > MAX_DURATION_SECONDS) {
+			log.warn("Duration {} exceeds schema max {} seconds, clamping", duration, MAX_DURATION_SECONDS);
+			return Duration.ofSeconds(MAX_DURATION_SECONDS);
+		}
+		return duration;
+	}
+
+	static int parseAudioBitRateKbps(String exifJsonOutput, long fallbackFileSizeBytes) {
+		var primary = parseIntegerWithUnits(getTagValue(exifJsonOutput, "AudioBitrate"));
+		if (primary != null && primary > 0) {
+			return primary;
+		}
+
+		for (var tag : List.of("AvgBitrate", "NominalBitrate", "BitRate")) {
+			var parsed = parseIntegerWithUnits(getTagValue(exifJsonOutput, tag));
+			if (parsed != null && parsed > 0) {
+				return parsed;
+			}
+		}
+
+		var duration = durationFromString(getTagValue(exifJsonOutput, "Duration"));
+		if (duration.isZero() || duration.isNegative() || fallbackFileSizeBytes <= 0) {
+			return 0;
+		}
+
+		double seconds = duration.toMillis() / 1000.0;
+		if (seconds <= 0) {
+			return 0;
+		}
+
+		var calculated = (int) Math.round((fallbackFileSizeBytes * 8.0) / seconds / 1000.0);
+		return Math.max(calculated, 0);
 	}
 
 	public static Instant dateTimeParser(String dateTimeString) {
@@ -1369,6 +1695,33 @@ public class MetadataTool {
 				return null;
 			}
 			return Integer.parseInt(cleaned);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static Integer parseIntegerWithUnits(String s) {
+		if (s == null || s.isBlank()) {
+			return null;
+		}
+
+		var trimmed = s.trim();
+		try {
+			var matcher = java.util.regex.Pattern.compile("-?\\d+(?:[.,]\\d+)?")
+			                                     .matcher(trimmed);
+			if (!matcher.find()) {
+				return null;
+			}
+
+			var value = Double.parseDouble(matcher.group()
+			                                      .replace(',', '.'));
+			var lower = trimmed.toLowerCase();
+
+			if (lower.contains("mbps")) {
+				value *= 1000.0;
+			}
+
+			return (int) Math.round(value);
 		} catch (Exception e) {
 			return null;
 		}

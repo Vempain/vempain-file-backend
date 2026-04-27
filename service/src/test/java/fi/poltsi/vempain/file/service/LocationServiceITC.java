@@ -9,7 +9,6 @@ import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.LocationGuardEntity;
 import fi.poltsi.vempain.file.repository.LocationGuardRepository;
 import fi.poltsi.vempain.file.repository.LocationRepository;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -40,7 +39,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@Slf4j
 @ExtendWith(MockitoExtension.class)
 class LocationServiceITC {
 
@@ -391,7 +389,6 @@ class LocationServiceITC {
 			var offsetLatitude    = centerLat + latOffsetDeg;
 			var offsetLongitude   = centerLon + lonOffsetDeg;
 			var gpsLocationEntity = gps(offsetLatitude, offsetLongitude);
-			log.info("Check distance between center ({}, {}) and test point ({}, {})", centerLat, centerLon, offsetLatitude, offsetLongitude);
 
 			assertEquals(expectedInside, locationService.isGuardedLocation(gpsLocationEntity));
 		}

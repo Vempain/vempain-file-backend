@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.entity;
 
 import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -33,6 +34,7 @@ public class VideoFileEntity extends FileEntity {
 	private double frameRate;
 
 	@Column(name = "duration", precision = 5, nullable = false)
+	@Convert(converter = DurationSecondsConverter.class)
 	private Duration duration;
 
 	@Column(name = "codec", nullable = false)

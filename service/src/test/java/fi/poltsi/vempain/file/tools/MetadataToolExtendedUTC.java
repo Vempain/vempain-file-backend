@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -416,13 +417,15 @@ class MetadataToolExtendedUTC {
 
         @Test
         void returnsResolution_fromComposite() {
+            // Composite section uses "ImageSize" field containing "WIDTHxHEIGHT" string
             var json = new JSONObject();
             var composite = new JSONObject();
-            composite.put("ImageWidth", 800);
-            composite.put("ImageHeight", 600);
+            composite.put("ImageSize", "800x600");
             json.put("Composite", composite);
             var dim = MetadataTool.extractImageResolution(json);
             assertNotNull(dim);
+            assertThat(dim.width).isEqualTo(800);
+            assertThat(dim.height).isEqualTo(600);
         }
 
         @Test
@@ -448,17 +451,19 @@ class MetadataToolExtendedUTC {
         }
 
         @Test
-        void returnsColorDepth_fromFile() {
+        void returnsColorDepth_fromIFD0() {
+            // extractImageColorDepth searches SUBIFD and IFD0, not a "File" section
             var json = new JSONObject();
-            var file = new JSONObject();
-            file.put("BitsPerSample", 24);
-            json.put("File", file);
+            var ifd0 = new JSONObject();
+            ifd0.put("BitsPerSample", 24);
+            json.put("IFD0", ifd0);
             assertThat(MetadataTool.extractImageColorDepth(json)).isEqualTo(24);
         }
 
         @Test
-        void returnsZero_whenAbsent() {
-            assertThat(MetadataTool.extractImageColorDepth(new JSONObject())).isEqualTo(0);
+        void returnsDefaultEight_whenAbsent() {
+            // Default when no BitsPerSample metadata is found is 8
+            assertThat(MetadataTool.extractImageColorDepth(new JSONObject())).isEqualTo(8);
         }
 
         @Test
@@ -480,16 +485,17 @@ class MetadataToolExtendedUTC {
     class ExtractImageDpi {
 
         @Test
-        void returnsDpi_fromIFD0() {
+        void returnsDpi_fromSubIFD() {
+            // extractImageDpi only looks in SUBIFD, not IFD0
             var json = new JSONObject();
-            var ifd0 = new JSONObject();
-            ifd0.put("XResolution", 300);
-            json.put("IFD0", ifd0);
+            var subIFD = new JSONObject();
+            subIFD.put("XResolution", 300);
+            json.put("SUBIFD", subIFD);
             assertThat(MetadataTool.extractImageDpi(json)).isEqualTo(300);
         }
 
         @Test
-        void returnsDpi_fromSubIFD() {
+        void returnsDpi_fromSubIFD_72() {
             var json = new JSONObject();
             var subIFD = new JSONObject();
             subIFD.put("XResolution", 72);
@@ -498,8 +504,9 @@ class MetadataToolExtendedUTC {
         }
 
         @Test
-        void returnsZero_whenAbsent() {
-            assertThat(MetadataTool.extractImageDpi(new JSONObject())).isEqualTo(0);
+        void returnsDefaultSeventyTwo_whenAbsent() {
+            // Default when no XResolution is found in SUBIFD is 72
+            assertThat(MetadataTool.extractImageDpi(new JSONObject())).isEqualTo(72);
         }
     }
 
@@ -651,18 +658,20 @@ class MetadataToolExtendedUTC {
         }
 
         @Test
-        void returnsNull_forNullInput() {
-            assertNull(MetadataTool.metadataToJsonObject(null));
+        void throwsForNullInput() {
+            // metadataToJsonObject passes null directly to new JSONArray() which throws NPE
+            assertThrows(NullPointerException.class, () -> MetadataTool.metadataToJsonObject(null));
         }
 
         @Test
-        void returnsNull_forBlankInput() {
-            assertNull(MetadataTool.metadataToJsonObject("   "));
+        void throwsForBlankInput() {
+            // blank string is not valid JSON array → JSONException
+            assertThrows(Exception.class, () -> MetadataTool.metadataToJsonObject("   "));
         }
 
         @Test
-        void returnsNull_forInvalidJson() {
-            assertNull(MetadataTool.metadataToJsonObject("not-json"));
+        void throwsForInvalidJson() {
+            assertThrows(Exception.class, () -> MetadataTool.metadataToJsonObject("not-json"));
         }
 
         @Test

@@ -18,8 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class DataPublishControllerCTC extends AbstractControllerCTC {
 
-    private static final String MUSIC_PATH = "/api/data-publish/music";
-    private static final String GPS_PATH   = "/api/data-publish/gps-timeseries";
+    private static final String MUSIC_PATH = "/data-publish/music";
+    private static final String GPS_PATH   = "/data-publish/gps-timeseries";
 
     @BeforeEach
     void cleanData() {

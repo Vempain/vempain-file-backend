@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,11 +22,20 @@ class MetadataToolUTC {
 			"2006:11:19 00:04:34+02:00",
 			"2008:03:20 21:14:46.00+02:00",
 			"2014:06:24 09:34:01.761+03:00",
-			"2022:07:07 17:35:12.1Z"
+			"2022:07:07 17:35:12.1Z",
+			"2016:10:27 04:50+02:00"
 	})
 	void dateTimeParser(String dateTimeString) {
 		var dateTime = MetadataTool.dateTimeParser(dateTimeString);
 		assertNotNull(dateTime);
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"2016:10:27 04:50+02:00,2016-10-27T02:50:00Z"
+	})
+	void dateTimeParser_parsesWithoutSeconds(String input, String expectedUtc) {
+		assertEquals(Instant.parse(expectedUtc), MetadataTool.dateTimeParser(input));
 	}
 
 	@ParameterizedTest

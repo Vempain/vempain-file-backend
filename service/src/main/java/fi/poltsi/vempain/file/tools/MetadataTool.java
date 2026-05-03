@@ -1391,7 +1391,11 @@ public class MetadataTool {
 
 		var formatter = new DateTimeFormatterBuilder()
 				// Date
-				.appendPattern("yyyy:MM:dd HH:mm:ss")
+				.appendPattern("yyyy:MM:dd HH:mm")
+				// Optional seconds
+				.optionalStart()
+				.appendPattern(":ss")
+				.optionalEnd()
 				// Optional fractional seconds (from 1 to 9 digits)
 				.optionalStart()
 				.appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)

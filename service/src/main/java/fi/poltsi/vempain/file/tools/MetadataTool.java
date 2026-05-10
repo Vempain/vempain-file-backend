@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
@@ -1389,6 +1390,22 @@ public class MetadataTool {
 			return null;
 		}
 
+		var trimmed = dateTimeString.trim();
+
+		// Some metadata providers return just a year (e.g. "1991").
+		if (trimmed.matches("\\d{4}")) {
+			try {
+				var yearInstant = LocalDate.of(Integer.parseInt(trimmed), 1, 1)
+				                           .atStartOfDay(ZoneId.systemDefault())
+				                           .toInstant();
+				log.debug("Parsed year-only date time string '{}' to Instant: {}", dateTimeString, yearInstant);
+				return yearInstant;
+			} catch (Exception e) {
+				log.error("Failed to parse year-only date time string: {}", dateTimeString, e);
+				return null;
+			}
+		}
+
 		var formatter = new DateTimeFormatterBuilder()
 				// Date
 				.appendPattern("yyyy:MM:dd HH:mm")
@@ -1408,7 +1425,7 @@ public class MetadataTool {
 				.withZone(ZoneId.systemDefault());
 
 		try {
-			var timeStamp = formatter.parse(dateTimeString, Instant::from);
+			var timeStamp = formatter.parse(trimmed, Instant::from);
 			log.debug("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
 			return timeStamp;
 		} catch (DateTimeParseException e) {

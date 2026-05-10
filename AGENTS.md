@@ -16,8 +16,8 @@ Authentication primitives (`AbstractVempainEntity`, `PagedRequest`, `PagedRespon
 ```bash
 ./gradlew compileJava           # compile only
 ./gradlew build                 # compile + test
-./gradlew clean test            # clean + integration tests (needs Docker DB)
-./docker_db.sh                  # start local PostgreSQL container
+./gradlew clean test            # clean + unit/integration tests (Testcontainers; Docker daemon required)
+./docker_db.sh                  # start local PostgreSQL container for local app runs
 ```
 
 Tests require `exiftool` installed on the host. GitHub Package Registry credentials must be set via `gpr.user`/`gpr.token` in `~/.gradle/gradle.properties` or
@@ -25,11 +25,12 @@ Tests require `exiftool` installed on the host. GitHub Package Registry credenti
 
 ## File-Type Hierarchy
 
-13 typed file categories, each a JPA entity that extends `FileEntity` (JOINED table inheritance):
+14 typed file categories, each a JPA entity that extends `FileEntity` (JOINED table inheritance):
 
-`archive · audio · binary · data · document · executable · font · icon · image · interactive · thumb · vector · video`
+`archive · audio · binary · data · document · executable · font · icon · image · interactive · music · thumb · vector · video`
 
 - Base entity: `service/src/main/java/fi/poltsi/vempain/file/entity/FileEntity.java`
+- Music subtype: `service/src/main/java/fi/poltsi/vempain/file/entity/MusicFileEntity.java` (extends `AudioFileEntity`)
 - Common searchable fields: `filename`, `filePath`, `description`, `mimetype`
 - Entity → DTO: call `entity.toResponse()` (implemented in every typed entity)
 
@@ -66,8 +67,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
 - Background refresh of modified source files runs via `UpdatedFileRefreshSchedulerService` (`vempain.refresh-updated-files.*`)
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
-- GPS dataset publication has two flows now:
-    - `POST /api/data-publish/gps-timeseries/{directoryPath}` builds a canonical `gps_timeseries_<path>` identifier from the directory path.
+- Data dataset publication flows:
+    - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
     - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and
       publishes that dataset for the selected file group.
 

@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
@@ -1402,6 +1403,20 @@ public class MetadataTool {
 				return yearInstant;
 			} catch (Exception e) {
 				log.error("Failed to parse year-only date time string: {}", dateTimeString, e);
+				return null;
+			}
+		}
+
+		// Some malformed metadata uses yyyy:dd:MM without time (e.g. "2005:28:07").
+		if (trimmed.matches("\\d{4}:\\d{2}:\\d{2}")) {
+			try {
+				var yearDayMonth = LocalDate.parse(trimmed, DateTimeFormatter.ofPattern("yyyy:dd:MM"));
+				var parsed = yearDayMonth.atStartOfDay(ZoneId.systemDefault())
+				                         .toInstant();
+				log.debug("Parsed year-day-month date time string '{}' to Instant: {}", dateTimeString, parsed);
+				return parsed;
+			} catch (DateTimeParseException e) {
+				log.error("Failed to parse year-day-month date time string: {}", dateTimeString, e);
 				return null;
 			}
 		}

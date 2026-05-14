@@ -47,6 +47,9 @@
 
 - JSON DTOs use **snake_case** through `@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)` in `api/**`; request/response examples should follow
   that. Example: `ScanRequest` expects `original_directory` / `export_directory`.
+- JSON field names are mandatory snake_case for all API contracts in this repo; do not introduce camelCase JSON keys in DTOs, payload examples, or tests.
+- Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON behavior; keep non-`tools.jackson` annotations only when no `tools.jackson`
+  equivalent exists in active dependencies.
 - Be careful with repo scripts: `scripts/testScanning.sh` still posts `directory_name`, which does not match the current `ScanRequest` fields.
 - Entity-to-API mapping usually lives on the entity itself via `toResponse()` methods (`FileEntity`, `FileGroupEntity`, `GpsLocationEntity`,
   `LocationGuardEntity`, `ExportFileEntity`). Reuse those instead of adding parallel mappers.

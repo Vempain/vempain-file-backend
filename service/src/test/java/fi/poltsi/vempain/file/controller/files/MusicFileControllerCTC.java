@@ -25,7 +25,10 @@ class MusicFileControllerCTC extends AbstractControllerCTC {
 	void findAll_returns200WithValidPageShape() throws Exception {
 		doPost("/files/music/paged", "{\"page\":0,\"size\":10}")
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.content").isArray());
+				.andExpect(jsonPath("$.content").isArray())
+				.andExpect(jsonPath("$.page").exists())
+				.andExpect(jsonPath("$.total_pages").exists())
+				.andExpect(jsonPath("$.total_elements").exists());
 	}
 
 	// -----------------------------------------------------------------------

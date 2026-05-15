@@ -61,6 +61,9 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 ## Key Conventions
 
 - JSON field names use snake_case (`@JsonNaming(SnakeCaseStrategy.class)` in DTOs)
+- Snake_case is mandatory for all API JSON contracts; never add camelCase JSON field names in DTO annotations, request/response payloads, or docs/examples.
+- Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
+  `tools.jackson` replacement available in current dependencies.
 - Test class suffix `ITC` = integration test, `UTC` = unit test
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`

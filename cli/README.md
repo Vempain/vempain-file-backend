@@ -25,9 +25,24 @@ cd /home/poltsi/Work/Vempain/vempain-file-backend
 
 ## Run
 
+### Direct jar (development)
+
 ```bash
 java -jar vf-cli.jar --help
 ```
+
+### Wrapper script (RPM installation)
+
+After installing the `vempain-file-cli` RPM package, use:
+
+```bash
+vf-cli --help
+```
+
+Installed paths from RPM:
+
+- wrapper: `/usr/bin/vf-cli`
+- jar: `/usr/lib/vempain/file/vf-cli.jar`
 
 ## Usage examples
 

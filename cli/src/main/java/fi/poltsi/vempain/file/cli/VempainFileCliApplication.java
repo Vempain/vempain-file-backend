@@ -12,7 +12,6 @@ import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.ParsedLine;
 import org.jline.reader.UserInterruptException;
-import org.jline.reader.impl.completer.StringsCompleter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -21,8 +20,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,10 +36,18 @@ public class VempainFileCliApplication {
 	                                                    .map(t -> t.shortName)
 	                                                    .collect(Collectors.toSet());
 
+	private static final List<String>              BASE_COMMANDS   = List.of(
+			"login", "files-list", "file-show", "publish-music", "publish-gps", "scan", "logout", "shell", "exit", "quit"
+	);
+	private static final Map<String, List<String>> COMMAND_OPTIONS = commandOptions();
+
 	private final SessionStore  sessionStore;
 	private final BackendClient backendClient;
 	private final PrintStream   out;
 	private final PrintStream   err;
+
+	private boolean shellMode;
+	private boolean debugCompletion;
 
 	public VempainFileCliApplication() {
 		this(new SessionStore(), new BackendClient(), System.out, System.err);
@@ -51,7 +60,7 @@ public class VempainFileCliApplication {
 		this.err           = err;
 	}
 
-	public static void main(String[] args) {
+	static void main(String[] args) {
 		new VempainFileCliApplication().run(args);
 	}
 
@@ -103,6 +112,10 @@ public class VempainFileCliApplication {
 			return;
 		}
 
+		if (root.debugCompletion || isEnvDebugCompletionEnabled()) {
+			debugCompletion = true;
+		}
+
 		try {
 			switch (command) {
 				case "login" -> login(login);
@@ -112,7 +125,12 @@ public class VempainFileCliApplication {
 				case "publish-gps" -> publishGps(publishGps);
 				case "scan" -> scan(scan);
 				case "logout" -> logout();
-				case "shell" -> shell();
+				case "shell" -> {
+					if (shellMode) {
+						throw new IllegalStateException("Already in shell-mode.");
+					}
+					shell();
+				}
 				default -> jc.usage();
 			}
 		} catch (Exception e) {
@@ -247,32 +265,37 @@ public class VempainFileCliApplication {
 
 	private void shell() {
 		var reader = LineReaderBuilder.builder()
-		                              .completer(new CliCompleter())
+		                              .completer(new CliCompleter(true))
 		                              .build();
 		runShell(reader);
 	}
 
 	void runShell(LineReader reader) {
-		out.println("Interactive shell started. Type 'exit' to quit.");
-
-		while (true) {
-			try {
-				var line = reader.readLine("vempain-file> ");
-				if (line == null) {
-					continue;
-				}
-				var trimmed = line.trim();
-				if (trimmed.isEmpty()) {
-					continue;
-				}
-				if ("exit".equalsIgnoreCase(trimmed) || "quit".equalsIgnoreCase(trimmed)) {
+		var previousShellMode = shellMode;
+		shellMode = true;
+		try {
+			out.println("Interactive shell started. Type 'exit' to quit.");
+			while (true) {
+				try {
+					var line = reader.readLine("vempain-file> ");
+					if (line == null) {
+						continue;
+					}
+					var trimmed = line.trim();
+					if (trimmed.isEmpty()) {
+						continue;
+					}
+					if ("exit".equalsIgnoreCase(trimmed) || "quit".equalsIgnoreCase(trimmed)) {
+						break;
+					}
+					run(splitArgs(trimmed));
+				} catch (UserInterruptException ignored) {
+				} catch (EndOfFileException ignored) {
 					break;
 				}
-				run(splitArgs(trimmed));
-			} catch (UserInterruptException ignored) {
-			} catch (EndOfFileException ignored) {
-				break;
 			}
+		} finally {
+			shellMode = previousShellMode;
 		}
 	}
 
@@ -329,7 +352,7 @@ public class VempainFileCliApplication {
 
 	private String[] splitArgs(String commandLine) {
 		List<String> tokens  = new ArrayList<>();
-		Matcher      matcher = Pattern.compile("\\\"([^\\\"]*)\\\"|'([^']*)'|(\\S+)")
+		Matcher matcher = Pattern.compile("\"([^\"]*)\"|'([^']*)'|(\\S+)")
 		                              .matcher(commandLine);
 		while (matcher.find()) {
 			if (matcher.group(1) != null) {
@@ -345,14 +368,19 @@ public class VempainFileCliApplication {
 
 	private class CliCompleter implements Completer {
 
-		private final StringsCompleter commandCompleter = new StringsCompleter(
-				"login", "files-list", "file-show", "publish-music", "publish-gps", "scan", "logout", "shell", "exit", "quit"
-		);
+		private final boolean shellCompleterMode;
+
+		private CliCompleter(boolean shellCompleterMode) {
+			this.shellCompleterMode = shellCompleterMode;
+		}
 
 		@Override
 		public void complete(LineReader reader, ParsedLine line, List<Candidate> candidates) {
+			var currentWord = line.word() == null ? "" : line.word();
+			debug("input line='" + line.line() + "' wordIndex=" + line.wordIndex() + " currentWord='" + currentWord + "'");
 			if (line.wordIndex() == 0) {
-				commandCompleter.complete(reader, line, candidates);
+				completeCommands(currentWord, candidates);
+				debugCandidates(currentWord, candidates);
 				return;
 			}
 
@@ -360,9 +388,11 @@ public class VempainFileCliApplication {
 			if (words.isEmpty()) {
 				return;
 			}
-			var command = words.get(0);
+			var command = words.getFirst();
 
-			if (("files-list".equals(command) || "file-show".equals(command)) && wantsTypeCompletion(words, line.wordIndex())) {
+			completeCommandOptions(command, words, line.wordIndex(), currentWord, candidates);
+
+			if ((("files-list".equals(command) || "file-show".equals(command)) && wantsTypeCompletion(words, line.wordIndex()))) {
 				FILE_TYPES.stream()
 				          .sorted()
 				          .forEach(type -> candidates.add(new Candidate(type)));
@@ -370,7 +400,43 @@ public class VempainFileCliApplication {
 			}
 
 			if ("scan".equals(command)) {
-				completeScanPath(words, line.wordIndex(), candidates, line.word());
+				completeScanPath(words, line.wordIndex(), candidates, currentWord);
+			}
+			debugCandidates(currentWord, candidates);
+		}
+
+		private void completeCommands(String currentWord, List<Candidate> candidates) {
+			for (var command : BASE_COMMANDS) {
+				if (shellCompleterMode && "shell".equals(command)) {
+					continue;
+				}
+				if (currentWord.isBlank() || command.startsWith(currentWord)) {
+					candidates.add(new Candidate(command));
+				}
+			}
+		}
+
+		private void completeCommandOptions(String command, List<String> words, int wordIndex, String currentWord, List<Candidate> candidates) {
+			if ("exit".equals(command) || "quit".equals(command)) {
+				return;
+			}
+			var options = COMMAND_OPTIONS.get(command);
+			if (options == null || options.isEmpty()) {
+				return;
+			}
+
+			var previous = wordIndex > 0 ? words.get(Math.max(0, wordIndex - 1)) : "";
+			boolean suggest = (wordIndex == 1 && (currentWord.isBlank() || currentWord.startsWith("-")))
+			                  || currentWord.startsWith("-")
+			                  || "--".equals(previous) || "-".equals(previous);
+			if (!suggest) {
+				return;
+			}
+
+			for (var option : options) {
+				if (currentWord.isBlank() || option.startsWith(currentWord)) {
+					candidates.add(new Candidate(option));
+				}
 			}
 		}
 
@@ -386,13 +452,8 @@ public class VempainFileCliApplication {
 			if (wordIndex <= 0) {
 				return;
 			}
-			var    previous = words.get(Math.max(0, wordIndex - 1));
-			String completionType;
-			if ("--original-directory".equals(previous) || "-o".equals(previous)) {
-				completionType = "ORIGINAL";
-			} else if ("--export-directory".equals(previous) || "-e".equals(previous)) {
-				completionType = "EXPORTED";
-			} else {
+			var completionType = resolveScanCompletionType(words, wordIndex, currentWord);
+			if (completionType == null) {
 				return;
 			}
 
@@ -401,30 +462,177 @@ public class VempainFileCliApplication {
 				return;
 			}
 
-			var path    = (currentWord == null || currentWord.isBlank()) ? "/" : currentWord;
+			var path = buildPathQuery(words, wordIndex, currentWord);
 			var request = new JSONObject().put("path", path)
 			                              .put("type", completionType);
+			debug("path-completion request: " + request);
+
 			try {
 				var response    = backendClient.postJson(session, "/path-completion", request);
 				var completions = response.optJSONArray("completions");
+				debug("path-completion response: " + response);
 				if (completions == null) {
 					return;
 				}
+				var uniqueMatch = completions.length() == 1;
+				var hasPathPrefixToken = currentWord != null
+				                         && !currentWord.startsWith("/")
+				                         && wordIndex > 0
+				                         && words.get(wordIndex - 1)
+				                                 .startsWith("/");
+				var pathPrefixToken = hasPathPrefixToken ? words.get(wordIndex - 1) : "";
+				var queryBasePath   = basePathForQuery(path);
+
 				for (int i = 0; i < completions.length(); i++) {
-					candidates.add(new Candidate(completions.getString(i)));
+					var completion     = ensureDirectorySuffix(normalizeCompletionPath(completions.getString(i), queryBasePath));
+					var candidateValue = completion;
+					if (hasPathPrefixToken && completion.startsWith(pathPrefixToken)) {
+						candidateValue = completion.substring(pathPrefixToken.length());
+					}
+					candidates.add(new Candidate(candidateValue, completion, null, null, null, null, false));
+				}
+
+				if (uniqueMatch && completions.length() == 1) {
+					var target = ensureDirectorySuffix(normalizeCompletionPath(completions.getString(0), queryBasePath));
+					var applied = (hasPathPrefixToken && target.startsWith(pathPrefixToken))
+					              ? target.substring(pathPrefixToken.length()) : target;
+					debug("apply decision: would replace '" + currentWord + "' with '" + applied + "'");
 				}
 			} catch (Exception ignored) {
+			}
+		}
+
+		private String resolveScanCompletionType(List<String> words, int wordIndex, String currentWord) {
+			if (currentWord != null && currentWord.startsWith("-")) {
+				return null;
+			}
+
+			for (int i = wordIndex - 1; i >= 1; i--) {
+				var token = words.get(i);
+				if ("--original-directory".equals(token) || "-o".equals(token)) {
+					return "ORIGINAL";
+				}
+				if ("--export-directory".equals(token) || "-e".equals(token)) {
+					return "EXPORTED";
+				}
+				if (token.startsWith("-")) {
+					return null;
+				}
+			}
+			return null;
+		}
+
+		private String buildPathQuery(List<String> words, int wordIndex, String currentWord) {
+			if (currentWord == null || currentWord.isBlank()) {
+				return "/";
+			}
+			if (currentWord.startsWith("/")) {
+				return currentWord;
+			}
+			if (wordIndex > 0) {
+				var previous = words.get(wordIndex - 1);
+				if (previous.startsWith("/")) {
+					return previous + currentWord;
+				}
+			}
+			return currentWord;
+		}
+
+		private String ensureDirectorySuffix(String completion) {
+			if (completion == null || completion.isBlank() || completion.endsWith("/")) {
+				return completion;
+			}
+			return completion + "/";
+		}
+
+		private String basePathForQuery(String queryPath) {
+			if (queryPath == null || queryPath.isBlank() || "/".equals(queryPath)) {
+				return "/";
+			}
+			if (queryPath.endsWith("/")) {
+				return queryPath;
+			}
+			var lastSlash = queryPath.lastIndexOf('/');
+			if (lastSlash < 0) {
+				return "/";
+			}
+			if (lastSlash == 0) {
+				return "/";
+			}
+			return queryPath.substring(0, lastSlash + 1);
+		}
+
+		private String normalizeCompletionPath(String rawCompletion, String queryBasePath) {
+			if (rawCompletion == null || rawCompletion.isBlank()) {
+				return rawCompletion;
+			}
+			var base = (queryBasePath == null || queryBasePath.isBlank()) ? "/" : queryBasePath;
+			if (rawCompletion.startsWith(base)) {
+				return rawCompletion;
+			}
+			if (rawCompletion.startsWith("/")) {
+				if ("/".equals(base)) {
+					return rawCompletion;
+				}
+				return base + rawCompletion.substring(1);
+			}
+			if ("/".equals(base)) {
+				return "/" + rawCompletion;
+			}
+			return base + rawCompletion;
+		}
+
+		private void debugCandidates(String currentWord, List<Candidate> candidates) {
+			if (!debugCompletion) {
+				return;
+			}
+			var values = candidates.stream()
+			                       .map(Candidate::value)
+			                       .collect(Collectors.joining(", "));
+			debug("suggestions for '" + currentWord + "': [" + values + "]");
+		}
+
+		private void debug(String message) {
+			if (debugCompletion) {
+				err.println("[completion-debug] " + message);
 			}
 		}
 	}
 
 	Completer createCompleterForTests() {
-		return new CliCompleter();
+		return new CliCompleter(false);
+	}
+
+	Completer createShellCompleterForTests() {
+		return new CliCompleter(true);
+	}
+
+	private boolean isEnvDebugCompletionEnabled() {
+		var env = System.getenv("VEMPAIN_CLI_DEBUG_COMPLETION");
+		if (env == null) {
+			return false;
+		}
+		return "1".equals(env) || "true".equalsIgnoreCase(env) || "yes".equalsIgnoreCase(env);
+	}
+
+	private static Map<String, List<String>> commandOptions() {
+		var options = new LinkedHashMap<String, List<String>>();
+		options.put("login", List.of("--url", "--username", "--password"));
+		options.put("files-list", List.of("-t", "--type", "-p", "--page", "-s", "--size", "--sort-by", "--direction", "--search", "--case-sensitive"));
+		options.put("file-show", List.of("-t", "--type", "-i", "--id", "--raw", "--content-limit"));
+		options.put("publish-music", List.of());
+		options.put("publish-gps", List.of("--file-group-id", "--time-series-name"));
+		options.put("scan", List.of("-o", "--original-directory", "-e", "--export-directory"));
+		options.put("logout", List.of());
+		options.put("shell", List.of());
+		return options;
 	}
 
 	private static class RootArgs {
 		@Parameter(names = {"-h", "--help"}, help = true, description = "Show help")
 		boolean help;
+		@Parameter(names = {"--debug-completion"}, description = "Enable shell completion debug logging")
+		boolean debugCompletion;
 	}
 
 	@Parameters(commandDescription = "Authenticate and store session")

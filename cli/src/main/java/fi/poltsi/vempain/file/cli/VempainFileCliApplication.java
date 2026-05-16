@@ -352,7 +352,7 @@ public class VempainFileCliApplication {
 
 	private String[] splitArgs(String commandLine) {
 		List<String> tokens  = new ArrayList<>();
-		Matcher      matcher = Pattern.compile("\\\"([^\\\"]*)\\\"|'([^']*)'|(\\S+)")
+		Matcher matcher = Pattern.compile("\"([^\"]*)\"|'([^']*)'|(\\S+)")
 		                              .matcher(commandLine);
 		while (matcher.find()) {
 			if (matcher.group(1) != null) {
@@ -388,7 +388,7 @@ public class VempainFileCliApplication {
 			if (words.isEmpty()) {
 				return;
 			}
-			var command = words.get(0);
+			var command = words.getFirst();
 
 			completeCommandOptions(command, words, line.wordIndex(), currentWord, candidates);
 
@@ -466,6 +466,7 @@ public class VempainFileCliApplication {
 			var request = new JSONObject().put("path", path)
 			                              .put("type", completionType);
 			debug("path-completion request: " + request);
+
 			try {
 				var response    = backendClient.postJson(session, "/path-completion", request);
 				var completions = response.optJSONArray("completions");
@@ -481,6 +482,7 @@ public class VempainFileCliApplication {
 				                                 .startsWith("/");
 				var pathPrefixToken = hasPathPrefixToken ? words.get(wordIndex - 1) : "";
 				var queryBasePath   = basePathForQuery(path);
+
 				for (int i = 0; i < completions.length(); i++) {
 					var completion     = ensureDirectorySuffix(normalizeCompletionPath(completions.getString(i), queryBasePath));
 					var candidateValue = completion;
@@ -489,6 +491,7 @@ public class VempainFileCliApplication {
 					}
 					candidates.add(new Candidate(candidateValue, completion, null, null, null, null, false));
 				}
+
 				if (uniqueMatch && completions.length() == 1) {
 					var target = ensureDirectorySuffix(normalizeCompletionPath(completions.getString(0), queryBasePath));
 					var applied = (hasPathPrefixToken && target.startsWith(pathPrefixToken))

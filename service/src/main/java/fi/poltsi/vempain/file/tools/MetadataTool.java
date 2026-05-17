@@ -269,7 +269,13 @@ public class MetadataTool {
 	 */
 	public static String extractMusicArtist(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
+		// Legacy "ID3" group key (kept for backward-compat with older exiftool versions)
 		locations.put("ID3", List.of("Artist", "TPE1", "TPE2", "AlbumArtist", "Performer"));
+		// exiftool -g1 outputs versioned group names for ID3 tags in MP3 files
+		locations.put("ID3v2_4", List.of("Artist", "TPE1", "AlbumArtist", "Performer"));
+		locations.put("ID3v2_3", List.of("Artist", "TPE1", "AlbumArtist", "Performer"));
+		locations.put("ID3v2_2", List.of("Artist", "TP1", "AlbumArtist", "Performer"));
+		locations.put("ID3v1", List.of("Artist"));
 		locations.put("Vorbis", List.of("Artist", "Performer", "AlbumArtist"));
 		locations.put("iTunes", List.of("Artist"));
 		locations.put("QuickTime", List.of("Artist", "TPE1"));
@@ -287,6 +293,11 @@ public class MetadataTool {
 	public static String extractMusicAlbum(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("Album", "TALB"));
+		// exiftool -g1 versioned ID3 group names for MP3 files
+		locations.put("ID3v2_4", List.of("Album", "TALB"));
+		locations.put("ID3v2_3", List.of("Album", "TALB"));
+		locations.put("ID3v2_2", List.of("Album", "TAL"));
+		locations.put("ID3v1", List.of("Album"));
 		locations.put("Vorbis", List.of("Album"));
 		locations.put("iTunes", List.of("Album"));
 		locations.put("QuickTime", List.of("Album", "TALB"));
@@ -302,6 +313,11 @@ public class MetadataTool {
 	public static String extractMusicAlbumArtist(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("AlbumArtist", "Albumartist", "Band", "TPE2", "Artist"));
+		// exiftool -g1 versioned ID3 group names for MP3 files
+		locations.put("ID3v2_4", List.of("AlbumArtist", "Albumartist", "Band", "TPE2", "Artist"));
+		locations.put("ID3v2_3", List.of("AlbumArtist", "Albumartist", "Band", "TPE2", "Artist"));
+		locations.put("ID3v2_2", List.of("AlbumArtist", "Albumartist", "Band", "TP2", "Artist"));
+		locations.put("ID3v1", List.of("Artist"));
 		locations.put("Vorbis", List.of("AlbumArtist", "Albumartist", "Artist"));
 		locations.put("iTunes", List.of("AlbumArtist", "Artist"));
 		locations.put("QuickTime", List.of("AlbumArtist", "Artist", "TPE2"));
@@ -317,6 +333,12 @@ public class MetadataTool {
 	public static Integer extractMusicYear(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("Year", "Date", "TDRC"));
+		// exiftool -g1 versioned ID3 group names for MP3 files
+		// ID3v2.4 uses RecordingTime (TDRC); ID3v2.3 uses Year (TYER)
+		locations.put("ID3v2_4", List.of("RecordingTime", "Year", "Date", "TDRC"));
+		locations.put("ID3v2_3", List.of("Year", "Date", "RecordingTime", "TYER"));
+		locations.put("ID3v2_2", List.of("Year", "Date", "TYE"));
+		locations.put("ID3v1", List.of("Year"));
 		locations.put("Vorbis", List.of("Date", "Year"));
 		locations.put("iTunes", List.of("Year", "Date"));
 		locations.put("QuickTime", List.of("Year", "Date"));
@@ -361,6 +383,11 @@ public class MetadataTool {
 	public static String extractMusicTitle(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("Title", "TIT2", "TIT1"));
+		// exiftool -g1 versioned ID3 group names for MP3 files
+		locations.put("ID3v2_4", List.of("Title", "TIT2", "TIT1"));
+		locations.put("ID3v2_3", List.of("Title", "TIT2", "TIT1"));
+		locations.put("ID3v2_2", List.of("Title", "TT2", "TT1"));
+		locations.put("ID3v1", List.of("Title"));
 		locations.put("Vorbis", List.of("Title"));
 		locations.put("iTunes", List.of("Title"));
 		locations.put("QuickTime", List.of("Title", "TIT2"));
@@ -378,6 +405,11 @@ public class MetadataTool {
 	public static Integer extractMusicTrackNumber(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("TrackNumber", "TRCK"));
+		// exiftool -g1 versioned ID3 group names; key is "Track" (may contain "N/total" format)
+		locations.put("ID3v2_4", List.of("Track", "TrackNumber", "TRCK"));
+		locations.put("ID3v2_3", List.of("Track", "TrackNumber", "TRCK"));
+		locations.put("ID3v2_2", List.of("Track", "TrackNumber", "TRK"));
+		locations.put("ID3v1", List.of("Track", "TrackNumber"));
 		locations.put("Vorbis", List.of("TrackNumber", "Tracknumber", "Track"));
 		locations.put("iTunes", List.of("TrackNumber"));
 		locations.put("QuickTime", List.of("TrackNumber", "TRCK"));
@@ -416,6 +448,11 @@ public class MetadataTool {
 	public static Integer extractMusicTrackTotal(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("TrackTotal", "Track", "TRCK"));
+		// exiftool -g1 versioned ID3 group names; "Track" contains "N/total" format in ID3
+		locations.put("ID3v2_4", List.of("Track", "TrackTotal", "TRCK"));
+		locations.put("ID3v2_3", List.of("Track", "TrackTotal", "TRCK"));
+		locations.put("ID3v2_2", List.of("Track", "TrackTotal", "TRK"));
+		locations.put("ID3v1", List.of("Track", "TrackTotal"));
 		locations.put("Vorbis", List.of("TrackTotal", "Tracktotal", "TrackNumber", "Track"));
 		locations.put("iTunes", List.of("TrackTotal", "TrackCount", "TrackNumber"));
 		locations.put("QuickTime", List.of("TrackTotal", "TrackNumber", "TRCK"));
@@ -468,6 +505,11 @@ public class MetadataTool {
 	public static String extractMusicGenre(JSONObject jsonObject) {
 		var locations = new HashMap<String, List<String>>();
 		locations.put("ID3", List.of("Genre", "TCON"));
+		// exiftool -g1 versioned ID3 group names for MP3 files
+		locations.put("ID3v2_4", List.of("Genre", "TCON"));
+		locations.put("ID3v2_3", List.of("Genre", "TCON"));
+		locations.put("ID3v2_2", List.of("Genre", "TCO"));
+		locations.put("ID3v1", List.of("Genre"));
 		locations.put("Vorbis", List.of("Genre"));
 		locations.put("iTunes", List.of("Genre"));
 		locations.put("QuickTime", List.of("Genre", "TCON"));
@@ -478,7 +520,13 @@ public class MetadataTool {
 
 	/**
 	 * Checks whether the given metadata JSON object contains music-specific metadata
-	 * (at minimum an artist or title field).
+	 * (at minimum an artist, title, album or genre field).
+	 * <p>
+	 * When exiftool is run with {@code -g1}, ID3 tags in MP3 files appear under versioned
+	 * group keys ({@code ID3v2_4}, {@code ID3v2_3}, {@code ID3v2_2}, {@code ID3v1}) rather
+	 * than the generic {@code "ID3"} key.  The extraction helpers handle all known variants,
+	 * so this method simply delegates to them.
+	 * </p>
 	 *
 	 * @param jsonObject Extracted JSON formatted metadata
 	 * @return true if music metadata is present, false otherwise

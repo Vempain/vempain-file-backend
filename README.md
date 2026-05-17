@@ -14,6 +14,14 @@ The service can be used in conjunction with the Vempain Admin as well as Vempain
 
 Service exposes REST APIs designed to be used by the Vempain File frontend.
 
+## CLI location
+
+The Vempain CLI code was moved out of this repository into a dedicated repository:
+
+- `vempain-cli`
+
+This backend repository now contains only the File backend API (`api/`) and service implementation (`service/`).
+
 ## Scheduled refresh for modified files
 
 The service now includes a scheduler that revisits already-registered source files and refreshes their DB data when the filesystem timestamp indicates updates.

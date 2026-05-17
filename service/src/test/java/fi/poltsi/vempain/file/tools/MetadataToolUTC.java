@@ -399,4 +399,267 @@ class MetadataToolUTC {
 			assertFalse(MetadataTool.hasMusicMetadata(root));
 		}
 	}
+
+	// ------------------------------------------------------------------
+	// hasMusicMetadata — MP3 / ID3-versioned group names
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("hasMusicMetadata detects ID3v2.4 (Artist field)")
+	@CsvSource({
+			"Artist,Beherit,yes",
+			"Title,Grave Desecration,yes",
+			"Album,Demonomancy,yes",
+			"Genre,Black Metal,yes",
+			"Comment,Unpublished demo,no"
+	})
+	void hasMusicMetadata_mp3_id3v24(String field, String value, String expectedYesNo) {
+		var id3  = new JSONObject().put(field, value);
+		var root = new JSONObject().put("ID3v2_4", id3);
+		if ("yes".equals(expectedYesNo)) {
+			assertTrue(MetadataTool.hasMusicMetadata(root), "Expected true for field " + field);
+		} else {
+			assertFalse(MetadataTool.hasMusicMetadata(root), "Expected false for field " + field);
+		}
+	}
+
+	@ParameterizedTest
+	@DisplayName("hasMusicMetadata detects ID3v2.3 (Artist field)")
+	@CsvSource({
+			"Artist,Sepultura,yes",
+			"Title,Roots Bloody Roots,yes",
+			"Album,Roots,yes",
+			"Genre,Thrash Metal,yes",
+			"Comment,Liner notes,no"
+	})
+	void hasMusicMetadata_mp3_id3v23(String field, String value, String expectedYesNo) {
+		var id3  = new JSONObject().put(field, value);
+		var root = new JSONObject().put("ID3v2_3", id3);
+		if ("yes".equals(expectedYesNo)) {
+			assertTrue(MetadataTool.hasMusicMetadata(root), "Expected true for field " + field);
+		} else {
+			assertFalse(MetadataTool.hasMusicMetadata(root), "Expected false for field " + field);
+		}
+	}
+
+	@ParameterizedTest
+	@DisplayName("hasMusicMetadata detects ID3v1 tags")
+	@CsvSource({
+			"Artist,Metallica,yes",
+			"Title,Enter Sandman,yes",
+			"Album,Metallica,yes",
+			"Genre,Heavy Metal,yes",
+			"Comment,Some note,no"
+	})
+	void hasMusicMetadata_mp3_id3v1(String field, String value, String expectedYesNo) {
+		var id3  = new JSONObject().put(field, value);
+		var root = new JSONObject().put("ID3v1", id3);
+		if ("yes".equals(expectedYesNo)) {
+			assertTrue(MetadataTool.hasMusicMetadata(root), "Expected true for field " + field);
+		} else {
+			assertFalse(MetadataTool.hasMusicMetadata(root), "Expected false for field " + field);
+		}
+	}
+
+	@DisplayName("hasMusicMetadata returns false for ID3 group with no recognized music field")
+	@org.junit.jupiter.api.Test
+	void hasMusicMetadata_returnsFalse_forId3GroupWithNoMusicField() {
+		// An ID3v2_4 group with only an encoder-settings field (no Artist/Title/Album/Genre)
+		var id3  = new JSONObject().put("EncoderSettings", "LAME3.98b");
+		var root = new JSONObject().put("ID3v2_4", id3);
+		assertFalse(MetadataTool.hasMusicMetadata(root));
+	}
+
+	@DisplayName("hasMusicMetadata returns false for audio file with no ID3/Vorbis group")
+	@org.junit.jupiter.api.Test
+	void hasMusicMetadata_returnsFalse_forAudioWithNoMusicGroup() {
+		// A pure audio file with only MPEG/File groups (no music metadata)
+		var mpeg = new JSONObject().put("AudioBitrate", "192 kbps")
+		                           .put("SampleRate", 44100);
+		var file = new JSONObject().put("MIMEType", "audio/mpeg");
+		var root = new JSONObject().put("MPEG", mpeg)
+		                           .put("File", file);
+		assertFalse(MetadataTool.hasMusicMetadata(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicArtist — versioned ID3 group names
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("extractMusicArtist reads artist from versioned ID3 groups")
+	@CsvSource({
+			"ID3v2_4,Beherit",
+			"ID3v2_3,Sepultura",
+			"ID3v2_2,Obituary",
+			"ID3v1,Metallica"
+	})
+	void extractMusicArtist_versionedId3Groups(String group, String artist) {
+		var root = new JSONObject().put(group, new JSONObject().put("Artist", artist));
+		assertEquals(artist, MetadataTool.extractMusicArtist(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicTitle — versioned ID3 group names
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("extractMusicTitle reads title from versioned ID3 groups")
+	@CsvSource({
+			"ID3v2_4,Grave Desecration",
+			"ID3v2_3,Roots Bloody Roots",
+			"ID3v1,Enter Sandman"
+	})
+	void extractMusicTitle_versionedId3Groups(String group, String title) {
+		var root = new JSONObject().put(group, new JSONObject().put("Title", title));
+		assertEquals(title, MetadataTool.extractMusicTitle(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicAlbum — versioned ID3 group names
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("extractMusicAlbum reads album from versioned ID3 groups")
+	@CsvSource({
+			"ID3v2_4,Demonomancy",
+			"ID3v2_3,Roots",
+			"ID3v1,Metallica"
+	})
+	void extractMusicAlbum_versionedId3Groups(String group, String album) {
+		var root = new JSONObject().put(group, new JSONObject().put("Album", album));
+		assertEquals(album, MetadataTool.extractMusicAlbum(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicGenre — versioned ID3 group names
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("extractMusicGenre reads genre from versioned ID3 groups")
+	@CsvSource({
+			"ID3v2_4,Black Metal",
+			"ID3v2_3,Thrash Metal",
+			"ID3v1,Heavy Metal"
+	})
+	void extractMusicGenre_versionedId3Groups(String group, String genre) {
+		var root = new JSONObject().put(group, new JSONObject().put("Genre", genre));
+		assertEquals(genre, MetadataTool.extractMusicGenre(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicAlbumArtist — Band field in versioned ID3 groups
+	// ------------------------------------------------------------------
+
+	@ParameterizedTest
+	@DisplayName("extractMusicAlbumArtist reads Band field from versioned ID3 groups")
+	@CsvSource({
+			"ID3v2_4,Beherit",
+			"ID3v2_3,Various Artists"
+	})
+	void extractMusicAlbumArtist_bandField_versionedId3Groups(String group, String band) {
+		var root = new JSONObject().put(group, new JSONObject().put("Band", band));
+		assertEquals(band, MetadataTool.extractMusicAlbumArtist(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicYear — versioned ID3 group names (Year vs RecordingTime)
+	// ------------------------------------------------------------------
+
+	@DisplayName("extractMusicYear reads Year (integer) from ID3v2_3 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicYear_fromId3v23_intYear() {
+		var root = new JSONObject().put("ID3v2_3", new JSONObject().put("Year", 1990));
+		assertEquals(1990, MetadataTool.extractMusicYear(root));
+	}
+
+	@DisplayName("extractMusicYear reads RecordingTime from ID3v2_4 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicYear_fromId3v24_recordingTime() {
+		var root = new JSONObject().put("ID3v2_4", new JSONObject().put("RecordingTime", 1990));
+		assertEquals(1990, MetadataTool.extractMusicYear(root));
+	}
+
+	@DisplayName("extractMusicYear reads Year from ID3v1 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicYear_fromId3v1() {
+		var root = new JSONObject().put("ID3v1", new JSONObject().put("Year", 1986));
+		assertEquals(1986, MetadataTool.extractMusicYear(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicTrackNumber — Track field "N/total" format in ID3v2
+	// ------------------------------------------------------------------
+
+	@DisplayName("extractMusicTrackNumber reads Track (N/total) from ID3v2_4 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicTrackNumber_fromId3v24_trackWithTotal() {
+		var root = new JSONObject().put("ID3v2_4", new JSONObject().put("Track", "04/07"));
+		assertEquals(4, MetadataTool.extractMusicTrackNumber(root));
+	}
+
+	@DisplayName("extractMusicTrackNumber reads Track from ID3v2_3 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicTrackNumber_fromId3v23() {
+		var root = new JSONObject().put("ID3v2_3", new JSONObject().put("Track", "04/07"));
+		assertEquals(4, MetadataTool.extractMusicTrackNumber(root));
+	}
+
+	// ------------------------------------------------------------------
+	// extractMusicTrackTotal — Track field "N/total" format in ID3v2
+	// ------------------------------------------------------------------
+
+	@DisplayName("extractMusicTrackTotal reads total from Track (N/total) in ID3v2_4 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicTrackTotal_fromId3v24_trackWithTotal() {
+		var root = new JSONObject().put("ID3v2_4", new JSONObject().put("Track", "04/07"));
+		assertEquals(7, MetadataTool.extractMusicTrackTotal(root));
+	}
+
+	@DisplayName("extractMusicTrackTotal reads total from Track in ID3v2_3 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicTrackTotal_fromId3v23() {
+		var root = new JSONObject().put("ID3v2_3", new JSONObject().put("Track", "04/07"));
+		assertEquals(7, MetadataTool.extractMusicTrackTotal(root));
+	}
+
+	// ------------------------------------------------------------------
+	// Full MP3 / ID3v2.3 metadata JSON — simulating real exiftool -g1 output
+	// ------------------------------------------------------------------
+
+	@DisplayName("hasMusicMetadata returns true for MP3 metadata JSON matching Beherit track")
+	@org.junit.jupiter.api.Test
+	void hasMusicMetadata_mp3_beheritTrackJson() {
+		// Simulates the exiftool -g1 output structure for the given MP3 file
+		var id3v23 = new JSONObject()
+				.put("Title", "Grave Desecration")
+				.put("Artist", "Beherit")
+				.put("Band", "Beherit")
+				.put("Album", "Demonomancy")
+				.put("Year", 1990)
+				.put("Track", "04/07")
+				.put("Genre", "Black Metal")
+				.put("Comment", "Demo");
+		var mpeg = new JSONObject()
+				.put("AudioBitrate", "256 kbps")
+				.put("SampleRate", 44100)
+				.put("ChannelMode", "Stereo");
+		var file = new JSONObject()
+				.put("MIMEType", "audio/mpeg")
+				.put("FileType", "MP3");
+		var root = new JSONObject()
+				.put("ID3v2_3", id3v23)
+				.put("MPEG", mpeg)
+				.put("File", file);
+
+		assertTrue(MetadataTool.hasMusicMetadata(root));
+		assertEquals("Grave Desecration", MetadataTool.extractMusicTitle(root));
+		assertEquals("Beherit", MetadataTool.extractMusicArtist(root));
+		assertEquals("Beherit", MetadataTool.extractMusicAlbumArtist(root));
+		assertEquals("Demonomancy", MetadataTool.extractMusicAlbum(root));
+		assertEquals(1990, MetadataTool.extractMusicYear(root));
+		assertEquals("Black Metal", MetadataTool.extractMusicGenre(root));
+		assertEquals(4, MetadataTool.extractMusicTrackNumber(root));
+		assertEquals(7, MetadataTool.extractMusicTrackTotal(root));
+	}
 }

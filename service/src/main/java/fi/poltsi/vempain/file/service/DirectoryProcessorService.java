@@ -91,6 +91,7 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbum;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbumArtist;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicArtist;
+import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicDescription;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicGenre;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTitle;
 import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackNumber;
@@ -499,6 +500,7 @@ public class DirectoryProcessorService {
 				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
 				musicFile.setTrackTotal(extractMusicTrackTotal(jsonObject));
 				musicFile.setGenre(extractMusicGenre(jsonObject));
+				musicFile.setDescription(extractMusicDescription(jsonObject));
 				fileRepository.save(musicFile);
 				linkFileToGroup(musicFile, fileGroup);
 			}
@@ -776,6 +778,7 @@ public class DirectoryProcessorService {
 				musicFile.setTrackNumber(extractMusicTrackNumber(jsonObject));
 				musicFile.setTrackTotal(extractMusicTrackTotal(jsonObject));
 				musicFile.setGenre(extractMusicGenre(jsonObject));
+				musicFile.setDescription(extractMusicDescription(jsonObject));
 			}
 			case BINARY -> {
 				var binary = (BinaryFileEntity) existingFile;

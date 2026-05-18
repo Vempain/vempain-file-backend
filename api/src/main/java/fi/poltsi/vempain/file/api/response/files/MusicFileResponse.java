@@ -38,4 +38,8 @@ public class MusicFileResponse extends AudioFileResponse {
 
 	@Schema(description = "Music genre", example = "Rock")
 	private String genre;
+
+	@Schema(description = "Description or comment from the audio metadata (Vorbis Description / ID3 Comment)",
+	        example = "Spookshow 2000 MIX")
+	private String description;
 }

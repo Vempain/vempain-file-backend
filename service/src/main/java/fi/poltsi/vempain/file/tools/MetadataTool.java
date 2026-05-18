@@ -519,6 +519,37 @@ public class MetadataTool {
 	}
 
 	/**
+	 * Extract the music description/comment from audio file metadata.
+	 * <ul>
+	 *   <li>FLAC files store it in the {@code Vorbis} group under the {@code Description} field.</li>
+	 *   <li>MP3 files store it in versioned ID3 groups ({@code ID3v2_4}, {@code ID3v2_3},
+	 *       {@code ID3v2_2}, {@code ID3v1}) under the {@code Comment} field.</li>
+	 * </ul>
+	 *
+	 * @param jsonObject Extracted JSON formatted metadata (from exiftool {@code -g1 -J})
+	 * @return Description/comment string, or {@code null} if not present
+	 */
+	public static String extractMusicDescription(JSONObject jsonObject) {
+		if (jsonObject == null) {
+			return null;
+		}
+		var locations = new HashMap<String, List<String>>();
+		// FLAC — Vorbis comment block
+		locations.put("Vorbis", List.of("Description", "Comment"));
+		// MP3 — versioned ID3 group names produced by exiftool -g1
+		locations.put("ID3v2_4", List.of("Comment"));
+		locations.put("ID3v2_3", List.of("Comment"));
+		locations.put("ID3v2_2", List.of("Comment"));
+		locations.put("ID3v1", List.of("Comment"));
+		// Legacy generic ID3 key (older exiftool versions)
+		locations.put("ID3", List.of("Comment", "Description"));
+		// iTunes / QuickTime
+		locations.put("iTunes", List.of("Comment", "Description"));
+		locations.put("QuickTime", List.of("Comment", "Description"));
+		return extractJsonString(jsonObject, locations);
+	}
+
+	/**
 	 * Checks whether the given metadata JSON object contains music-specific metadata
 	 * (at minimum an artist, title, album or genre field).
 	 * <p>

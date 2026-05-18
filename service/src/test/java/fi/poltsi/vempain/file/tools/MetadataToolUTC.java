@@ -624,42 +624,127 @@ class MetadataToolUTC {
 	}
 
 	// ------------------------------------------------------------------
-	// Full MP3 / ID3v2.3 metadata JSON — simulating real exiftool -g1 output
+	// extractMusicDescription — Vorbis Description (FLAC) and ID3 Comment (MP3)
 	// ------------------------------------------------------------------
 
-	@DisplayName("hasMusicMetadata returns true for MP3 metadata JSON matching Beherit track")
+	@DisplayName("extractMusicDescription reads Description from Vorbis group (FLAC)")
 	@org.junit.jupiter.api.Test
-	void hasMusicMetadata_mp3_beheritTrackJson() {
-		// Simulates the exiftool -g1 output structure for the given MP3 file
+	void extractMusicDescription_flac_vorbisDescription() {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("Description", "Spookshow 2000 MIX"));
+		assertEquals("Spookshow 2000 MIX", MetadataTool.extractMusicDescription(root));
+	}
+
+	@DisplayName("extractMusicDescription reads Comment from ID3v2_3 group (MP3)")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_mp3_id3v23Comment() {
+		var root = new JSONObject().put("ID3v2_3", new JSONObject().put("Comment", "Live"));
+		assertEquals("Live", MetadataTool.extractMusicDescription(root));
+	}
+
+	@DisplayName("extractMusicDescription reads Comment from ID3v2_4 group (MP3)")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_mp3_id3v24Comment() {
+		var root = new JSONObject().put("ID3v2_4", new JSONObject().put("Comment", "Remastered edition"));
+		assertEquals("Remastered edition", MetadataTool.extractMusicDescription(root));
+	}
+
+	@DisplayName("extractMusicDescription reads Comment from ID3v1 group")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_id3v1Comment() {
+		var root = new JSONObject().put("ID3v1", new JSONObject().put("Comment", "Demo tape"));
+		assertEquals("Demo tape", MetadataTool.extractMusicDescription(root));
+	}
+
+	@DisplayName("extractMusicDescription returns null when no description/comment field present")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_returnsNull_whenAbsent() {
+		var root = new JSONObject().put("Vorbis", new JSONObject().put("Title", "Some Track"));
+		assertNull(MetadataTool.extractMusicDescription(root));
+	}
+
+	@DisplayName("extractMusicDescription returns null for null input")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_returnsNull_forNullInput() {
+		assertNull(MetadataTool.extractMusicDescription(null));
+	}
+
+	@ParameterizedTest
+	@DisplayName("extractMusicDescription handles multiple ID3 group versions")
+	@org.junit.jupiter.params.provider.CsvSource({
+			"ID3v2_4,Comment,Remastered",
+			"ID3v2_3,Comment,Live",
+			"ID3v2_2,Comment,Demo",
+			"ID3v1,Comment,Demo tape"
+	})
+	void extractMusicDescription_mp3_versionedId3Groups(String group, String field, String value) {
+		var root = new JSONObject().put(group, new JSONObject().put(field, value));
+		assertEquals(value, MetadataTool.extractMusicDescription(root));
+	}
+
+	// ------------------------------------------------------------------
+	// Full FLAC metadata JSON — Vorbis Description field
+	// ------------------------------------------------------------------
+
+	@DisplayName("extractMusicDescription returns Vorbis Description for full FLAC metadata JSON")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_flac_fullVorbisSection() {
+		// Simulates exiftool -g1 output for the Alice Cooper FLAC file
+		var vorbis = new JSONObject()
+				.put("Title", "Hands Of Death")
+				.put("Artist", "Alice Cooper")
+				.put("Albumartist", "Alice Cooper")
+				.put("Album", "The Life And Crimes Of Alice Cooper")
+				.put("Date", 1999)
+				.put("TrackNumber", 79)
+				.put("Tracktotal", 81)
+				.put("Genre", "Hard Rock")
+				.put("Description", "Spookshow 2000 MIX");
+		var file = new JSONObject().put("FileType", "FLAC")
+		                           .put("MIMEType", "audio/flac");
+		var root = new JSONObject().put("Vorbis", vorbis)
+		                           .put("File", file);
+
+		assertTrue(MetadataTool.hasMusicMetadata(root));
+		assertEquals("Spookshow 2000 MIX", MetadataTool.extractMusicDescription(root));
+		assertEquals("Hands Of Death", MetadataTool.extractMusicTitle(root));
+		assertEquals("Alice Cooper", MetadataTool.extractMusicArtist(root));
+	}
+
+	// ------------------------------------------------------------------
+	// Full MP3 metadata JSON — ID3v2_3 Comment field (Stormtroopers Of Death)
+	// ------------------------------------------------------------------
+
+	@DisplayName("extractMusicDescription returns ID3v2_3 Comment for full MP3 metadata JSON")
+	@org.junit.jupiter.api.Test
+	void extractMusicDescription_mp3_stormtroopersOfDeathJson() {
+		// Simulates the exiftool -g1 output for the SOD MP3 file
 		var id3v23 = new JSONObject()
-				.put("Title", "Grave Desecration")
-				.put("Artist", "Beherit")
-				.put("Band", "Beherit")
-				.put("Album", "Demonomancy")
-				.put("Year", 1990)
-				.put("Track", "04/07")
-				.put("Genre", "Black Metal")
-				.put("Comment", "Demo");
+				.put("Title", "Ballad Of Freddy Mercury")
+				.put("Artist", "Stormtroopers Of Death")
+				.put("Band", "Stormtroopers Of Death")
+				.put("Album", "Rise Of The Infidels")
+				.put("Year", 2007)
+				.put("Track", "17/24")
+				.put("Genre", "Trash Metal")
+				.put("Comment", "Live");
 		var mpeg = new JSONObject()
-				.put("AudioBitrate", "256 kbps")
+				.put("AudioBitrate", "128 kbps")
 				.put("SampleRate", 44100)
-				.put("ChannelMode", "Stereo");
+				.put("ChannelMode", "Joint Stereo");
 		var file = new JSONObject()
-				.put("MIMEType", "audio/mpeg")
-				.put("FileType", "MP3");
+				.put("FileType", "MP3")
+				.put("MIMEType", "audio/mpeg");
 		var root = new JSONObject()
 				.put("ID3v2_3", id3v23)
 				.put("MPEG", mpeg)
 				.put("File", file);
 
 		assertTrue(MetadataTool.hasMusicMetadata(root));
-		assertEquals("Grave Desecration", MetadataTool.extractMusicTitle(root));
-		assertEquals("Beherit", MetadataTool.extractMusicArtist(root));
-		assertEquals("Beherit", MetadataTool.extractMusicAlbumArtist(root));
-		assertEquals("Demonomancy", MetadataTool.extractMusicAlbum(root));
-		assertEquals(1990, MetadataTool.extractMusicYear(root));
-		assertEquals("Black Metal", MetadataTool.extractMusicGenre(root));
-		assertEquals(4, MetadataTool.extractMusicTrackNumber(root));
-		assertEquals(7, MetadataTool.extractMusicTrackTotal(root));
+		assertEquals("Live", MetadataTool.extractMusicDescription(root));
+		assertEquals("Ballad Of Freddy Mercury", MetadataTool.extractMusicTitle(root));
+		assertEquals("Stormtroopers Of Death", MetadataTool.extractMusicArtist(root));
+		assertEquals(2007, MetadataTool.extractMusicYear(root));
+		assertEquals(17, MetadataTool.extractMusicTrackNumber(root));
+		assertEquals(24, MetadataTool.extractMusicTrackTotal(root));
 	}
 }

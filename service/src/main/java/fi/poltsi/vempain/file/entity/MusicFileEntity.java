@@ -52,6 +52,9 @@ public class MusicFileEntity extends AudioFileEntity {
 	@Column(name = "genre")
 	private String genre;
 
+	@Column(name = "description", length = 1024)
+	private String description;
+
 	@Override
 	public MusicFileResponse toResponse() {
 		MusicFileResponse response = new MusicFileResponse();
@@ -75,6 +78,7 @@ public class MusicFileEntity extends AudioFileEntity {
 		response.setTrackNumber(getTrackNumber());
 		response.setTrackTotal(getTrackTotal());
 		response.setGenre(getGenre());
+		response.setDescription(getDescription());
 
 		return response;
 	}

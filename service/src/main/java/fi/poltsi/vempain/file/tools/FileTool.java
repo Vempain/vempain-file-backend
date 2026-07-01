@@ -14,6 +14,7 @@ public class FileTool {
 		try {
 			return DigestUtils.sha256Hex(Files.readAllBytes(file.toPath()));
 		} catch (IOException e) {
+			log.warn("Failed to generate sha256sum for file {}", file);
 			return null;
 		}
 	}

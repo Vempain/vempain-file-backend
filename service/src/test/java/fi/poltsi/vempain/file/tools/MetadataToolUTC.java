@@ -22,6 +22,7 @@ class MetadataToolUTC {
 			"2006:11:19 00:04:34+02:00",
 			"2008:03:20 21:14:46.00+02:00",
 			"2014:06:24 09:34:01.761+03:00",
+			"2012:02:27 23:08:27+3:00",
 			"2022:07:07 17:35:12.1Z",
 			"2016:10:27 04:50+02:00"
 	})
@@ -32,7 +33,8 @@ class MetadataToolUTC {
 
 	@ParameterizedTest
 	@CsvSource({
-			"2016:10:27 04:50+02:00,2016-10-27T02:50:00Z"
+			"2016:10:27 04:50+02:00,2016-10-27T02:50:00Z",
+			"2012:02:27 23:08:27+3:00,2012-02-27T20:08:27Z"
 	})
 	void dateTimeParser_parsesWithoutSeconds(String input, String expectedUtc) {
 		assertEquals(Instant.parse(expectedUtc), MetadataTool.dateTimeParser(input));

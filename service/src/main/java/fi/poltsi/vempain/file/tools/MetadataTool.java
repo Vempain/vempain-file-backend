@@ -1500,6 +1500,15 @@ public class MetadataTool {
 			}
 		}
 
+		var normalized  = trimmed;
+		var offsetStart = Math.max(trimmed.lastIndexOf('+'), trimmed.lastIndexOf('-'));
+		if (offsetStart > 0) {
+			var offset = trimmed.substring(offsetStart);
+			if (offset.matches("[+-]\\d:\\d{2}")) {
+				normalized = trimmed.substring(0, offsetStart) + offset.charAt(0) + "0" + offset.substring(1);
+			}
+		}
+
 		var formatter = new DateTimeFormatterBuilder()
 				// Date
 				.appendPattern("yyyy:MM:dd HH:mm")
@@ -1519,7 +1528,7 @@ public class MetadataTool {
 				.withZone(ZoneId.systemDefault());
 
 		try {
-			var timeStamp = formatter.parse(trimmed, Instant::from);
+			var timeStamp = formatter.parse(normalized, Instant::from);
 			log.debug("Parsed date time string '{}' to Instant: {}", dateTimeString, timeStamp);
 			return timeStamp;
 		} catch (DateTimeParseException e) {

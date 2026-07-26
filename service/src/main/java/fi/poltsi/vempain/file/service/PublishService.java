@@ -97,6 +97,8 @@ public class PublishService {
 				var exportFilePath = resolveExportedPath(fileEntity.getId());
 				var siteFileName   = fileEntity.getFilename();
 
+				log.debug("Export file path: {} {}", exportFilePath, siteFileName);
+
 				if (exportFilePath == null
 					|| !Files.exists(exportFilePath)) {
 					log.debug("Export file does not exist, skipping: {}", exportFilePath);
@@ -152,11 +154,14 @@ public class PublishService {
 							log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
 						}
 					}
+					var normalizedFilePath = normalizeIngestPath(fileEntity.getFilePath(), fileEntity.getFileType());
+
+					log.debug("Ingest file data: {} {}", normalizedFilePath, siteFileName);
 
 					var fileIngestRequest = FileIngestRequest.builder()
 															 .fileName(siteFileName)
 															 .sortOrder(sortOrder)
-															 .filePath(normalizeIngestPath(fileEntity.getFilePath()))
+															 .filePath(normalizedFilePath)
 															 .mimeType(mimetype)
 															 .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
 															 .metadata(metadataJson)
@@ -307,7 +312,7 @@ public class PublishService {
 			var fileIngestRequest = FileIngestRequest.builder()
 			                                         .sortOrder(0)
 			                                         .fileName(siteFileName)
-			                                         .filePath(normalizeIngestPath(fileEntity.getFilePath()))
+			                                         .filePath(normalizeIngestPath(fileEntity.getFilePath(), fileEntity.getFileType()))
 			                                         .mimeType(mimetype)
 			                                         .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
 			                                         .metadata(metadataJson)
@@ -417,10 +422,19 @@ public class PublishService {
 				   .resolve(exportFileEntity.getFilename());
 	}
 
-	private String normalizeIngestPath(String filePath) {
+	private String normalizeIngestPath(String filePath, FileTypeEnum fileType) {
 		if (filePath == null) {
 			return "";
 		}
-		return filePath.startsWith("/") ? filePath.substring(1) : filePath;
+
+		var relativePath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
+		// Then remove the file type prefix if present
+		var prefix = fileType.name()
+		                     .toLowerCase() + "/";
+		if (relativePath.startsWith(prefix)) {
+			relativePath = relativePath.substring(prefix.length());
+		}
+
+		return relativePath;
 	}
 }

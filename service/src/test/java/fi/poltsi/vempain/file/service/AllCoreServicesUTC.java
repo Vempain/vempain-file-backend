@@ -165,10 +165,10 @@ class AllCoreServicesUTC {
 	@Test
 	void tagServiceUTC_getAllMapsEntities() {
 		var service = new TagService(tagRepository, fileTagRepository);
-		var tag     = TagEntity.builder()
-		                       .id(1L)
-		                       .tagName("nature")
-		                       .build();
+		var tag = TagEntity.builder()
+		                   .id(1L)
+		                   .tagName("nature")
+		                   .build();
 		when(tagRepository.findAll()).thenReturn(List.of(tag));
 
 		var result = service.getAllTags();
@@ -201,12 +201,12 @@ class AllCoreServicesUTC {
 		                               .build();
 		when(objectMapper.writeValueAsString(any(FileIngestRequest.class))).thenReturn("{}");
 		var feignRequest = Request.create(Request.HttpMethod.POST, "/ingest", Map.of(), Request.Body.empty(), new RequestTemplate());
-		var response     = Response.builder()
-		                           .request(feignRequest)
-		                           .status(500)
-		                           .reason("error")
-		                           .headers(Map.of())
-		                           .build();
+		var response = Response.builder()
+		                       .request(feignRequest)
+		                       .status(500)
+		                       .reason("error")
+		                       .headers(Map.of())
+		                       .build();
 		when(ingestClient.ingest(any(), any())).thenReturn(ResponseEntity.status(500)
 		                                                                 .build());
 

@@ -31,8 +31,8 @@ public interface FileGroupAPI {
 	@Operation(summary = "List all file groups (paged)", tags = "FileGroupAPI")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved all file groups",
-						 content = {@Content(schema = @Schema(implementation = PagedResponse.class),
-											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(schema = @Schema(implementation = PagedResponse.class),
+			                                 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
@@ -45,8 +45,8 @@ public interface FileGroupAPI {
 	@Operation(summary = "Get a file group by id", tags = "FileGroupAPI")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved all file groups",
-						 content = {@Content(array = @io.swagger.v3.oas.annotations.media.ArraySchema(schema = @Schema(implementation = java.util.List.class)),
-											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(array = @io.swagger.v3.oas.annotations.media.ArraySchema(schema = @Schema(implementation = java.util.List.class)),
+			                                 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
@@ -58,13 +58,13 @@ public interface FileGroupAPI {
 
 	@Operation(summary = "Create a new file group", description = "Creates a file group and associates given files to the group")
 	@ApiResponse(responseCode = "201", description = "Created",
-				 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
+	             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
 	@PostMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<FileGroupResponse> addFileGroup(@Valid @RequestBody FileGroupRequest request);
 
 	@Operation(summary = "Update an existing file group", description = "Updates group metadata and replaces file associations with the provided list")
 	@ApiResponse(responseCode = "200", description = "Updated",
-				 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
+	             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = FileGroupResponse.class)))
 	@PutMapping(value = BASE_PATH, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<FileGroupResponse> updateFileGroup(@Valid @RequestBody FileGroupRequest request);
 }

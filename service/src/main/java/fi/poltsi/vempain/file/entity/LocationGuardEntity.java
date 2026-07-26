@@ -51,26 +51,26 @@ public class LocationGuardEntity {
 
 	public LocationGuardResponse toResponse() {
 		var primaryCoordinate = GeoCoordinate.builder()
-											 .longitude(primaryLongitude)
-											 .latitude(primaryLatitude)
-											 .build();
+		                                     .longitude(primaryLongitude)
+		                                     .latitude(primaryLatitude)
+		                                     .build();
 
 		GeoCoordinate secondaryCoordinate = null;
 
 		if (guardType == GuardTypeEnum.SQUARE) {
 			secondaryCoordinate = GeoCoordinate.builder()
-											   .longitude(secondaryLongitude)
-											   .latitude(secondaryLatitude)
-											   .build();
+			                                   .longitude(secondaryLongitude)
+			                                   .latitude(secondaryLatitude)
+			                                   .build();
 		}
 
 		var response = LocationGuardResponse.builder()
-											.id(id)
-											.guardType(guardType)
-											.primaryCoordinate(primaryCoordinate)
-											.secondaryCoordinate(secondaryCoordinate)
-											.radius(radius)
-											.build();
+		                                    .id(id)
+		                                    .guardType(guardType)
+		                                    .primaryCoordinate(primaryCoordinate)
+		                                    .secondaryCoordinate(secondaryCoordinate)
+		                                    .radius(radius)
+		                                    .build();
 		return response;
 	}
 }

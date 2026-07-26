@@ -34,7 +34,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,157 +42,167 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class VempainAdminServiceUTC {
 
-    @Mock
-    private VempainAdminFileIngestClient vempainAdminFileIngestClient;
-    @Mock
-    private VempainAdminFileClient vempainAdminFileClient;
-    @Mock
-    private ObjectMapper objectMapper;
+	@Mock
+	private VempainAdminFileIngestClient vempainAdminFileIngestClient;
+	@Mock
+	private VempainAdminFileClient       vempainAdminFileClient;
+	@Mock
+	private ObjectMapper                 objectMapper;
 
-    @InjectMocks
-    private VempainAdminService vempainAdminService;
+	@InjectMocks
+	private VempainAdminService vempainAdminService;
 
-    private FeignException fakeFeignException(int status) {
-        return FeignException.errorStatus("test",
-                feign.Response.builder()
-                              .status(status)
-                              .reason("error")
-                              .request(Request.create(Request.HttpMethod.POST, "http://test", Map.of(), null, new RequestTemplate()))
-                              .headers(Map.of())
-                              .build());
-    }
+	private FeignException fakeFeignException(int status) {
+		return FeignException.errorStatus("test",
+		                                  feign.Response.builder()
+		                                                .status(status)
+		                                                .reason("error")
+		                                                .request(Request.create(Request.HttpMethod.POST, "http://test", Map.of(), null, new RequestTemplate()))
+		                                                .headers(Map.of())
+		                                                .build());
+	}
 
-    // ------------------------------------------------------------------
-    // uploadAsSiteFile
-    // ------------------------------------------------------------------
-    @Nested
-    @DisplayName("uploadAsSiteFile")
-    class UploadAsSiteFile {
+	// ------------------------------------------------------------------
+	// uploadAsSiteFile
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("uploadAsSiteFile")
+	class UploadAsSiteFile {
 
-        @Test
-        void success_returnsResponse(@TempDir Path tempDir) throws IOException {
-            var file = tempDir.resolve("export.jpg");
-            Files.writeString(file, "img-content");
+		@Test
+		void success_returnsResponse(@TempDir Path tempDir) throws IOException {
+			var file = tempDir.resolve("export.jpg");
+			Files.writeString(file, "img-content");
 
-            var request = FileIngestRequest.builder()
-                                           .mimeType("image/jpeg")
-                                           .build();
-            var expected = new FileIngestResponse(99L, 42L, false);
+			var request = FileIngestRequest.builder()
+			                               .mimeType("image/jpeg")
+			                               .build();
+			var expected = new FileIngestResponse(99L, 42L, false);
 
-            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-            when(vempainAdminFileIngestClient.ingest(anyString(), any()))
-                    .thenReturn(ResponseEntity.ok(expected));
+			when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+			when(vempainAdminFileIngestClient.ingest(anyString(), any()))
+					.thenReturn(ResponseEntity.ok(expected));
 
-            var result = vempainAdminService.uploadAsSiteFile(file.toFile(), request);
-            assertThat(result.getSiteFileId()).isEqualTo(42L);
-        }
+			var result = vempainAdminService.uploadAsSiteFile(file.toFile(), request);
+			assertThat(result.getSiteFileId()).isEqualTo(42L);
+		}
 
-        @Test
-        void nullResponse_throwsAuthException(@TempDir Path tempDir) throws IOException {
-            var file = tempDir.resolve("export.jpg");
-            Files.writeString(file, "img");
-            var request = FileIngestRequest.builder().mimeType("image/jpeg").build();
+		@Test
+		void nullResponse_throwsAuthException(@TempDir Path tempDir) throws IOException {
+			var file = tempDir.resolve("export.jpg");
+			Files.writeString(file, "img");
+			var request = FileIngestRequest.builder()
+			                               .mimeType("image/jpeg")
+			                               .build();
 
-            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-            when(vempainAdminFileIngestClient.ingest(anyString(), any())).thenReturn(null);
+			when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+			when(vempainAdminFileIngestClient.ingest(anyString(), any())).thenReturn(null);
 
-            assertThrows(VempainAuthenticationException.class,
-                    () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
-        }
+			assertThrows(VempainAuthenticationException.class,
+			             () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
+		}
 
-        @Test
-        void nonSuccessStatus_throwsAuthException(@TempDir Path tempDir) throws IOException {
-            var file = tempDir.resolve("export.jpg");
-            Files.writeString(file, "img");
-            var request = FileIngestRequest.builder().mimeType("image/jpeg").build();
+		@Test
+		void nonSuccessStatus_throwsAuthException(@TempDir Path tempDir) throws IOException {
+			var file = tempDir.resolve("export.jpg");
+			Files.writeString(file, "img");
+			var request = FileIngestRequest.builder()
+			                               .mimeType("image/jpeg")
+			                               .build();
 
-            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-            when(vempainAdminFileIngestClient.ingest(anyString(), any()))
-                    .thenReturn(ResponseEntity.badRequest().build());
+			when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+			when(vempainAdminFileIngestClient.ingest(anyString(), any()))
+					.thenReturn(ResponseEntity.badRequest()
+					                          .build());
 
-            assertThrows(VempainAuthenticationException.class,
-                    () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
-        }
+			assertThrows(VempainAuthenticationException.class,
+			             () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
+		}
 
-        @Test
-        void forbidden403_throwsAuthException(@TempDir Path tempDir) throws IOException {
-            var file = tempDir.resolve("export.jpg");
-            Files.writeString(file, "img");
-            var request = FileIngestRequest.builder().mimeType("image/jpeg").build();
+		@Test
+		void forbidden403_throwsAuthException(@TempDir Path tempDir) throws IOException {
+			var file = tempDir.resolve("export.jpg");
+			Files.writeString(file, "img");
+			var request = FileIngestRequest.builder()
+			                               .mimeType("image/jpeg")
+			                               .build();
 
-            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-            when(vempainAdminFileIngestClient.ingest(anyString(), any()))
-                    .thenThrow(fakeFeignException(403));
+			when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+			when(vempainAdminFileIngestClient.ingest(anyString(), any()))
+					.thenThrow(fakeFeignException(403));
 
-            assertThrows(VempainAuthenticationException.class,
-                    () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
-        }
+			assertThrows(VempainAuthenticationException.class,
+			             () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
+		}
 
-        @Test
-        void feignException_nonForbidden_rethrows(@TempDir Path tempDir) throws IOException {
-            var file = tempDir.resolve("export.jpg");
-            Files.writeString(file, "img");
-            var request = FileIngestRequest.builder().mimeType("image/jpeg").build();
+		@Test
+		void feignException_nonForbidden_rethrows(@TempDir Path tempDir) throws IOException {
+			var file = tempDir.resolve("export.jpg");
+			Files.writeString(file, "img");
+			var request = FileIngestRequest.builder()
+			                               .mimeType("image/jpeg")
+			                               .build();
 
-            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-            var feignEx = fakeFeignException(500);
-            when(vempainAdminFileIngestClient.ingest(anyString(), any())).thenThrow(feignEx);
+			when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+			var feignEx = fakeFeignException(500);
+			when(vempainAdminFileIngestClient.ingest(anyString(), any())).thenThrow(feignEx);
 
-            assertThrows(FeignException.class,
-                    () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
-        }
-    }
+			assertThrows(FeignException.class,
+			             () -> vempainAdminService.uploadAsSiteFile(file.toFile(), request));
+		}
+	}
 
-    // ------------------------------------------------------------------
-    // getPageableSiteFiles
-    // ------------------------------------------------------------------
-    @Nested
-    @DisplayName("getPageableSiteFiles")
-    class GetPageableSiteFiles {
+	// ------------------------------------------------------------------
+	// getPageableSiteFiles
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("getPageableSiteFiles")
+	class GetPageableSiteFiles {
 
-        @Test
-        void success_returnsBody() {
-            var mockBody = new PagedResponse<SiteFileResponse>();
-            when(vempainAdminFileClient.getPageableSiteFiles(
-                    any(), anyInt(), anyInt(), any(), any(), any(), any()))
-                    .thenReturn(ResponseEntity.ok(mockBody));
+		@Test
+		void success_returnsBody() {
+			var mockBody = new PagedResponse<SiteFileResponse>();
+			when(vempainAdminFileClient.getPageableSiteFiles(
+					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+					.thenReturn(ResponseEntity.ok(mockBody));
 
-            var result = vempainAdminService.getPageableSiteFiles(
-                    FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
-            assertThat(result).isNotNull();
-        }
+			var result = vempainAdminService.getPageableSiteFiles(
+					FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
+			assertThat(result).isNotNull();
+		}
 
-        @Test
-        void nullResponse_returnsNull() {
-            when(vempainAdminFileClient.getPageableSiteFiles(
-                    any(), anyInt(), anyInt(), any(), any(), any(), any()))
-                    .thenReturn(null);
+		@Test
+		void nullResponse_returnsNull() {
+			when(vempainAdminFileClient.getPageableSiteFiles(
+					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+					.thenReturn(null);
 
-            var result = vempainAdminService.getPageableSiteFiles(
-                    FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
-            assertNull(result);
-        }
+			var result = vempainAdminService.getPageableSiteFiles(
+					FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
+			assertNull(result);
+		}
 
-        @Test
-        void nonSuccessStatus_returnsNull() {
-            when(vempainAdminFileClient.getPageableSiteFiles(
-                    any(), anyInt(), anyInt(), any(), any(), any(), any()))
-                    .thenReturn(ResponseEntity.badRequest().build());
+		@Test
+		void nonSuccessStatus_returnsNull() {
+			when(vempainAdminFileClient.getPageableSiteFiles(
+					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+					.thenReturn(ResponseEntity.badRequest()
+					                          .build());
 
-            var result = vempainAdminService.getPageableSiteFiles(
-                    FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
-            assertNull(result);
-        }
+			var result = vempainAdminService.getPageableSiteFiles(
+					FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
+			assertNull(result);
+		}
 
-        @Test
-        void feignException_returnsNull() {
-            when(vempainAdminFileClient.getPageableSiteFiles(
-                    any(), anyInt(), anyInt(), any(), any(), any(), any()))
-                    .thenThrow(fakeFeignException(503));
+		@Test
+		void feignException_returnsNull() {
+			when(vempainAdminFileClient.getPageableSiteFiles(
+					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+					.thenThrow(fakeFeignException(503));
 
-            var result = vempainAdminService.getPageableSiteFiles(
-                    FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
-            assertNull(result);
-        }
-    }
+			var result = vempainAdminService.getPageableSiteFiles(
+					FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
+			assertNull(result);
+		}
+	}
 }

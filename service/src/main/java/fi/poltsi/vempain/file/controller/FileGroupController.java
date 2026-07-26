@@ -36,7 +36,7 @@ public class FileGroupController implements FileGroupAPI {
 	public ResponseEntity<FileGroupResponse> addFileGroup(@Valid FileGroupRequest request) {
 		FileGroupResponse created = fileGroupService.addFileGroup(request);
 		return ResponseEntity.created(URI.create("/api/file-groups/" + created.getId()))
-							 .body(created);
+		                     .body(created);
 	}
 
 	@Override

@@ -134,12 +134,12 @@ public class DirectoryProcessorService {
 
 	@Transactional
 	protected List<Long> processOriginalDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> failedFiles,
-												  ArrayList<FileResponse> successfulFileResponses) {
+	                                              ArrayList<FileResponse> successfulFileResponses) {
 		var resultList = new ArrayList<Long>(2);
 		resultList.add(0L); // scannedFilesCount
 		resultList.add(0L); // newFilesCount
 		var files = leafDir.toFile()
-						   .listFiles();
+		                   .listFiles();
 
 		if (files == null || files.length == 0) {
 			log.warn("Directory is empty: {}", leafDir);
@@ -149,7 +149,7 @@ public class DirectoryProcessorService {
 		// Check if the file group already exists
 		var relativeDirectory = computeRelativeFilePath(originalRootDirectory, leafDir.toFile());
 		var groupName = leafDir.getFileName()
-							   .toString();
+		                       .toString();
 
 		FileGroupEntity fileGroup;
 		var             optionalExistingGroup = fileGroupRepository.findByPathAndGroupName(relativeDirectory, groupName);
@@ -161,10 +161,10 @@ public class DirectoryProcessorService {
 		} else {
 			fileGroup = fileGroupRepository.save(
 					FileGroupEntity.builder()
-								   .path(relativeDirectory)
-								   .groupName(groupName)
-								   .description("")
-								   .build());
+					               .path(relativeDirectory)
+					               .groupName(groupName)
+					               .description("")
+					               .build());
 		}
 
 		for (var file : files) {
@@ -181,7 +181,7 @@ public class DirectoryProcessorService {
 					if (optionalFileEntity.isPresent()) {
 						// First we reset the metadataRaw field to null so that it slims down the response size.
 						var fileResponse = optionalFileEntity.get()
-															 .toResponse();
+						                                     .toResponse();
 						fileResponse.setMetadataRaw(null);
 						successfulFileResponses.add(fileResponse);
 					}
@@ -191,10 +191,10 @@ public class DirectoryProcessorService {
 			} catch (IOException e) {
 				log.error("Error processing file: {}", file.getAbsolutePath(), e);
 				errorMessage.append("Error processing file: ")
-							.append(file.getAbsolutePath())
-							.append(" - ")
-							.append(e.getMessage())
-							.append("\n");
+				            .append(file.getAbsolutePath())
+				            .append(" - ")
+				            .append(e.getMessage())
+				            .append("\n");
 			}
 		}
 
@@ -202,7 +202,7 @@ public class DirectoryProcessorService {
 	}
 
 	private FileEntity createFileEntity(FileTypeEnum fileTypeEnum, File file, String mimetype, JSONObject jsonObject, String metadata,
-										String relativeFilePath) {
+	                                    String relativeFilePath) {
 		var userId = 0L;
 
 		try {
@@ -236,9 +236,9 @@ public class DirectoryProcessorService {
 
 		// Handle GPS data safely: only persist / associate if required coordinate fields exist.
 		boolean hasRequired = gpsData.getLatitude() != null &&
-							  gpsData.getLatitudeRef() != null &&
-							  gpsData.getLongitude() != null &&
-							  gpsData.getLongitudeRef() != null;
+		                      gpsData.getLatitudeRef() != null &&
+		                      gpsData.getLongitude() != null &&
+		                      gpsData.getLongitudeRef() != null;
 
 		if (hasRequired) {
 			// Look up existing GPS entry
@@ -296,7 +296,7 @@ public class DirectoryProcessorService {
 
 			if (existingFile != null) {
 				log.warn("File with the same original document ID already exists in the database: {} as file file: {} / {}", originalDocumentId,
-						 existingFile.getFilePath(), existingFile.getFilename());
+				         existingFile.getFilePath(), existingFile.getFilename());
 				return null;
 			}
 		}
@@ -330,8 +330,8 @@ public class DirectoryProcessorService {
 
 		// Preserve original externalFileId logic (IMAGE had a dash, others not)
 		String externalFileId = (fileTypeEnum == FileTypeEnum.IMAGE)
-								? fileTypeEnum + "-" + sha256sum
-								: fileTypeEnum + sha256sum;
+		                        ? fileTypeEnum + "-" + sha256sum
+		                        : fileTypeEnum + sha256sum;
 
 		// Populate shared FileEntity fields once
 		entity.setAclId(fileEntityAcl.getAclId());
@@ -372,9 +372,9 @@ public class DirectoryProcessorService {
 		}
 		// Owning side: FileGroupEntity.files
 		group.getFiles()
-			 .add(entity);
+		     .add(entity);
 		entity.getFileGroups()
-			  .add(group);
+		      .add(group);
 		// Persist join table row
 		fileGroupRepository.save(group);
 	}
@@ -395,12 +395,12 @@ public class DirectoryProcessorService {
 			var existingFile = optionalExistingFile.get();
 			// Next check if the sha256sum matches
 			if (existingFile.getSha256sum()
-							.equals(sha256sum)) {
+			                .equals(sha256sum)) {
 				log.debug("File has already been scanned to the database: {}", file.getName());
 				return null;
 			} else {
 				log.debug("Original file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
-						 file.getName());
+				          file.getName());
 				// Remove the existing file so that it can be reprocessed
 				fileRepository.delete(existingFile);
 			}
@@ -418,7 +418,7 @@ public class DirectoryProcessorService {
 		}
 
 		if (metadata == null
-			|| metadata.isBlank()) {
+		    || metadata.isBlank()) {
 			log.error("Failed to extract metadata from file: {}", file.getAbsolutePath());
 			return Boolean.FALSE;
 		}
@@ -853,13 +853,13 @@ public class DirectoryProcessorService {
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	protected List<Long> processExportDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> orphanedFiles,
-												ArrayList<ExportFileResponse> successfulFileResponses) {
+	                                            ArrayList<ExportFileResponse> successfulFileResponses) {
 		var resultList = new ArrayList<Long>(2);
 		resultList.add(0L); // scannedFilesCount
 		resultList.add(0L); // newFilesCount
 
 		var files = leafDir.toFile()
-						   .listFiles();
+		                   .listFiles();
 
 		if (files == null || files.length == 0) {
 			log.warn("Derivative directory is empty: {}", leafDir);
@@ -880,13 +880,13 @@ public class DirectoryProcessorService {
 
 				// If the sha256sum matches, we skip it
 				if (sha256sum != null
-					&& sha256sum.equals(exportFile.getSha256sum())) {
+				    && sha256sum.equals(exportFile.getSha256sum())) {
 					continue;
 				}
 
 				// If the sha256sum does not match, we remove the existing entry so that it can be reprocessed
 				log.debug("Export file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
-						 file.getName());
+				          file.getName());
 				exportFileRepository.delete(exportFile);
 			}
 
@@ -896,10 +896,10 @@ public class DirectoryProcessorService {
 				metadataObject = extractMetadataJsonObject(file);
 			} catch (IOException e) {
 				errorMessage.append("Failed to extract metadata from exported file: ")
-							.append(file.getAbsolutePath())
-							.append(" - ")
-							.append(e.getMessage())
-							.append("\n");
+				            .append(file.getAbsolutePath())
+				            .append(" - ")
+				            .append(e.getMessage())
+				            .append("\n");
 				log.error("Failed to extract metadata from exported file: {}", file.getAbsolutePath(), e);
 				throw new RuntimeException(e);
 			}
@@ -907,7 +907,7 @@ public class DirectoryProcessorService {
 			var originalDocumentId = extractOriginalDocumentId(metadataObject);
 
 			if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
-				|| exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
+			    || exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
 				log.debug("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
 				continue;
 			}
@@ -928,15 +928,15 @@ public class DirectoryProcessorService {
 			var mimetype = extractMimetype(metadataObject);
 
 			var exportFileEntity = ExportFileEntity.builder()
-												   .file(originalFileEntity)
-												   .filename(file.getName())
-												   .filePath(relativeFilePath)
-												   .originalDocumentId(originalDocumentId)
-												   .mimetype(mimetype)
-												   .filesize(file.length())
-												   .sha256sum(sha256sum)
-												   .created(Instant.now())
-												   .build();
+			                                       .file(originalFileEntity)
+			                                       .filename(file.getName())
+			                                       .filePath(relativeFilePath)
+			                                       .originalDocumentId(originalDocumentId)
+			                                       .mimetype(mimetype)
+			                                       .filesize(file.length())
+			                                       .sha256sum(sha256sum)
+			                                       .created(Instant.now())
+			                                       .build();
 
 			// Save the exported file entity onto the database.
 			var storedExportFile = exportedFilesService.save(exportFileEntity);
@@ -953,18 +953,18 @@ public class DirectoryProcessorService {
 	// Helper to compute relative file path
 	private String computeRelativeFilePath(String rootDir, File file) {
 		var rootPath = Path.of(rootDir)
-						   .toAbsolutePath()
-						   .normalize();
+		                   .toAbsolutePath()
+		                   .normalize();
 		var filePath = file.toPath()
-						   .toAbsolutePath()
-						   .normalize();
+		                   .toAbsolutePath()
+		                   .normalize();
 		// Remove the filename from the file path
 		if (filePath.getFileName() != null) {
 			filePath = filePath.getParent();
 		}
 		var relPath = rootPath.relativize(filePath);
 		return "/" + relPath.toString()
-							.replace(File.separatorChar, '/');
+		                    .replace(File.separatorChar, '/');
 	}
 
 
@@ -983,29 +983,29 @@ public class DirectoryProcessorService {
 
 			// Find or create tag
 			var tag = tagRepository.findByTagName(subject)
-								   .orElseGet(() -> {
+			                       .orElseGet(() -> {
 									   TagEntity newTag = TagEntity.builder()
-																   .tagName(subject)
-																   .tagNameDe(null)
-																   .tagNameEn(null)
-																   .tagNameEs(null)
-																   .tagNameFi(null)
-																   .tagNameSv(null)
-																   .build();
+									                               .tagName(subject)
+									                               .tagNameDe(null)
+									                               .tagNameEn(null)
+									                               .tagNameEs(null)
+									                               .tagNameFi(null)
+									                               .tagNameSv(null)
+									                               .build();
 									   return tagRepository.save(newTag);
 								   });
 
 			// Check if FileTag already exists
 			var exists = fileTagRepository.findByFile(fileEntity)
-										  .stream()
-										  .anyMatch(ft -> ft.getTag()
-															.getId()
-															.equals(tag.getId()));
+			                              .stream()
+			                              .anyMatch(ft -> ft.getTag()
+			                                                .getId()
+			                                                .equals(tag.getId()));
 			if (!exists) {
 				var fileTag = FileTag.builder()
-									 .file(fileEntity)
-									 .tag(tag)
-									 .build();
+				                     .file(fileEntity)
+				                     .tag(tag)
+				                     .build();
 				fileTagRepository.save(fileTag);
 			}
 		}
@@ -1026,11 +1026,11 @@ public class DirectoryProcessorService {
 				var value    = groupObject.get(key);
 				var valueStr = Objects.toString(value, null);
 				var entity = MetadataEntity.builder()
-										   .file(fileEntity)
-										   .metadataGroup(group)
-										   .metadataKey(key)
-										   .metadataValue(valueStr)
-										   .build();
+				                           .file(fileEntity)
+				                           .metadataGroup(group)
+				                           .metadataKey(key)
+				                           .metadataValue(valueStr)
+				                           .build();
 				metadataEntities.add(entity);
 			}
 		}
@@ -1117,13 +1117,13 @@ public class DirectoryProcessorService {
 		var mt   = mimetype != null ? mimetype.toLowerCase() : "";
 		var name = filename != null ? filename.toLowerCase() : "";
 		return mt.contains("shellscript") ||
-			   mt.contains("x-sh") ||
-			   name.endsWith(".sh") ||
-			   name.endsWith(".bat") ||
-			   name.endsWith(".cmd") ||
-			   name.endsWith(".ps1") ||
-			   name.endsWith(".py") ||
-			   name.endsWith(".pl");
+		       mt.contains("x-sh") ||
+		       name.endsWith(".sh") ||
+		       name.endsWith(".bat") ||
+		       name.endsWith(".cmd") ||
+		       name.endsWith(".ps1") ||
+		       name.endsWith(".py") ||
+		       name.endsWith(".pl");
 	}
 
 	private String determineInteractiveTechnology(String mimetype) {

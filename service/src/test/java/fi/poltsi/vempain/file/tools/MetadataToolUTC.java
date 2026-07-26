@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -105,17 +106,17 @@ class MetadataToolUTC {
 			delimiter = '|'
 	)
 	void extractGpsDataParameterized(String scenario,
-									 String compositeGpsLocation,
-									 String gpsLatRef,
-									 String gpsLat,
-									 String compositeGpsLat,
-									 String gpsLonRef,
-									 String gpsLon,
-									 String compositeGpsLon,
-									 String expectedLat,
-									 Character expectedLatRef,
-									 String expectedLon,
-									 Character expectedLonRef) {
+	                                 String compositeGpsLocation,
+	                                 String gpsLatRef,
+	                                 String gpsLat,
+	                                 String compositeGpsLat,
+	                                 String gpsLonRef,
+	                                 String gpsLon,
+	                                 String compositeGpsLon,
+	                                 String expectedLat,
+	                                 Character expectedLatRef,
+	                                 String expectedLon,
+	                                 Character expectedLonRef) {
 
 		var root = new JSONObject();
 
@@ -226,8 +227,8 @@ class MetadataToolUTC {
 			// Check if the string contains a time qualifier like "s", "sec", "seconds"
 			String trimmedStr = durationStr.trim();
 			if (trimmedStr.endsWith(" s") ||
-				trimmedStr.endsWith(" sec") ||
-				trimmedStr.endsWith(" seconds")) {
+			    trimmedStr.endsWith(" sec") ||
+			    trimmedStr.endsWith(" seconds")) {
 
 				// Extract the numeric part before the qualifier
 				int spaceIndex = trimmedStr.lastIndexOf(' ');

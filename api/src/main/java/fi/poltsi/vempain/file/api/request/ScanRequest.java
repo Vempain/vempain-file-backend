@@ -25,10 +25,10 @@ public class ScanRequest {
 			@Size(max = 4096, message = "String length must be at most 4096 characters")
 	})
 	@Pattern(message = "Directory name must start with a slash and contain only valid characters",
-			 regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$")
+	         regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$")
 	@Schema(description = "Directory path, relative to the configured main directory of files, must begin with a slash-character",
-			example = "/images/vacation-2025",
-			requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	        example = "/images/vacation-2025",
+	        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
 	private String originalDirectory;
 
 	@Nullable
@@ -37,10 +37,10 @@ public class ScanRequest {
 			@Size(max = 4096, message = "String length must be at most 4096 characters")
 	})
 	@Pattern(message = "Directory name must start with a slash and contain only valid characters",
-			 regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$")
+	         regexp = "^/(?:[-_\\p{L}\\p{N}]+(?:/[-_\\p{L}\\p{N}]+)*/?)?$")
 	@Schema(description = "Directory path, relative to the configured main directory of files, must begin with a slash-character",
-			example = "/images/vacation-2025",
-			requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	        example = "/images/vacation-2025",
+	        requiredMode = Schema.RequiredMode.NOT_REQUIRED)
 	private String exportDirectory;
 
 	@AssertTrue(message = "Either originalDirectory or exportedDirectory must be provided")

@@ -29,9 +29,9 @@ public class VectorFileService {
 		var                             pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                             pageResult = vectorFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(VectorFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(VectorFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class VectorFileService {
 	public VectorFileResponse findById(long id) {
 		var entityOpt = vectorFileRepository.findById(id);
 		return entityOpt.map(VectorFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

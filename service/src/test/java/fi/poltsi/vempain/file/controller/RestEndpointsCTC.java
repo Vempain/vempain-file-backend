@@ -30,9 +30,6 @@ class RestEndpointsCTC {
 	@Autowired
 	private MockMvc mockMvc;
 
-	record EndpointCase(String method, String path, String body, boolean csrf) {
-	}
-
 	@Test
 	void allEndpoints_requireAuthentication_andAreReachableWhenAuthenticated() throws Exception {
 		var cases = List.of(
@@ -128,5 +125,8 @@ class RestEndpointsCTC {
 			       .content(endpoint.body());
 		}
 		return mockMvc.perform(builder);
+	}
+
+	record EndpointCase(String method, String path, String body, boolean csrf) {
 	}
 }

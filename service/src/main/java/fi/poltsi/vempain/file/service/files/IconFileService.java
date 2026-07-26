@@ -29,9 +29,9 @@ public class IconFileService {
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = iconFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(IconFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(IconFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class IconFileService {
 	public IconFileResponse findById(long id) {
 		var entityOpt = iconFileRepository.findById(id);
 		return entityOpt.map(IconFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

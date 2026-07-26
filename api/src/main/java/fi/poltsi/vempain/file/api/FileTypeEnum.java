@@ -42,102 +42,102 @@ public enum FileTypeEnum {
 	static {
 		// Documents (Office, ODF, PDF, HTML/MD/TXT/RTF)
 		registerMime(DOCUMENT,
-					 "application/pdf",
-					 "application/msword",
-					 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-					 "application/vnd.ms-excel",
-					 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-					 "application/vnd.ms-powerpoint",
-					 "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-					 "application/rtf",
-					 "application/epub+zip",
-					 "application/vnd.oasis.opendocument.text",
-					 "application/vnd.oasis.opendocument.spreadsheet",
-					 "application/vnd.oasis.opendocument.presentation",
-					 "text/plain",
-					 "text/markdown",
-					 "text/html",
-					 "text/rtf"
+		             "application/pdf",
+		             "application/msword",
+		             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		             "application/vnd.ms-excel",
+		             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		             "application/vnd.ms-powerpoint",
+		             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		             "application/rtf",
+		             "application/epub+zip",
+		             "application/vnd.oasis.opendocument.text",
+		             "application/vnd.oasis.opendocument.spreadsheet",
+		             "application/vnd.oasis.opendocument.presentation",
+		             "text/plain",
+		             "text/markdown",
+		             "text/html",
+		             "text/rtf"
 		);
 
 		// Archives and compressed
 		registerMime(ARCHIVE,
-					 "application/zip",
-					 "application/gzip",
-					 "application/x-bzip2",
-					 "application/x-7z-compressed",
-					 "application/x-rar-compressed",
-					 "application/x-tar",
-					 "application/x-xz"
+		             "application/zip",
+		             "application/gzip",
+		             "application/x-bzip2",
+		             "application/x-7z-compressed",
+		             "application/x-rar-compressed",
+		             "application/x-tar",
+		             "application/x-xz"
 		);
 
 		// Executables, installers, scripts
 		registerMime(EXECUTABLE,
-					 "application/x-msdownload",              // .exe
-					 "application/x-dosexec",
-					 "application/x-executable",              // ELF
-					 "application/x-sharedlib",
-					 "application/x-msi",                     // .msi
-					 "application/vnd.android.package-archive", // .apk
-					 "application/java-archive",              // .jar
-					 "application/x-sh",                      // shell script
-					 "text/x-shellscript",                    // shell script
-					 "application/x-bat"                      // batch
+		             "application/x-msdownload",              // .exe
+		             "application/x-dosexec",
+		             "application/x-executable",              // ELF
+		             "application/x-sharedlib",
+		             "application/x-msi",                     // .msi
+		             "application/vnd.android.package-archive", // .apk
+		             "application/java-archive",              // .jar
+		             "application/x-sh",                      // shell script
+		             "text/x-shellscript",                    // shell script
+		             "application/x-bat"                      // batch
 		);
 
 		// Interactive (Flash/Shockwave etc.)
 		registerMime(INTERACTIVE,
-					 "application/x-shockwave-flash",         // .swf
-					 "application/x-director"                 // Shockwave
+		             "application/x-shockwave-flash",         // .swf
+		             "application/x-director"                 // Shockwave
 		);
 
 		// Data (structured text/binary data formats)
 		registerMime(DATA,
-					 "application/json",
-					 "application/xml",
-					 "text/xml",
-					 "text/csv",
-					 "application/csv",
-					 "application/x-ndjson",
-					 "application/yaml",
-					 "text/yaml",
-					 "application/x-yaml",
-					 "application/vnd.geo+json"
+		             "application/json",
+		             "application/xml",
+		             "text/xml",
+		             "text/csv",
+		             "application/csv",
+		             "application/x-ndjson",
+		             "application/yaml",
+		             "text/yaml",
+		             "application/x-yaml",
+		             "application/vnd.geo+json"
 		);
 
 		// Vector graphics
 		registerMime(VECTOR,
-					 "image/svg+xml",
-					 "application/postscript",                // .ps / .eps
-					 "application/eps",
-					 "application/x-eps",
-					 "application/vnd.adobe.illustrator"      // .ai
+		             "image/svg+xml",
+		             "application/postscript",                // .ps / .eps
+		             "application/eps",
+		             "application/x-eps",
+		             "application/vnd.adobe.illustrator"      // .ai
 		);
 
 		// Icons
 		registerMime(ICON,
-					 "image/vnd.microsoft.icon",
-					 "image/x-icon"                           // .ico
+		             "image/vnd.microsoft.icon",
+		             "image/x-icon"                           // .ico
 		);
 
 		// Fonts that sometimes appear under application/*
 		registerMime(FONT,
-					 "application/font-woff",
-					 "application/font-woff2",
-					 "application/x-font-ttf",
-					 "application/x-font-otf"
+		             "application/font-woff",
+		             "application/font-woff2",
+		             "application/x-font-ttf",
+		             "application/x-font-otf"
 		);
 
 		// Generic binary
 		registerMime(BINARY,
-					 "application/octet-stream",
-					 "application/x-binary"
+		             "application/octet-stream",
+		             "application/x-binary"
 		);
 
 		// Thumbnails (non-standard but seen in the wild)
 		registerMime(THUMB,
-					 "image/x-thumbnail",
-					 "application/x-thumbnail"
+		             "image/x-thumbnail",
+		             "application/x-thumbnail"
 		);
 	}
 
@@ -162,7 +162,7 @@ public enum FileTypeEnum {
 			return UNKNOWN;
 		}
 		final String mt = mimetype.trim()
-								  .toLowerCase(Locale.ROOT);
+		                          .toLowerCase(Locale.ROOT);
 
 		// 1) Explicit known mimetypes
 		FileTypeEnum mapped = BY_MIMETYPE.get(mt);
@@ -173,9 +173,9 @@ public enum FileTypeEnum {
 		// 2) Top-level direct mappings
 		var type = mt.split("/")[0];
 		if (type.equals("image") ||
-			type.equals("audio") ||
-			type.equals("video") ||
-			type.equals("font")) {
+		    type.equals("audio") ||
+		    type.equals("video") ||
+		    type.equals("font")) {
 			return BY_NAME.get(type);
 		}
 
@@ -186,18 +186,18 @@ public enum FileTypeEnum {
 
 		// 4) Remaining common families
 		if (mt.contains("application/vnd.ms-") ||
-			mt.contains("application/vnd.openxmlformats-officedocument.") ||
-			mt.contains("application/vnd.oasis.opendocument")) {
+		    mt.contains("application/vnd.openxmlformats-officedocument.") ||
+		    mt.contains("application/vnd.oasis.opendocument")) {
 			return DOCUMENT;
 		}
 
 		if (mt.equals("application/gzip") ||
-			mt.equals("application/x-bzip2") ||
-			mt.equals("application/zip") ||
-			mt.equals("application/x-7z-compressed") ||
-			mt.equals("application/x-rar-compressed") ||
-			mt.equals("application/x-tar") ||
-			mt.equals("application/x-xz")) {
+		    mt.equals("application/x-bzip2") ||
+		    mt.equals("application/zip") ||
+		    mt.equals("application/x-7z-compressed") ||
+		    mt.equals("application/x-rar-compressed") ||
+		    mt.equals("application/x-tar") ||
+		    mt.equals("application/x-xz")) {
 			return ARCHIVE;
 		}
 

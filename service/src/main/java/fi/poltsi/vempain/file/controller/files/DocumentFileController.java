@@ -26,7 +26,7 @@ public class DocumentFileController implements DocumentFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class DocumentFileController implements DocumentFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(documentFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

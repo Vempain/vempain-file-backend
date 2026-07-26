@@ -44,6 +44,6 @@ public class TagController implements TagAPI {
 	public ResponseEntity<Void> deleteTag(Long id) {
 		tagService.deleteTag(id);
 		return ResponseEntity.noContent()
-							 .build();
+		                     .build();
 	}
 }

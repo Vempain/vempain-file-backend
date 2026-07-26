@@ -21,11 +21,11 @@ public interface FileScannerAPI {
 	String BASE_PATH = "/scan-files";
 
 	@Operation(summary = "Scan directory for new files",
-			   description = "Initiates a scan of the specified directory to find new files and update their metadata")
+	           description = "Initiates a scan of the specified directory to find new files and update their metadata")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Got list of components",
-						 content = {@Content(array = @ArraySchema(schema = @Schema(implementation = ScanResponses.class)),
-											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(array = @ArraySchema(schema = @Schema(implementation = ScanResponses.class)),
+			                                 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No directory found", content = @Content),

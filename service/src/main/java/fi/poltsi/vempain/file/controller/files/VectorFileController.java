@@ -27,7 +27,7 @@ public class VectorFileController implements VectorFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -36,6 +36,6 @@ public class VectorFileController implements VectorFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(vectorFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

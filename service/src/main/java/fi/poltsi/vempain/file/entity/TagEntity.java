@@ -55,14 +55,14 @@ public class TagEntity {
 	 */
 	public TagResponse toResponse() {
 		return TagResponse.builder()
-						  .id(getId())
-						  .tagName(getTagName())
-						  .tagNameDe(getTagNameDe())
-						  .tagNameEn(getTagNameEn())
-						  .tagNameEs(getTagNameEs())
-						  .tagNameFi(getTagNameFi())
-						  .tagNameSv(getTagNameSv())
-						  .build();
+		                  .id(getId())
+		                  .tagName(getTagName())
+		                  .tagNameDe(getTagNameDe())
+		                  .tagNameEn(getTagNameEn())
+		                  .tagNameEs(getTagNameEs())
+		                  .tagNameFi(getTagNameFi())
+		                  .tagNameSv(getTagNameSv())
+		                  .build();
 	}
 
 	/**

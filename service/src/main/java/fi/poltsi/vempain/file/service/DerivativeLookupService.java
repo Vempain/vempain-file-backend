@@ -42,13 +42,13 @@ public class DerivativeLookupService {
 
 		try {
 			return Files.walk(searchDir)
-						.filter(Files::isRegularFile)
-						.filter(path -> stripExtension(path.getFileName()
-														   .toString()).equals(baseName))
-						.map(Path::toFile)
-						.filter(file -> hasMatchingDocumentId(file, documentId))
-						.findFirst()
-						.orElse(null);
+			            .filter(Files::isRegularFile)
+			            .filter(path -> stripExtension(path.getFileName()
+			                                               .toString()).equals(baseName))
+			            .map(Path::toFile)
+			            .filter(file -> hasMatchingDocumentId(file, documentId))
+			            .findFirst()
+			            .orElse(null);
 		} catch (IOException e) {
 			log.error("Error searching for original file", e);
 			return null;
@@ -70,13 +70,13 @@ public class DerivativeLookupService {
 
 		try {
 			return Files.walk(searchDir)
-						.filter(Files::isRegularFile)
-						.filter(path -> stripExtension(path.getFileName()
-														   .toString()).equals(baseName))
-						.map(Path::toFile)
-						.filter(file -> hasMatchingDocumentId(file, documentId))
-						.findFirst()
-						.orElse(null);
+			            .filter(Files::isRegularFile)
+			            .filter(path -> stripExtension(path.getFileName()
+			                                               .toString()).equals(baseName))
+			            .map(Path::toFile)
+			            .filter(file -> hasMatchingDocumentId(file, documentId))
+			            .findFirst()
+			            .orElse(null);
 		} catch (IOException e) {
 			log.error("Error searching for derivative file", e);
 			return null;
@@ -90,7 +90,7 @@ public class DerivativeLookupService {
 			var root     = mapper.readTree(metaJson);
 			if (root.isArray() && root.size() > 0) {
 				var xmpSection = root.get(0)
-									 .get("XMP-xmpMM");
+				                     .get("XMP-xmpMM");
 				if (xmpSection == null) {
 					return false;
 				}

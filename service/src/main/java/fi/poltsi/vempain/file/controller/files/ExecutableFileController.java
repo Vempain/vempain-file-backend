@@ -24,13 +24,13 @@ public class ExecutableFileController implements ExecutableFileAPI {
 	public ResponseEntity<ExecutableFileResponse> findById(long id) {
 		var response = service.findById(id);
 		return response == null ? ResponseEntity.notFound()
-												.build() : ResponseEntity.ok(response);
+		                                        .build() : ResponseEntity.ok(response);
 	}
 
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(service.delete(id))
-							 .build();
+		                     .build();
 	}
 }
 

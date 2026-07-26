@@ -37,16 +37,16 @@ public class PathCompletionService {
 		var completions = new ArrayList<String>();
 
 		var rootDirectory = request.getType()
-								   .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
+		                           .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
 
 		try {
 			var rootPath = Paths.get(rootDirectory)
-								.normalize()
-								.toAbsolutePath();
+			                    .normalize()
+			                    .toAbsolutePath();
 			var sanitizedRequestPath = requestPath.replaceFirst("^[\\\\/]+", "");
 			// Resolve user path against root and ensure it cannot escape the configured root directory.
 			var fullPath = rootPath.resolve(sanitizedRequestPath)
-							   .normalize();
+			                       .normalize();
 			if (!fullPath.startsWith(rootPath)) {
 				log.warn("Rejected path completion request outside configured root: {}", requestPath);
 				return new PathCompletionResponse(completions);
@@ -57,12 +57,12 @@ public class PathCompletionService {
 				try (DirectoryStream<Path> stream = Files.newDirectoryStream(fullPath)) {
 					for (var entry : stream) {
 						if (Files.isDirectory(entry) && !entry.getFileName()
-															  .toString()
-															  .startsWith(".")) {
+						                                      .toString()
+						                                      .startsWith(".")) {
 							// Construct completion as the relative path starting with a '/'
 							var relative = "/" + fullPath.relativize(entry)
-														 .toString()
-														 .replace("\\", "/");
+							                             .toString()
+							                             .replace("\\", "/");
 							// Prepend the current request path if not '/'
 							if (!requestPath.equals("/")) {
 								String prefix = requestPath.endsWith("/") ? requestPath.substring(0, requestPath.length() - 1) : requestPath;
@@ -77,15 +77,15 @@ public class PathCompletionService {
 				var parentPath = fullPath.getParent();
 				if (parentPath != null && parentPath.startsWith(rootPath) && Files.exists(parentPath)) {
 					var prefix = fullPath.getFileName()
-										 .toString();
+					                     .toString();
 					try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath)) {
 						for (var entry : stream) {
 							if (Files.isDirectory(entry) && entry.getFileName()
-																 .toString()
-																 .startsWith(prefix)) {
+							                                     .toString()
+							                                     .startsWith(prefix)) {
 								String candidate = "/" + parentPath.relativize(entry)
-																   .toString()
-																   .replace("\\", "/");
+								                                   .toString()
+								                                   .replace("\\", "/");
 								completions.add(candidate);
 							}
 						}

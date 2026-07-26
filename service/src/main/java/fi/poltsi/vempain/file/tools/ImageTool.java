@@ -26,8 +26,8 @@ public class ImageTool {
 		var origDimensions   = getImageDimensions(sourceFile);
 		var targetDimensions = new Dimension();
 		var imageFormat = destinationFile.toString()
-										 .substring(destinationFile.toString()
-																   .lastIndexOf(".") + 1);
+		                                 .substring(destinationFile.toString()
+		                                                           .lastIndexOf(".") + 1);
 
 		// If the original image is smaller than the minimum size, just copy it
 		if (origDimensions.height < imageMinimumSize || origDimensions.width < imageMinimumSize) {
@@ -66,7 +66,7 @@ public class ImageTool {
 
 	public Dimension getImageDimensions(Path imageFile) {
 		if (!imageFile.toFile()
-					  .exists()) {
+		              .exists()) {
 			log.error("File does not exist: {}", imageFile);
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, RESPONSE_STATUS_EXCEPTION_MESSAGE);
 		}

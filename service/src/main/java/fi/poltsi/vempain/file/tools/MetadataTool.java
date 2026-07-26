@@ -75,8 +75,8 @@ public class MetadataTool {
 	private static final String X_RESOLUTION_FIELD         = "XResolution";
 
 	// GPS coordinate precision
-	private static final int GPS_DECIMAL_PRECISION = 5;
-	private static final long MAX_DURATION_SECONDS = 99_999L;
+	private static final int  GPS_DECIMAL_PRECISION = 5;
+	private static final long MAX_DURATION_SECONDS  = 99_999L;
 
 	public static String extractMetadataJson(File file) throws IOException {
 		return runExifTool(file, "-a", "-u", "-ee", "-api", "RequestAll=3", "-g1", "-J");
@@ -100,8 +100,8 @@ public class MetadataTool {
 		var resolution = extractJsonString(jsonObject, locations);
 
 		if (resolution != null
-			&& !resolution.isBlank()
-			&& resolution.contains("x")) {
+		    && !resolution.isBlank()
+		    && resolution.contains("x")) {
 			var parts = resolution.split("x");
 
 			if (parts.length == 2) {
@@ -162,7 +162,7 @@ public class MetadataTool {
 		if (colorDepthString != null) {
 			// Match any triplet format like "8 8 8" or "8, 8, 8" or "16 16 16"
 			colorDepthString = colorDepthString.replace(",", " ")
-											   .trim();
+			                                   .trim();
 			// Then calculate the total color depth by summing the individual channel depths
 			if (colorDepthString.matches("(\\d+\\s+){2}\\d+")) {
 				var channelBits = colorDepthString.split("\\s+");
@@ -567,7 +567,7 @@ public class MetadataTool {
 			return false;
 		}
 		return extractMusicArtist(jsonObject) != null
-			   || extractMusicTitle(jsonObject) != null
+		       || extractMusicTitle(jsonObject) != null
 		       || extractMusicAlbum(jsonObject) != null
 		       || extractMusicGenre(jsonObject) != null;
 	}
@@ -740,9 +740,9 @@ public class MetadataTool {
 
 		// Make sure the list contains only unique subjects
 		subjectList = subjectList.stream()
-								 .filter(Objects::nonNull)
-								 .distinct()
-								 .toList();
+		                         .filter(Objects::nonNull)
+		                         .distinct()
+		                         .toList();
 
 		return subjectList;
 	}
@@ -810,9 +810,9 @@ public class MetadataTool {
 			var dateStamp = extractJsonString(jsonObject, locations);
 			// Combine date and time to a single string and parse it as a UTC datetime
 			if (dateStamp != null
-				&& !dateStamp.isBlank()
-				&& timeStamp != null
-				&& !timeStamp.isBlank()) {
+			    && !dateStamp.isBlank()
+			    && timeStamp != null
+			    && !timeStamp.isBlank()) {
 				dateTimeStamp = dateStamp + " " + timeStamp + "Z";
 			}
 		}
@@ -994,7 +994,7 @@ public class MetadataTool {
 
 		// If no reference was found but coordinate has one at the end, extract it
 		if (ref == null && coordinateString != null && !coordinateString.isBlank() && coordinateString.substring(coordinateString.length() - 1)
-																									  .matches("[NSEW]")) {
+		                                                                                              .matches("[NSEW]")) {
 			var result = extractCoordinateWithRef(coordinateString);
 			ref = result.getKey();
 			BigDecimal value = result.getValue();
@@ -1031,7 +1031,7 @@ public class MetadataTool {
 		if (lastChar == 'N' || lastChar == 'S' || lastChar == 'E' || lastChar == 'W') {
 			ref      = lastChar;
 			coordStr = coordinateString.substring(0, coordinateString.length() - 1)
-									   .trim();
+			                           .trim();
 		}
 
 		if (ref == null) {
@@ -1115,8 +1115,8 @@ public class MetadataTool {
 			BigDecimal secondsFraction = seconds.divide(new BigDecimal("3600"), GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
 
 			return degrees.add(minutesFraction)
-						  .add(secondsFraction)
-						  .setScale(GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
+			              .add(secondsFraction)
+			              .setScale(GPS_DECIMAL_PRECISION, RoundingMode.HALF_UP);
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Invalid number in DMS format: " + latitudeString, e);
 		}
@@ -1126,23 +1126,23 @@ public class MetadataTool {
 		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
 			for (String key : location.getValue()) {
 				if (jsonObject.has(location.getKey()) && jsonObject.getJSONObject(location.getKey())
-																   .has(key)) {
+				                                                   .has(key)) {
 					Object targetObject = jsonObject.getJSONObject(location.getKey())
-													.opt(key);
+					                                .opt(key);
 
 					if (targetObject instanceof JSONArray targetArray) {
 						try {
 							return targetArray.toList()
-											  .stream()
-											  .map(o -> Objects.toString(o, null))
-											  .toList();
+							                  .stream()
+							                  .map(o -> Objects.toString(o, null))
+							                  .toList();
 						} catch (Exception e) {
 							log.error("Failed to convert JSON array for key {}", key, e);
 						}
 					} else {
 						// Not an array: attempt to treat it as a single scalar value
 						if (targetObject != null
-							&& !(targetObject instanceof JSONObject)) { // Ignore nested objects
+						    && !(targetObject instanceof JSONObject)) { // Ignore nested objects
 							String value = Objects.toString(targetObject, null);
 
 							if (value != null && !value.isBlank()) {
@@ -1151,7 +1151,7 @@ public class MetadataTool {
 							}
 						}
 						var targetSimpleName = targetObject == null ? "null" : targetObject.getClass()
-																						   .getSimpleName();
+						                                                                   .getSimpleName();
 						log.warn("Key {} under {} is not a JSON array (type: {})", key, location.getKey(), targetSimpleName);
 					}
 				}
@@ -1186,7 +1186,7 @@ public class MetadataTool {
 				}
 			} catch (InterruptedException e) {
 				Thread.currentThread()
-					  .interrupt();
+				      .interrupt();
 				log.error("Exiftool copy process was interrupted", e);
 			}
 		} else {
@@ -1288,17 +1288,17 @@ public class MetadataTool {
 		for (Map.Entry<String, List<String>> location : locations.entrySet()) {
 			for (String key : location.getValue()) {
 				if (jsonObject.has(location.getKey()) && jsonObject.getJSONObject(location.getKey())
-																   .has(key)) {
+				                                                   .has(key)) {
 
 					Number number;
 					try {
 						number = jsonObject.getJSONObject(location.getKey())
-										   .getNumber(key);
+						                   .getNumber(key);
 						return number;
 					} catch (JSONException e) {
 						log.warn("Failed to retrieve JSON number from location {}, trying to get it as String instead", key);
 						var stringValue = jsonObject.getJSONObject(location.getKey())
-													.getString(key);
+						                            .getString(key);
 
 						try {
 							return Double.valueOf(stringValue);
@@ -1370,7 +1370,7 @@ public class MetadataTool {
 			var root   = mapper.readTree(jsonOutput);
 
 			if (root.isArray()
-				&& !root.isEmpty()) {
+			    && !root.isEmpty()) {
 				var first     = root.get(0);
 				var valueNode = first.get(tag);
 				return valueNode != null ? mapper.convertValue(valueNode, String.class) : "";
@@ -1552,8 +1552,8 @@ public class MetadataTool {
 
 		// Build quick lookup: Map<groupLower, Map<keyLower, value>>
 		var index = metadataEntities.stream()
-									.filter(Objects::nonNull)
-									.collect(Collectors.groupingBy(
+		                            .filter(Objects::nonNull)
+		                            .collect(Collectors.groupingBy(
 											me -> normalizeName(me.getMetadataGroup()),
 											LinkedHashMap::new,
 											Collectors.toMap(
@@ -1814,7 +1814,7 @@ public class MetadataTool {
 		try {
 			// remove non-digit characters except leading minus
 			var cleaned = s.trim()
-						   .replaceAll("[^0-9-]", "");
+			               .replaceAll("[^0-9-]", "");
 			if (cleaned.isBlank()) {
 				return null;
 			}
@@ -1876,6 +1876,6 @@ public class MetadataTool {
 	// Helper to normalize group/key names for indexing and lookup
 	private static String normalizeName(String s) {
 		return (s == null) ? "" : s.trim()
-								   .toLowerCase();
+		                           .toLowerCase();
 	}
 }

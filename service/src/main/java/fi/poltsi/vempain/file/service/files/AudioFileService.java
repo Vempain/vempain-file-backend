@@ -29,9 +29,9 @@ public class AudioFileService {
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = audioFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(AudioFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(AudioFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class AudioFileService {
 	public AudioFileResponse findById(long id) {
 		var entityOpt = audioFileRepository.findById(id);
 		return entityOpt.map(AudioFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

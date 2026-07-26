@@ -22,15 +22,15 @@ public class TagService {
 
 	public List<TagResponse> getAllTags() {
 		return tagRepository.findAll()
-							.stream()
-							.map(this::mapToResponseDTO)
-							.collect(Collectors.toList());
+		                    .stream()
+		                    .map(this::mapToResponseDTO)
+		                    .collect(Collectors.toList());
 	}
 
 	public TagResponse getTagById(Long id) {
 		return tagRepository.findById(id)
-							.map(this::mapToResponseDTO)
-							.orElseThrow(() -> new IllegalArgumentException("Tag not found"));
+		                    .map(this::mapToResponseDTO)
+		                    .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
 	}
 
 	public TagResponse createTag(TagRequest requestDTO) {
@@ -46,7 +46,7 @@ public class TagService {
 		}
 
 		TagEntity tag = tagRepository.findById(id)
-									 .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
+		                             .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
 		tag.setTagName(requestDTO.getTagName());
 		tag.setTagNameDe(requestDTO.getTagNameDe());
 		tag.setTagNameEn(requestDTO.getTagNameEn());
@@ -64,21 +64,21 @@ public class TagService {
 	public List<TagRequest> getTagRequestsByFileId(long fileId) {
 		var associations = fileTagRepository.findByFileId(fileId);
 		return associations.stream()
-						   .map(FileTag::getTag)
-						   .filter(Objects::nonNull)
-						   .map(TagEntity::toRequest)
-						   .collect(Collectors.toList());
+		                   .map(FileTag::getTag)
+		                   .filter(Objects::nonNull)
+		                   .map(TagEntity::toRequest)
+		                   .collect(Collectors.toList());
 	}
 
 	private TagEntity mapToEntity(TagRequest dto) {
 		return TagEntity.builder()
-						.tagName(dto.getTagName())
-						.tagNameDe(dto.getTagNameDe())
-						.tagNameEn(dto.getTagNameEn())
-						.tagNameEs(dto.getTagNameEs())
-						.tagNameFi(dto.getTagNameFi())
-						.tagNameSv(dto.getTagNameSv())
-						.build();
+		                .tagName(dto.getTagName())
+		                .tagNameDe(dto.getTagNameDe())
+		                .tagNameEn(dto.getTagNameEn())
+		                .tagNameEs(dto.getTagNameEs())
+		                .tagNameFi(dto.getTagNameFi())
+		                .tagNameSv(dto.getTagNameSv())
+		                .build();
 	}
 
 	private TagResponse mapToResponseDTO(TagEntity entity) {

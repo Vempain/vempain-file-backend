@@ -24,7 +24,7 @@ public class VempainMultipartFile implements MultipartFile {
 	@Override
 	public String getName() {
 		return path.getFileName()
-				   .toString();
+		           .toString();
 	}
 
 	@Override

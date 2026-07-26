@@ -29,9 +29,9 @@ public class ArchiveFileService {
 		var                              pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                              pageResult = archiveFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(ArchiveFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(ArchiveFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class ArchiveFileService {
 	public ArchiveFileResponse findById(long id) {
 		var entityOpt = archiveFileRepository.findById(id);
 		return entityOpt.map(ArchiveFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

@@ -46,8 +46,8 @@ public class InteractiveFileService {
 	@Transactional(readOnly = true)
 	public InteractiveFileResponse findById(long id) {
 		return repository.findById(id)
-						 .map(InteractiveFileEntity::toResponse)
-						 .orElse(null);
+		                 .map(InteractiveFileEntity::toResponse)
+		                 .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

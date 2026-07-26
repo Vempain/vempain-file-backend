@@ -1,7 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
-import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,97 +28,95 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DerivativeLookupServiceUTC {
 
-    @Mock
-    private ExportFileRepository exportFileRepository;
-    @Mock
-    private FileRepository fileRepository;
+	@TempDir
+	Path tempExportDir;
+	@Mock
+	private ExportFileRepository    exportFileRepository;
+	@Mock
+	private FileRepository          fileRepository;
+	@InjectMocks
+	private DerivativeLookupService derivativeLookupService;
 
-    @InjectMocks
-    private DerivativeLookupService derivativeLookupService;
+	@BeforeEach
+	void setup() {
+		ReflectionTestUtils.setField(derivativeLookupService, "exportDirectory", tempExportDir.toString());
+	}
 
-    @TempDir
-    Path tempExportDir;
+	// ------------------------------------------------------------------
+	// findOriginal
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("findOriginal")
+	class FindOriginal {
 
-    @BeforeEach
-    void setup() {
-        ReflectionTestUtils.setField(derivativeLookupService, "exportDirectory", tempExportDir.toString());
-    }
+		@Test
+		void foundInDb_returnsFile() {
+			var mockFile = new fi.poltsi.vempain.file.entity.ImageFileEntity();
+			mockFile.setId(1L);
+			mockFile.setFilename("original.jpg");
+			mockFile.setFilePath("/originals");
+			when(fileRepository.findByOriginalDocumentId("doc-123")).thenReturn(mockFile);
 
-    // ------------------------------------------------------------------
-    // findOriginal
-    // ------------------------------------------------------------------
-    @Nested
-    @DisplayName("findOriginal")
-    class FindOriginal {
+			var result = derivativeLookupService.findOriginal("/sub", "file.jpg", "doc-123");
+			assertThat(result).isNotNull();
+		}
 
-        @Test
-        void foundInDb_returnsFile() {
-            var mockFile = new fi.poltsi.vempain.file.entity.ImageFileEntity();
-            mockFile.setId(1L);
-            mockFile.setFilename("original.jpg");
-            mockFile.setFilePath("/originals");
-            when(fileRepository.findByOriginalDocumentId("doc-123")).thenReturn(mockFile);
+		@Test
+		void notFoundInDb_noFilesInDir_returnsNull() throws IOException {
+			when(fileRepository.findByOriginalDocumentId("doc-missing")).thenReturn(null);
 
-            var result = derivativeLookupService.findOriginal("/sub", "file.jpg", "doc-123");
-            assertThat(result).isNotNull();
-        }
+			var sub = tempExportDir.resolve("sub");
+			Files.createDirectories(sub);
 
-        @Test
-        void notFoundInDb_noFilesInDir_returnsNull() throws IOException {
-            when(fileRepository.findByOriginalDocumentId("doc-missing")).thenReturn(null);
+			var result = derivativeLookupService.findOriginal("/sub", "file.jpg", "doc-missing");
+			assertNull(result);
+		}
 
-            var sub = tempExportDir.resolve("sub");
-            Files.createDirectories(sub);
+		@Test
+		void nonExistentDirectory_returnsNull() {
+			when(fileRepository.findByOriginalDocumentId("doc-x")).thenReturn(null);
 
-            var result = derivativeLookupService.findOriginal("/sub", "file.jpg", "doc-missing");
-            assertNull(result);
-        }
+			var result = derivativeLookupService.findOriginal("/nonexistent", "file.jpg", "doc-x");
+			assertNull(result);
+		}
+	}
 
-        @Test
-        void nonExistentDirectory_returnsNull() {
-            when(fileRepository.findByOriginalDocumentId("doc-x")).thenReturn(null);
+	// ------------------------------------------------------------------
+	// findDerivative
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("findDerivative")
+	class FindDerivative {
 
-            var result = derivativeLookupService.findOriginal("/nonexistent", "file.jpg", "doc-x");
-            assertNull(result);
-        }
-    }
+		@Test
+		void foundInDb_returnsFile() {
+			var mockExport = ExportFileEntity.builder()
+			                                 .id(1L)
+			                                 .filePath("/exports/derivative.jpg")
+			                                 .build();
+			when(exportFileRepository.findByOriginalDocumentId("doc-456")).thenReturn(mockExport);
 
-    // ------------------------------------------------------------------
-    // findDerivative
-    // ------------------------------------------------------------------
-    @Nested
-    @DisplayName("findDerivative")
-    class FindDerivative {
+			var result = derivativeLookupService.findDerivative("/sub", "file.jpg", "doc-456");
+			assertThat(result).isNotNull();
+		}
 
-        @Test
-        void foundInDb_returnsFile() {
-            var mockExport = ExportFileEntity.builder()
-                                              .id(1L)
-                                              .filePath("/exports/derivative.jpg")
-                                              .build();
-            when(exportFileRepository.findByOriginalDocumentId("doc-456")).thenReturn(mockExport);
+		@Test
+		void notFoundInDb_noFilesInDir_returnsNull() throws IOException {
+			when(exportFileRepository.findByOriginalDocumentId("doc-notfound")).thenReturn(null);
 
-            var result = derivativeLookupService.findDerivative("/sub", "file.jpg", "doc-456");
-            assertThat(result).isNotNull();
-        }
+			var sub = tempExportDir.resolve("sub2");
+			Files.createDirectories(sub);
 
-        @Test
-        void notFoundInDb_noFilesInDir_returnsNull() throws IOException {
-            when(exportFileRepository.findByOriginalDocumentId("doc-notfound")).thenReturn(null);
+			var result = derivativeLookupService.findDerivative("/sub2", "file.jpg", "doc-notfound");
+			assertNull(result);
+		}
 
-            var sub = tempExportDir.resolve("sub2");
-            Files.createDirectories(sub);
+		@Test
+		void nonExistentDirectory_returnsNull() {
+			when(exportFileRepository.findByOriginalDocumentId("doc-xyz")).thenReturn(null);
 
-            var result = derivativeLookupService.findDerivative("/sub2", "file.jpg", "doc-notfound");
-            assertNull(result);
-        }
-
-        @Test
-        void nonExistentDirectory_returnsNull() {
-            when(exportFileRepository.findByOriginalDocumentId("doc-xyz")).thenReturn(null);
-
-            var result = derivativeLookupService.findDerivative("/nonexistent2", "file.jpg", "doc-xyz");
-            assertNull(result);
-        }
-    }
+			var result = derivativeLookupService.findDerivative("/nonexistent2", "file.jpg", "doc-xyz");
+			assertNull(result);
+		}
+	}
 }

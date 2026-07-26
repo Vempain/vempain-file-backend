@@ -80,8 +80,8 @@ public class PublishService {
 			var fileGroup = optionalGroup.get();
 
 			if (fileGroup.getFiles() == null
-				|| fileGroup.getFiles()
-							.isEmpty()) {
+			    || fileGroup.getFiles()
+			                .isEmpty()) {
 				log.debug("File group {} has no files to publish", publishFileGroupRequest.getFileGroupId());
 				progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
 				return;
@@ -100,7 +100,7 @@ public class PublishService {
 				log.debug("Export file path: {} {}", exportFilePath, siteFileName);
 
 				if (exportFilePath == null
-					|| !Files.exists(exportFilePath)) {
+				    || !Files.exists(exportFilePath)) {
 					log.debug("Export file does not exist, skipping: {}", exportFilePath);
 					continue;
 				}
@@ -114,7 +114,7 @@ public class PublishService {
 				try {
 					Dimension imageVideoDimensions = null;
 					if (fileEntity.getFileType()
-								  .equals(FileTypeEnum.IMAGE)) {
+					              .equals(FileTypeEnum.IMAGE)) {
 						// Create temp file with same extension in system temp dir
 						Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
 						// Resize: smaller dimension to siteImageSize, keep quality 0.7
@@ -134,21 +134,21 @@ public class PublishService {
 					var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
 					var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
 					var copyrightResponse = CopyrightResponse.builder()
-															 .creatorName(fileEntity.getCreatorName())
-															 .creatorEmail(fileEntity.getCreatorEmail())
-															 .creatorCountry(fileEntity.getCreatorCountry())
-															 .creatorUrl(fileEntity.getCreatorUrl())
-															 .rightsHolder(fileEntity.getRightsHolder())
-															 .rightsTerms(fileEntity.getRightsTerms())
-															 .rightsUrl(fileEntity.getRightsUrl())
-															 .build();
+					                                         .creatorName(fileEntity.getCreatorName())
+					                                         .creatorEmail(fileEntity.getCreatorEmail())
+					                                         .creatorCountry(fileEntity.getCreatorCountry())
+					                                         .creatorUrl(fileEntity.getCreatorUrl())
+					                                         .rightsHolder(fileEntity.getRightsHolder())
+					                                         .rightsTerms(fileEntity.getRightsTerms())
+					                                         .rightsUrl(fileEntity.getRightsUrl())
+					                                         .build();
 					LocationResponse locationResponse = null;
 					// Use relation from FileEntity instead of repository lookup
 					if (fileEntity.getGpsLocation() != null) {
 						// Add location only if the location is outside guarded areas
 						if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
 							locationResponse = fileEntity.getGpsLocation()
-														 .toResponse();
+							                             .toResponse();
 							log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
 						} else {
 							log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
@@ -159,21 +159,21 @@ public class PublishService {
 					log.debug("Ingest file data: {} {}", normalizedFilePath, siteFileName);
 
 					var fileIngestRequest = FileIngestRequest.builder()
-															 .fileName(siteFileName)
-															 .sortOrder(sortOrder)
-															 .filePath(normalizedFilePath)
-															 .mimeType(mimetype)
-															 .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
-															 .metadata(metadataJson)
-															 .sha256sum(computeSha256(uploadPath.toFile()))
-															 .originalDateTime(fileEntity.getOriginalDatetime())
-															 .galleryId(fileGroup.getGalleryId())
-															 .galleryName(publishFileGroupRequest.getGalleryName())
-															 .galleryDescription(publishFileGroupRequest.getGalleryDescription())
-															 .tags(tagRequests)
-															 .location(locationResponse)
-															 .copyright(copyrightResponse)
-															 .build();
+					                                         .fileName(siteFileName)
+					                                         .sortOrder(sortOrder)
+					                                         .filePath(normalizedFilePath)
+					                                         .mimeType(mimetype)
+					                                         .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
+					                                         .metadata(metadataJson)
+					                                         .sha256sum(computeSha256(uploadPath.toFile()))
+					                                         .originalDateTime(fileEntity.getOriginalDatetime())
+					                                         .galleryId(fileGroup.getGalleryId())
+					                                         .galleryName(publishFileGroupRequest.getGalleryName())
+					                                         .galleryDescription(publishFileGroupRequest.getGalleryDescription())
+					                                         .tags(tagRequests)
+					                                         .location(locationResponse)
+					                                         .copyright(copyrightResponse)
+					                                         .build();
 
 					sortOrder++;
 
@@ -183,15 +183,15 @@ public class PublishService {
 					}
 
 					if (fileEntity.getFileType()
-								  .equals(FileTypeEnum.VIDEO)) {
+					              .equals(FileTypeEnum.VIDEO)) {
 						var videoFileEntity = (VideoFileEntity) fileEntity;
 						fileIngestRequest.setLength(videoFileEntity.getDuration());
 					} else if (fileEntity.getFileType()
-										 .equals(FileTypeEnum.AUDIO)) {
+					                     .equals(FileTypeEnum.AUDIO)) {
 						var audioFileEntity = (AudioFileEntity) fileEntity;
 						fileIngestRequest.setLength(audioFileEntity.getDuration());
 					} else if (fileEntity.getFileType()
-										 .equals(FileTypeEnum.DOCUMENT)) {
+					                     .equals(FileTypeEnum.DOCUMENT)) {
 						var documentFileEntity = (DocumentFileEntity) fileEntity;
 						fileIngestRequest.setPages(documentFileEntity.getPageCount());
 					}
@@ -206,7 +206,7 @@ public class PublishService {
 							var fileIngestResponse = vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
 							galleryId = fileIngestResponse.getGalleryId();
 							log.debug("Published file {} from group {} as site file to gallery ID {}", exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId(),
-									  galleryId);
+							          galleryId);
 							break; // success
 						} catch (VempainAuthenticationException authEx) {
 							attempt++;
@@ -379,12 +379,12 @@ public class PublishService {
 			for (var projection : pg.getContent()) {
 				var groupId = projection.id();
 				var req = PublishFileGroupRequest.builder()
-												 .fileGroupId(groupId)
-												 .galleryName(projection.groupName())
-												 .galleryDescription(projection.description() != null && projection.description()
-																												   .length() > 2 ?
-																	 projection.description() : projection.groupName())
-												 .build();
+				                                 .fileGroupId(groupId)
+				                                 .galleryName(projection.groupName())
+				                                 .galleryDescription(projection.description() != null && projection.description()
+				                                                                                                   .length() > 2 ?
+				                                                     projection.description() : projection.groupName())
+				                                 .build();
 				// mark scheduled
 				progressStore.markScheduled(groupId);
 				proxy.publishFileGroup(req);
@@ -418,8 +418,8 @@ public class PublishService {
 		}
 
 		return Path.of(exportRootDirectory)
-				   .resolve(relativePath)
-				   .resolve(exportFileEntity.getFilename());
+		           .resolve(relativePath)
+		           .resolve(exportFileEntity.getFilename());
 	}
 
 	private String normalizeIngestPath(String filePath, FileTypeEnum fileType) {

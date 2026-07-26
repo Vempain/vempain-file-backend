@@ -26,7 +26,7 @@ public class FontFileController implements FontFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class FontFileController implements FontFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(fontFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

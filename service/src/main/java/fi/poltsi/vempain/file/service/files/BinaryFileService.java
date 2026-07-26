@@ -46,8 +46,8 @@ public class BinaryFileService {
 	@Transactional(readOnly = true)
 	public BinaryFileResponse findById(long id) {
 		return repository.findById(id)
-						 .map(BinaryFileEntity::toResponse)
-						 .orElse(null);
+		                 .map(BinaryFileEntity::toResponse)
+		                 .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

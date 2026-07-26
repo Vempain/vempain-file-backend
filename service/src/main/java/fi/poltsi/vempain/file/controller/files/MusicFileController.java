@@ -26,7 +26,7 @@ public class MusicFileController implements MusicFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class MusicFileController implements MusicFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(musicFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

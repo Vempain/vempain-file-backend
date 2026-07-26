@@ -29,9 +29,9 @@ public class DocumentFileService {
 		var                               pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                               pageResult = documentFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(DocumentFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(DocumentFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class DocumentFileService {
 	public DocumentFileResponse findById(long id) {
 		var entityOpt = documentFileRepository.findById(id);
 		return entityOpt.map(DocumentFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

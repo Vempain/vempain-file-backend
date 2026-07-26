@@ -28,8 +28,8 @@ public interface PublishAPI {
 	@Operation(summary = "Publish File Group", description = "Publishes a group of files asynchronously and returns the count of files in the group.")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Got list of components",
-						 content = {@Content(array = @ArraySchema(schema = @Schema(implementation = PublishFileGroupResponse.class)),
-											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(array = @ArraySchema(schema = @Schema(implementation = PublishFileGroupResponse.class)),
+			                                 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
@@ -40,11 +40,11 @@ public interface PublishAPI {
 	ResponseEntity<PublishFileGroupResponse> PublishFileGroup(@Valid @RequestBody PublishFileGroupRequest request);
 
 	@Operation(summary = "Publish all File Groups",
-			   description = "Triggers asynchronous publishing for all file groups and returns the number of groups scheduled.")
+	           description = "Triggers asynchronous publishing for all file groups and returns the number of groups scheduled.")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "202", description = "Accepted, publishing started",
-						 content = {@Content(schema = @Schema(implementation = PublishAllFileGroupsResponse.class),
-											 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(schema = @Schema(implementation = PublishAllFileGroupsResponse.class),
+			                                 mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
 	})
@@ -55,7 +55,7 @@ public interface PublishAPI {
 	@Operation(summary = "Get publishing progress", description = "Get the current progress of an ongoing publish-all operation")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Current progress",
-						 content = {@Content(schema = @Schema(implementation = PublishProgressResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			             content = {@Content(schema = @Schema(implementation = PublishProgressResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
 	})
 	@SecurityRequirement(name = "Bearer Authentication")

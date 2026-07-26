@@ -55,11 +55,11 @@ public class PublishServiceITC {
 	void publishAllSchedulesAllGroups_andCompletes() throws InterruptedException {
 		// Insert 3 file_group rows (only columns that are commonly present)
 		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-							"/g1", "group1");
+		                    "/g1", "group1");
 		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-							"/g2", "group2");
+		                    "/g2", "group2");
 		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-							"/g3", "group3");
+		                    "/g3", "group3");
 
 		long scheduled = publishService.publishAllFileGroups();
 
@@ -70,9 +70,9 @@ public class PublishServiceITC {
 
 		// Wait for async processing to mark them started/completed
 		Instant deadline = Instant.now()
-								  .plus(Duration.ofSeconds(5));
+		                          .plus(Duration.ofSeconds(5));
 		while (Instant.now()
-					  .isBefore(deadline)) {
+		              .isBefore(deadline)) {
 			if (progressStore.getCompleted() >= 3L && progressStore.getStarted() >= 3L) {
 				break;
 			}
@@ -84,8 +84,8 @@ public class PublishServiceITC {
 
 		// Ensure per-group statuses are set to COMPLETED
 		assertTrue(progressStore.getPerGroupStatus()
-								.values()
-								.stream()
-								.allMatch(s -> s == PublishProgressStatusEnum.COMPLETED));
+		                        .values()
+		                        .stream()
+		                        .allMatch(s -> s == PublishProgressStatusEnum.COMPLETED));
 	}
 }

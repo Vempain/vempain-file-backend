@@ -20,7 +20,7 @@ public class ExportedFilesService {
 	public boolean existsByPathAndFilename(String path, String filename) {
 		log.debug("Checking if exported file exists at path: {}, filename: {}", path, filename);
 		return exportFileRepository.findByFilePathAndFilename(path, filename)
-								   .isPresent();
+		                           .isPresent();
 	}
 
 	public boolean existsByOriginalDocumentId(String originalDocumentId) {

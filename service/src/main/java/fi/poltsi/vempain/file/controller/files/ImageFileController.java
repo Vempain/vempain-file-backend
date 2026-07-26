@@ -26,7 +26,7 @@ public class ImageFileController implements ImageFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class ImageFileController implements ImageFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(imageFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

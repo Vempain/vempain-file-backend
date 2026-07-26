@@ -10,5 +10,5 @@ import java.util.Optional;
 @Repository
 public interface GpsLocationRepository extends JpaRepository<GpsLocationEntity, Long> {
 	Optional<GpsLocationEntity> findByLatitudeAndLatitudeRefAndLongitudeAndLongitudeRef(BigDecimal latitude, Character latitudeRef, BigDecimal longitude,
-																						Character longitudeRef);
+	                                                                                    Character longitudeRef);
 }

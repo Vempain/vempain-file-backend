@@ -35,11 +35,11 @@ import static org.mockito.Mockito.when;
 class DataServiceUTC {
 
 	@Mock
-	private MusicFileService        musicFileService;
+	private MusicFileService       musicFileService;
 	@Mock
-	private ImageFileRepository     imageFileRepository;
+	private ImageFileRepository    imageFileRepository;
 	@Mock
-	private VempainAdminDataClient  vempainAdminDataClient;
+	private VempainAdminDataClient vempainAdminDataClient;
 
 	private DataService dataService;
 
@@ -130,12 +130,12 @@ class DataServiceUTC {
 	@Test
 	void buildGpsCsv_withGpsData() {
 		var gps = GpsLocationEntity.builder()
-								   .latitude(new BigDecimal("60.12345"))
-								   .latitudeRef('N')
-								   .longitude(new BigDecimal("24.98765"))
-								   .longitudeRef('E')
-								   .altitude(130.0)
-								   .build();
+		                           .latitude(new BigDecimal("60.12345"))
+		                           .latitudeRef('N')
+		                           .longitude(new BigDecimal("24.98765"))
+		                           .longitudeRef('E')
+		                           .altitude(130.0)
+		                           .build();
 
 		var image = new ImageFileEntity();
 		image.setFilename("photo.jpg");
@@ -160,7 +160,7 @@ class DataServiceUTC {
 		when(musicFileService.findAllOrdered()).thenReturn(List.of());
 
 		assertThrows(ResponseStatusException.class,
-					 () -> dataService.generateAndPublishMusicDataset());
+		             () -> dataService.generateAndPublishMusicDataset());
 	}
 
 	// -----------------------------------------------------------------------
@@ -221,7 +221,7 @@ class DataServiceUTC {
 		when(imageFileRepository.findByFilePathWithGpsOrderedByTime(any())).thenReturn(List.of());
 
 		assertThrows(ResponseStatusException.class,
-					 () -> dataService.generateAndPublishGpsTimeSeries("/some/path"));
+		             () -> dataService.generateAndPublishGpsTimeSeries("/some/path"));
 	}
 
 	// -----------------------------------------------------------------------
@@ -231,7 +231,7 @@ class DataServiceUTC {
 	@Test
 	void generateAndPublishGpsTimeSeries_blankPath_throws400() {
 		assertThrows(ResponseStatusException.class,
-					 () -> dataService.generateAndPublishGpsTimeSeries("  "));
+		             () -> dataService.generateAndPublishGpsTimeSeries("  "));
 	}
 
 	// -----------------------------------------------------------------------

@@ -41,16 +41,16 @@ public class FileGroupService {
 		log.debug("Pageable parameter is: {}", pageable);
 		var pageResult = fileGroupRepository.searchFileGroups(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()), pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(row -> FileGroupListResponse.builder()
-																 .id(row.id())
-																 .path(row.path())
-																 .groupName(row.groupName())
-																 .description(row.description())
-																 .fileCount(row.fileCount())
-																 .galleryId(row.galleryId())
-																 .build())
-								.toList();
+		                        .stream()
+		                        .map(row -> FileGroupListResponse.builder()
+		                                                         .id(row.id())
+		                                                         .path(row.path())
+		                                                         .groupName(row.groupName())
+		                                                         .description(row.description())
+		                                                         .fileCount(row.fileCount())
+		                                                         .galleryId(row.galleryId())
+		                                                         .build())
+		                        .toList();
 
 		return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(), pageResult.isFirst(), pageResult.isLast());
 	}
@@ -70,7 +70,7 @@ public class FileGroupService {
 	@Transactional(readOnly = true)
 	public FileGroupResponse getById(Long id) {
 		FileGroupEntity entity = fileGroupRepository.findById(id)
-													.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
+		                                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
 		return entity.toResponse();
 	}
 
@@ -91,7 +91,7 @@ public class FileGroupService {
 	@Transactional
 	public FileGroupResponse updateFileGroup(FileGroupRequest fileGroupRequest) {
 		FileGroupEntity fileGroupEntity = fileGroupRepository.findById(fileGroupRequest.getId())
-															 .orElseThrow(() -> new EntityNotFoundException("FileGroup not found: " + fileGroupRequest.getId()));
+		                                                     .orElseThrow(() -> new EntityNotFoundException("FileGroup not found: " + fileGroupRequest.getId()));
 		fileGroupEntity.setPath(fileGroupRequest.getPath());     // allow path update if needed
 		fileGroupEntity.setGroupName(fileGroupRequest.getGroupName());
 		fileGroupEntity.setDescription(fileGroupRequest.getDescription());
@@ -106,7 +106,7 @@ public class FileGroupService {
 
 			for (FileEntity f : current) {
 				if (f.getFileGroups() == null || f.getFileGroups()
-												  .size() <= 1) {
+				                                  .size() <= 1) {
 					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove file " + f.getId() + " from its last group");
 				}
 			}

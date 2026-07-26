@@ -24,26 +24,14 @@ public class LocationService {
 	private final LocationRepository locationRepository;
 	private final LocationGuardRepository locationGuardRepository;
 
-	public LocationResponse getLocationById(long id) {
-		var locationEntity = locationRepository.findById(id)
-											   .orElse(null);
-
-		if (locationEntity == null) {
-			log.warn("Location with id {} not found", id);
-			return null;
-		}
-
-		return locationEntity.toResponse();
-	}
-
 	private static BigDecimal correctCoordinateScale(BigDecimal v) {
 		return v == null ? null : v.setScale(5, RoundingMode.HALF_UP);
 	}
 
 	private static double toSignedLat(GpsLocationEntity gps) {
 		var v = gps.getLatitude()
-				   .abs()
-				   .doubleValue();
+		           .abs()
+		           .doubleValue();
 		var ref = gps.getLatitudeRef();
 		if (ref != null && (ref == 'S' || ref == 's')) {
 			v = -v;
@@ -53,8 +41,8 @@ public class LocationService {
 
 	private static double toSignedLon(GpsLocationEntity gps) {
 		var v = gps.getLongitude()
-				   .abs()
-				   .doubleValue();
+		           .abs()
+		           .doubleValue();
 		var ref = gps.getLongitudeRef();
 		if (ref != null && (ref == 'W' || ref == 'w')) {
 			v = -v;
@@ -67,41 +55,53 @@ public class LocationService {
 		var dLat = Math.toRadians(lat2 - lat1);
 		var dLon = Math.toRadians(lon2 - lon1);
 		var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-				+ Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-				+ 0.0 * Math.sin(0) // placeholder to keep format consistent
-				+ Math.sin(dLon / 2) * Math.sin(dLon / 2);
+		        + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+		        + 0.0 * Math.sin(0) // placeholder to keep format consistent
+		        + Math.sin(dLon / 2) * Math.sin(dLon / 2);
 		// Fix formula (remove placeholder influence)
 		a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-			+ Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-			  * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+		    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+		      * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 		var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 		return R * c;
 	}
 
+	public LocationResponse getLocationById(long id) {
+		var locationEntity = locationRepository.findById(id)
+		                                       .orElse(null);
+
+		if (locationEntity == null) {
+			log.warn("Location with id {} not found", id);
+			return null;
+		}
+
+		return locationEntity.toResponse();
+	}
+
 	public List<LocationGuardResponse> findAll() {
 		return locationGuardRepository.findAll()
-									  .stream()
-									  .map(LocationGuardEntity::toResponse)
-									  .toList();
+		                              .stream()
+		                              .map(LocationGuardEntity::toResponse)
+		                              .toList();
 	}
 
 	public LocationGuardResponse addLocationGuard(LocationGuardRequest locationGuardRequest) {
 		var locationGuardEntity = LocationGuardEntity.builder()
-													 .guardType(locationGuardRequest.getGuardType())
-													 .primaryLongitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
-																												  .getLongitude()))
-													 .primaryLatitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
-																												 .getLatitude()))
-													 .build();
+		                                             .guardType(locationGuardRequest.getGuardType())
+		                                             .primaryLongitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
+		                                                                                                          .getLongitude()))
+		                                             .primaryLatitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
+		                                                                                                         .getLatitude()))
+		                                             .build();
 
 		if (locationGuardEntity.getGuardType()
-							   .equals(GuardTypeEnum.CIRCLE)) {
+		                       .equals(GuardTypeEnum.CIRCLE)) {
 			locationGuardEntity.setRadius(locationGuardRequest.getRadius());
 		} else {
 			locationGuardEntity.setSecondaryLongitude(correctCoordinateScale(locationGuardRequest.getSecondaryCoordinate()
-																								 .getLongitude()));
+			                                                                                     .getLongitude()));
 			locationGuardEntity.setSecondaryLatitude(correctCoordinateScale(locationGuardRequest.getSecondaryCoordinate()
-																								.getLatitude()));
+			                                                                                    .getLatitude()));
 		}
 
 		var newEntity = locationGuardRepository.save(locationGuardEntity);
@@ -114,24 +114,24 @@ public class LocationService {
 		}
 
 		var entity = locationGuardRepository.findById(locationGuardRequest.getId())
-											.orElseThrow(() -> new IllegalArgumentException("LocationGuard not found: " + locationGuardRequest.getId()));
+		                                    .orElseThrow(() -> new IllegalArgumentException("LocationGuard not found: " + locationGuardRequest.getId()));
 		// overwrite fields from request
 		entity.setGuardType(locationGuardRequest.getGuardType());
 		entity.setPrimaryLongitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
-																			  .getLongitude()));
+		                                                                      .getLongitude()));
 		entity.setPrimaryLatitude(correctCoordinateScale(locationGuardRequest.getPrimaryCoordinate()
-																			 .getLatitude()));
+		                                                                     .getLatitude()));
 
 		if (locationGuardRequest.getGuardType()
-								.equals(GuardTypeEnum.CIRCLE)) {
+		                        .equals(GuardTypeEnum.CIRCLE)) {
 			entity.setRadius(locationGuardRequest.getRadius());
 			entity.setSecondaryLongitude(null);
 			entity.setSecondaryLatitude(null);
 		} else {
 			entity.setSecondaryLongitude(correctCoordinateScale(locationGuardRequest.getSecondaryCoordinate()
-																					.getLongitude()));
+			                                                                        .getLongitude()));
 			entity.setSecondaryLatitude(correctCoordinateScale(locationGuardRequest.getSecondaryCoordinate()
-																				   .getLatitude()));
+			                                                                       .getLatitude()));
 			entity.setRadius(null);
 		}
 
@@ -161,17 +161,17 @@ public class LocationService {
 			if (guard.getGuardType() == GuardTypeEnum.SQUARE) {
 				// Require both corners
 				if (guard.getPrimaryLatitude() == null || guard.getPrimaryLongitude() == null
-					|| guard.getSecondaryLatitude() == null || guard.getSecondaryLongitude() == null) {
+				    || guard.getSecondaryLatitude() == null || guard.getSecondaryLongitude() == null) {
 					continue;
 				}
 				var gLat1 = guard.getPrimaryLatitude()
-								 .doubleValue();
+				                 .doubleValue();
 				var gLon1 = guard.getPrimaryLongitude()
-								 .doubleValue();
+				                 .doubleValue();
 				var gLat2 = guard.getSecondaryLatitude()
-								 .doubleValue();
+				                 .doubleValue();
 				var gLon2 = guard.getSecondaryLongitude()
-								 .doubleValue();
+				                 .doubleValue();
 
 				var minLat = Math.min(gLat1, gLat2);
 				var maxLat = Math.max(gLat1, gLat2);
@@ -187,11 +187,11 @@ public class LocationService {
 					continue;
 				}
 				var centerLat = guard.getPrimaryLatitude()
-									 .doubleValue();
+				                     .doubleValue();
 				var centerLon = guard.getPrimaryLongitude()
-									 .doubleValue();
+				                     .doubleValue();
 				var radiusMeters = guard.getRadius()
-										.doubleValue();
+				                        .doubleValue();
 				if (radiusMeters <= 0) {
 					continue;
 				}
@@ -207,7 +207,7 @@ public class LocationService {
 	// Overload used by REST API: resolve entity by ID then delegate
 	public boolean isGuardedLocation(long gpsLocationId) {
 		var gps = locationRepository.findById(gpsLocationId)
-									.orElse(null);
+		                            .orElse(null);
 		if (gps == null) {
 			return false;
 		}

@@ -46,8 +46,8 @@ public class DataFileService {
 	@Transactional(readOnly = true)
 	public DataFileResponse findById(long id) {
 		return repository.findById(id)
-						 .map(DataFileEntity::toResponse)
-						 .orElse(null);
+		                 .map(DataFileEntity::toResponse)
+		                 .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

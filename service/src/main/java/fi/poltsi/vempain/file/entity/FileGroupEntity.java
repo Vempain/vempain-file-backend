@@ -66,14 +66,14 @@ public class FileGroupEntity {
 
 	public FileGroupResponse toResponse() {
 		return FileGroupResponse.builder()
-								.id(id)
-								.path(path)
-								.groupName(groupName)
-								.description(description)
-								.files(files != null ? files.stream()
-															.map(file -> file.toResponse(false))
-															.toList() : List.of())
-								.build();
+		                        .id(id)
+		                        .path(path)
+		                        .groupName(groupName)
+		                        .description(description)
+		                        .files(files != null ? files.stream()
+		                                                    .map(file -> file.toResponse(false))
+		                                                    .toList() : List.of())
+		                        .build();
 	}
 
 	public void replaceFiles(List<FileEntity> newFiles) {

@@ -20,10 +20,9 @@ import static org.mockito.Mockito.when;
 class FileContentServiceUTC {
 
 	private final FileRepository     fileRepository = mock(FileRepository.class);
-	private       FileContentService fileContentService;
-
 	@TempDir
 	Path tempDir;
+	private FileContentService fileContentService;
 
 	@BeforeEach
 	void setUp() {

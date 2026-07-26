@@ -26,7 +26,7 @@ public class AudioFileController implements AudioFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,7 +35,7 @@ public class AudioFileController implements AudioFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(audioFileService.delete(id))
-							 .build();
+		                     .build();
 
 	}
 }

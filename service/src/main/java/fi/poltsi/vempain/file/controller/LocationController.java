@@ -22,7 +22,7 @@ public class LocationController implements LocationAPI {
 
 		if (locationResponse == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(locationResponse);
@@ -47,7 +47,7 @@ public class LocationController implements LocationAPI {
 		locationService.deleteLocationGuard(id);
 
 		return ResponseEntity.noContent()
-							 .build();
+		                     .build();
 	}
 
 	@Override

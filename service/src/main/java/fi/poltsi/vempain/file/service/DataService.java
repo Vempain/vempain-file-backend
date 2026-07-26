@@ -32,22 +32,41 @@ import java.util.regex.Pattern;
 @Service
 public class DataService {
 
-	/** Identifier used in the Admin data store for the music dataset. */
-	static final String MUSIC_IDENTIFIER = "music_library";
-	/** Identifier prefix used for GPS time-series datasets per directory. */
+	/**
+	 * Identifier used in the Admin data store for the music dataset.
+	 */
+	static final String MUSIC_IDENTIFIER      = "music_library";
+	/**
+	 * Identifier prefix used for GPS time-series datasets per directory.
+	 */
 	static final String GPS_IDENTIFIER_PREFIX = "gps_timeseries_";
 
-	private static final DateTimeFormatter TIMESTAMP_FMT =
-			DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
-	private static final Pattern ADMIN_IDENTIFIER_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*$");
+	private static final DateTimeFormatter TIMESTAMP_FMT            =
+			DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+			                 .withZone(ZoneOffset.UTC);
+	private static final Pattern           ADMIN_IDENTIFIER_PATTERN = Pattern.compile("^[a-z][a-z0-9_]*$");
 
-	private final MusicFileService      musicFileService;
-	private final ImageFileRepository   imageFileRepository;
+	private final MusicFileService    musicFileService;
+	private final ImageFileRepository imageFileRepository;
 	private final VempainAdminDataClient vempainAdminDataClient;
 
 	// -----------------------------------------------------------------------
 	// Music dataset
 	// -----------------------------------------------------------------------
+
+	/**
+	 * Escapes a CSV field value: wraps in double-quotes if the value contains
+	 * a comma, double-quote, or newline, and doubles any internal double-quotes.
+	 */
+	static String escapeCsv(String value) {
+		if (value == null) {
+			return "";
+		}
+		if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+			return "\"%s\"".formatted(value.replace("\"", "\"\""));
+		}
+		return value;
+	}
 
 	/**
 	 * Generates a CSV from all music files, then creates or updates the dataset
@@ -93,11 +112,16 @@ public class DataService {
 			  .append(',')
 			  .append(escapeCsv(f.getGenre()))
 			  .append(',')
-			  .append(f.getDuration() != null ? f.getDuration().getSeconds() : "")
+			  .append(f.getDuration() != null ? f.getDuration()
+			                                     .getSeconds() : "")
 			  .append('\n');
 		}
 		return sb.toString();
 	}
+
+	// -----------------------------------------------------------------------
+	// GPS time-series dataset
+	// -----------------------------------------------------------------------
 
 	private DataRequest buildMusicDataRequest(String csvData) {
 		var request = new DataRequest();
@@ -145,10 +169,6 @@ public class DataService {
 		return request;
 	}
 
-	// -----------------------------------------------------------------------
-	// GPS time-series dataset
-	// -----------------------------------------------------------------------
-
 	/**
 	 * Generates a GPS time-series CSV from images with GPS data in the given
 	 * directory path, then creates or updates the dataset in Vempain Admin and
@@ -166,8 +186,12 @@ public class DataService {
 		// Uses simple character-by-character scanning to avoid ReDoS risk with complex regex.
 		int start = 0;
 		int end   = directoryPath.length();
-		while (start < end && directoryPath.charAt(start) == '/') start++;
-		while (end > start && directoryPath.charAt(end - 1) == '/') end--;
+		while (start < end && directoryPath.charAt(start) == '/') {
+			start++;
+		}
+		while (end > start && directoryPath.charAt(end - 1) == '/') {
+			end--;
+		}
 		var normPath = "/%s".formatted(directoryPath.substring(start, end));
 		log.info("Generating GPS time-series dataset for directory: {}", normPath);
 
@@ -236,8 +260,8 @@ public class DataService {
 	 */
 	String buildGpsIdentifier(String path) {
 		// Lower-case and replace every non-alphanumeric/underscore/slash character with '_'
-		var lower    = path.toLowerCase();
-		var sb       = new StringBuilder(lower.length());
+		var lower = path.toLowerCase();
+		var sb    = new StringBuilder(lower.length());
 		for (char c : lower.toCharArray()) {
 			if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
 				sb.append(c);
@@ -287,20 +311,22 @@ public class DataService {
 		sb.append("timestamp,latitude,latitude_ref,longitude,longitude_ref,altitude,filename\n");
 
 		for (var img : images) {
-			var gps       = img.getGpsLocation();
+			var gps = img.getGpsLocation();
 			var timestamp = img.getGpsTimestamp() != null
-							? TIMESTAMP_FMT.format(img.getGpsTimestamp())
-							: (img.getOriginalDatetime() != null
-							   ? TIMESTAMP_FMT.format(img.getOriginalDatetime())
-							   : "");
+			                ? TIMESTAMP_FMT.format(img.getGpsTimestamp())
+			                : (img.getOriginalDatetime() != null
+			                   ? TIMESTAMP_FMT.format(img.getOriginalDatetime())
+			                   : "");
 
 			sb.append(escapeCsv(timestamp))
 			  .append(',')
-			  .append(gps.getLatitude() != null ? gps.getLatitude().toPlainString() : "")
+			  .append(gps.getLatitude() != null ? gps.getLatitude()
+			                                         .toPlainString() : "")
 			  .append(',')
 			  .append(gps.getLatitudeRef() != null ? gps.getLatitudeRef() : "")
 			  .append(',')
-			  .append(gps.getLongitude() != null ? gps.getLongitude().toPlainString() : "")
+			  .append(gps.getLongitude() != null ? gps.getLongitude()
+			                                          .toPlainString() : "")
 			  .append(',')
 			  .append(gps.getLongitudeRef() != null ? gps.getLongitudeRef() : "")
 			  .append(',')
@@ -311,6 +337,10 @@ public class DataService {
 		}
 		return sb.toString();
 	}
+
+	// -----------------------------------------------------------------------
+	// Admin API interaction
+	// -----------------------------------------------------------------------
 
 	private DataRequest buildGpsDataRequest(String identifier, String path, String csvData) {
 		var tableBase = "website_data__%s".formatted(identifier);
@@ -358,10 +388,6 @@ public class DataService {
 		return request;
 	}
 
-	// -----------------------------------------------------------------------
-	// Admin API interaction
-	// -----------------------------------------------------------------------
-
 	/**
 	 * Attempts to update an existing dataset; if not found (404), creates a new one.
 	 * After creation/update, publishes the dataset to the site database.
@@ -371,7 +397,8 @@ public class DataService {
 
 		log.debug("Prepared Admin DataRequest identifier='{}', type='{}', csv_header='{}', csv_length={} chars",
 		          request.getIdentifier(), request.getType(), csvHeaderPreview(request.getCsvData()),
-		          request.getCsvData() != null ? request.getCsvData().length() : 0);
+		          request.getCsvData() != null ? request.getCsvData()
+		                                                .length() : 0);
 
 		try {
 			log.debug("Checking if the identifier {} already exists on Venpain Admin", request.getIdentifier());
@@ -400,9 +427,10 @@ public class DataService {
 		try {
 			var createResponse = vempainAdminDataClient.createDataSet(request);
 
-			if (createResponse == null || !createResponse.getStatusCode().is2xxSuccessful()) {
+			if (createResponse == null || !createResponse.getStatusCode()
+			                                             .is2xxSuccessful()) {
 				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-												  "Failed to create dataset in Admin service");
+				                                  "Failed to create dataset in Admin service");
 			}
 			log.debug("Created dataset: {}", request.getIdentifier());
 			return createResponse.getBody();
@@ -416,7 +444,7 @@ public class DataService {
 	private String normalizeAdminIdentifier(String candidate) {
 		var lower = candidate.trim()
 		                     .toLowerCase();
-		var sb    = new StringBuilder(lower.length());
+		var sb = new StringBuilder(lower.length());
 		for (char c : lower.toCharArray()) {
 			if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
 				sb.append(c);
@@ -476,6 +504,10 @@ public class DataService {
 		                                  .trim() : csvData.trim();
 	}
 
+	// -----------------------------------------------------------------------
+	// Utility
+	// -----------------------------------------------------------------------
+
 	private ResponseStatusException mapAdminException(FeignException exception, String action, String identifier) {
 		var body = exception.contentUTF8();
 		var reason = "Admin service failed to %s dataset '%s': %s".formatted(action, identifier,
@@ -486,23 +518,5 @@ public class DataService {
 			case 409 -> new ResponseStatusException(HttpStatus.CONFLICT, reason, exception);
 			default -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, reason, exception);
 		};
-	}
-
-	// -----------------------------------------------------------------------
-	// Utility
-	// -----------------------------------------------------------------------
-
-	/**
-	 * Escapes a CSV field value: wraps in double-quotes if the value contains
-	 * a comma, double-quote, or newline, and doubles any internal double-quotes.
-	 */
-	static String escapeCsv(String value) {
-		if (value == null) {
-			return "";
-		}
-		if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-			return "\"%s\"".formatted(value.replace("\"", "\"\""));
-		}
-		return value;
 	}
 }

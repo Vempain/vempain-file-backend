@@ -23,6 +23,16 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 
 	private final EntityManager entityManager;
 
+	private static FileGroupSummaryRow mapRow(Object[] tuple) {
+		Long   id          = tuple[0] != null ? ((Number) tuple[0]).longValue() : null;
+		String path        = tuple[1] != null ? tuple[1].toString() : null;
+		String groupName   = tuple[2] != null ? tuple[2].toString() : null;
+		String description = tuple[3] != null ? tuple[3].toString() : null;
+		long   count       = tuple[4] != null ? ((Number) tuple[4]).longValue() : 0L;
+		Long   galleryId   = tuple[5] != null ? ((Number) tuple[5]).longValue() : null;
+		return new FileGroupSummaryRow(id, path, groupName, description, count, galleryId);
+	}
+
 	@Override
 	public Page<FileGroupSummaryRow> searchFileGroups(String searchTerm, boolean caseSensitive, Pageable pageable) {
 		List<String> tokens = tokenize(searchTerm);
@@ -37,8 +47,8 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		String orderClause = buildOrderClause(pageable);
 
 		String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count, fg.gallery_id "
-						   + base + whereClause + " GROUP BY fg.id, fg.path, fg.group_name, fg.gallery_id, fg.description " + orderClause
-						   + " OFFSET :offset LIMIT :limit";
+		                   + base + whereClause + " GROUP BY fg.id, fg.path, fg.group_name, fg.gallery_id, fg.description " + orderClause
+		                   + " OFFSET :offset LIMIT :limit";
 		log.debug("FileGroup search SQL: {}", selectSql);
 		Query dataQuery = entityManager.createNativeQuery(selectSql);
 		bindParameters(dataQuery, tokens, caseSensitive);
@@ -48,12 +58,12 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		@SuppressWarnings("unchecked")
 		List<Object[]> rawRows = dataQuery.getResultList();
 		List<FileGroupSummaryRow> rows = rawRows.stream()
-												.map(FileGroupRepositoryImpl::mapRow)
-												.toList();
+		                                        .map(FileGroupRepositoryImpl::mapRow)
+		                                        .toList();
 
-		String countSql   = "SELECT COUNT(DISTINCT fg.id) " + base + whereClause;
+		String countSql = "SELECT COUNT(DISTINCT fg.id) " + base + whereClause;
 		log.debug("FileGroup count SQL: {}", countSql);
-		Query  countQuery = entityManager.createNativeQuery(countSql);
+		Query countQuery = entityManager.createNativeQuery(countSql);
 		bindParameters(countQuery, tokens, caseSensitive);
 		Number total = (Number) countQuery.getSingleResult();
 
@@ -63,7 +73,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 	private void bindParameters(Query query, List<String> tokens, boolean caseSensitive) {
 		for (int i = 0; i < tokens.size(); i++) {
 			String value = caseSensitive ? tokens.get(i) : tokens.get(i)
-																 .toLowerCase();
+			                                                     .toLowerCase();
 			query.setParameter("term" + i, "%" + value + "%");
 		}
 	}
@@ -100,7 +110,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 
 	private String buildOrderClause(Pageable pageable) {
 		if (!pageable.getSort()
-					 .isSorted()) {
+		             .isSorted()) {
 			return " ORDER BY fg.path ASC";
 		}
 		StringBuilder sb    = new StringBuilder(" ORDER BY ");
@@ -112,7 +122,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 			sb.append(mapSort(order.getProperty()))
 			  .append(' ')
 			  .append(order.getDirection()
-						   .name());
+			               .name());
 			first = false;
 		}
 		return sb.toString();
@@ -143,15 +153,5 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 			tokens.add(quoted != null ? quoted : word);
 		}
 		return tokens;
-	}
-
-	private static FileGroupSummaryRow mapRow(Object[] tuple) {
-		Long   id          = tuple[0] != null ? ((Number) tuple[0]).longValue() : null;
-		String path        = tuple[1] != null ? tuple[1].toString() : null;
-		String groupName   = tuple[2] != null ? tuple[2].toString() : null;
-		String description = tuple[3] != null ? tuple[3].toString() : null;
-		long   count       = tuple[4] != null ? ((Number) tuple[4]).longValue() : 0L;
-		Long galleryId = tuple[5] != null ? ((Number) tuple[5]).longValue() : null;
-		return new FileGroupSummaryRow(id, path, groupName, description, count, galleryId);
 	}
 }

@@ -24,16 +24,16 @@ public class MusicFileService {
 
 	@Transactional(readOnly = true)
 	public PagedResponse<MusicFileResponse> findAll(PagedRequest pagedRequest) {
-		var                           safePage   = Math.max(0, pagedRequest.getPage());
-		var                           safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
-		var                           sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<MusicFileEntity> spec      = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
-		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
-		var                           pageResult = musicFileRepository.findAll(spec, pageable);
+		var                            safePage   = Math.max(0, pagedRequest.getPage());
+		var                            safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+		Specification<MusicFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
+		var                            pageResult = musicFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(MusicFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(MusicFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -49,7 +49,7 @@ public class MusicFileService {
 	public MusicFileResponse findById(long id) {
 		var entityOpt = musicFileRepository.findById(id);
 		return entityOpt.map(MusicFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

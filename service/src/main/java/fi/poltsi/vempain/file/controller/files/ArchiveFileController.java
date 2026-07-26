@@ -26,7 +26,7 @@ public class ArchiveFileController implements ArchiveFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class ArchiveFileController implements ArchiveFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(archiveFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

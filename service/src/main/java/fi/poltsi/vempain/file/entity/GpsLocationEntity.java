@@ -52,19 +52,19 @@ public class GpsLocationEntity {
 
 	public LocationResponse toResponse() {
 		return LocationResponse.builder()
-							   .id(id)
-							   .latitude(latitude)
-							   .latitudeRef(latitudeRef)
-							   .longitude(longitude)
-							   .longitudeRef(longitudeRef)
-							   .altitude(altitude)
-							   .direction(direction)
-							   .satelliteCount(satelliteCount)
-							   .country(country)
-							   .state(state)
-							   .city(city)
-							   .street(street)
-							   .subLocation(subLocation)
-							   .build();
+		                       .id(id)
+		                       .latitude(latitude)
+		                       .latitudeRef(latitudeRef)
+		                       .longitude(longitude)
+		                       .longitudeRef(longitudeRef)
+		                       .altitude(altitude)
+		                       .direction(direction)
+		                       .satelliteCount(satelliteCount)
+		                       .country(country)
+		                       .state(state)
+		                       .city(city)
+		                       .street(street)
+		                       .subLocation(subLocation)
+		                       .build();
 	}
 }

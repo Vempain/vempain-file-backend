@@ -66,13 +66,13 @@ public class FileScannerService {
 		}
 
 		return ScanOriginalResponse.builder()
-								   .success(success)
-								   .scannedFilesCount(scannedFilesCount)
-								   .newFilesCount(newFilesCount)
-								   .failedFiles(failedFiles)
-								   .successfulFiles(successfulFileResponses)
-								   .errorMessage(errorMessage.toString())
-								   .build();
+		                           .success(success)
+		                           .scannedFilesCount(scannedFilesCount)
+		                           .newFilesCount(newFilesCount)
+		                           .failedFiles(failedFiles)
+		                           .successfulFiles(successfulFileResponses)
+		                           .errorMessage(errorMessage.toString())
+		                           .build();
 	}
 
 	protected ScanExportResponse scanExportDirectory(String exportedDirectory) {
@@ -89,9 +89,9 @@ public class FileScannerService {
 
 		if (!success) {
 			return ScanExportResponse.builder()
-									 .success(false)
-									 .errorMessage(errorMessage.toString())
-									 .build();
+			                         .success(false)
+			                         .errorMessage(errorMessage.toString())
+			                         .build();
 		}
 
 		for (Path leafDir : leafDirectories) {
@@ -100,20 +100,20 @@ public class FileScannerService {
 		}
 
 		return ScanExportResponse.builder()
-								 .success(success)
-								 .scannedFilesCount(scannedFilesCount)
-								 .newFilesCount(newFilesCount)
-								 .failedFiles(orphanedFiles)
-								 .successfulFiles(successfulFileResponses)
-								 .errorMessage(errorMessage.toString())
-								 .build();
+		                         .success(success)
+		                         .scannedFilesCount(scannedFilesCount)
+		                         .newFilesCount(newFilesCount)
+		                         .failedFiles(orphanedFiles)
+		                         .successfulFiles(successfulFileResponses)
+		                         .errorMessage(errorMessage.toString())
+		                         .build();
 
 	}
 
 	private boolean isLeafDirectory(Path path) {
 		try {
 			return Files.list(path)
-						.noneMatch(Files::isDirectory);
+			            .noneMatch(Files::isDirectory);
 		} catch (IOException e) {
 			log.error("Error checking if directory is leaf: {}", path, e);
 			return false;
@@ -131,16 +131,16 @@ public class FileScannerService {
 	private boolean populateLeafDirectory(ArrayList<Path> leafDirectories, StringBuilder errorMessage, Path scanDirectory) {
 		try {
 			leafDirectories.addAll(Files.walk(scanDirectory)
-										.filter(Files::isDirectory)
-										.filter(path -> !path.getFileName()
-															 .toString()
-															 .startsWith("."))
-										.filter(this::isLeafDirectory)
-										.toList());
+			                            .filter(Files::isDirectory)
+			                            .filter(path -> !path.getFileName()
+			                                                 .toString()
+			                                                 .startsWith("."))
+			                            .filter(this::isLeafDirectory)
+			                            .toList());
 		} catch (IOException e) {
 			log.error("Error scanning directory: {}", scanDirectory, e);
 			errorMessage.append("Error scanning directory: ")
-						.append(scanDirectory);
+			            .append(scanDirectory);
 			return false;
 		}
 

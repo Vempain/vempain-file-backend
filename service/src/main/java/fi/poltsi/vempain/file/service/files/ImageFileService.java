@@ -29,9 +29,9 @@ public class ImageFileService {
 		var pageable = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = imageFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(ImageFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(ImageFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -48,7 +48,7 @@ public class ImageFileService {
 	public ImageFileResponse findById(long id) {
 		var entityOpt = imageFileRepository.findById(id);
 		return entityOpt.map(ImageFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

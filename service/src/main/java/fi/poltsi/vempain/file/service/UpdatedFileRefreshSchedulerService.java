@@ -62,10 +62,10 @@ public class UpdatedFileRefreshSchedulerService {
 
 	public void runRefresh() {
 		var runStartedAt = Instant.now();
-		var checkpoint   = schedulerCheckpointRepository.findById(TASK_NAME)
-		                                                .orElse(null);
-		var lastCheckAt  = checkpoint != null ? checkpoint.getLastChecked() : Instant.EPOCH;
-		var firstRun     = checkpoint == null;
+		var checkpoint = schedulerCheckpointRepository.findById(TASK_NAME)
+		                                              .orElse(null);
+		var lastCheckAt = checkpoint != null ? checkpoint.getLastChecked() : Instant.EPOCH;
+		var firstRun    = checkpoint == null;
 
 		log.info("Starting updated file refresh. firstRun={}, lastCheckAt={}", firstRun, lastCheckAt);
 

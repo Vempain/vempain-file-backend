@@ -28,16 +28,16 @@ public class VempainAdminTokenProvider {
 
 	public void login() {
 		var loginRequest = LoginRequest.builder()
-									   .login(adminUsername)
-									   .password(adminUserPassword)
-									   .build();
+		                               .login(adminUsername)
+		                               .password(adminUserPassword)
+		                               .build();
 		log.debug("Logging in to Vempain Admin service");
 
 		try {
 			var responseEntity = vempainAdminLoginClient.authenticateUser(loginRequest);
 
 			if (responseEntity == null || !responseEntity.getStatusCode()
-													 .is2xxSuccessful()) {
+			                                             .is2xxSuccessful()) {
 				log.error("Login to Vempain admin failed, the response is either empty or not successful");
 				throw new VempainAuthenticationException();
 			}
@@ -52,7 +52,7 @@ public class VempainAdminTokenProvider {
 			}
 
 			jwtTokenRegistrationTimeExpires = Instant.now()
-													 .plusSeconds(3_600L);
+			                                         .plusSeconds(3_600L);
 			jwtToken                        = loginResponse.getToken();
 
 			log.debug("Logged in to Vempain Admin");
@@ -64,10 +64,10 @@ public class VempainAdminTokenProvider {
 
 	public String getToken() {
 		if (jwtToken == null
-			|| jwtToken.isEmpty()
-			|| jwtTokenRegistrationTimeExpires == null
-			|| Instant.now()
-					  .isAfter(jwtTokenRegistrationTimeExpires)) {
+		    || jwtToken.isEmpty()
+		    || jwtTokenRegistrationTimeExpires == null
+		    || Instant.now()
+		              .isAfter(jwtTokenRegistrationTimeExpires)) {
 			log.debug("JWT token is not set, logging in to Vempain Admin service");
 			login();
 		}

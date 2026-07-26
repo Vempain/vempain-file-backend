@@ -24,13 +24,13 @@ import java.io.File;
 public class VempainAdminService {
 	private final VempainAdminFileIngestClient vempainAdminFileIngestClient;
 	private final VempainAdminFileClient vempainAdminFileClient;
-	private final ObjectMapper objectMapper;
+	private final ObjectMapper           objectMapper;
 
 	public FileIngestResponse uploadAsSiteFile(File exportedFile, FileIngestRequest fileIngestRequest) {
 		var multiPartFile = VempainMultipartFile.builder()
-												.path(exportedFile.toPath())
-												.contentType(fileIngestRequest.getMimeType())
-												.build();
+		                                        .path(exportedFile.toPath())
+		                                        .contentType(fileIngestRequest.getMimeType())
+		                                        .build();
 		String fileIngestRequestString;
 
 		fileIngestRequestString = objectMapper.writeValueAsString(fileIngestRequest);
@@ -40,7 +40,7 @@ public class VempainAdminService {
 		try {
 			var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequestString, multiPartFile);
 			if (responseEntity == null || !responseEntity.getStatusCode()
-														 .is2xxSuccessful()) {
+			                                             .is2xxSuccessful()) {
 				log.error("File upload to Vempain admin failed with HTTP status {}", responseEntity != null ? responseEntity.getStatusCode() : "null");
 				throw new VempainAuthenticationException();
 			}

@@ -102,20 +102,20 @@ class LocationServiceITC {
 		@Test
 		void mapsEntitiesToResponses() {
 			var e1 = LocationGuardEntity.builder()
-										.id(1L)
-										.guardType(GuardTypeEnum.SQUARE)
-										.primaryLatitude(valueOf(60.0))
-										.primaryLongitude(valueOf(24.0))
-										.secondaryLatitude(valueOf(60.1))
-										.secondaryLongitude(valueOf(24.1))
-										.build();
+			                            .id(1L)
+			                            .guardType(GuardTypeEnum.SQUARE)
+			                            .primaryLatitude(valueOf(60.0))
+			                            .primaryLongitude(valueOf(24.0))
+			                            .secondaryLatitude(valueOf(60.1))
+			                            .secondaryLongitude(valueOf(24.1))
+			                            .build();
 			var e2 = LocationGuardEntity.builder()
-										.id(2L)
-										.guardType(GuardTypeEnum.CIRCLE)
-										.primaryLatitude(valueOf(60.2))
-										.primaryLongitude(valueOf(24.2))
-										// radius might be null in builder, set via setter if needed
-										.build();
+			                            .id(2L)
+			                            .guardType(GuardTypeEnum.CIRCLE)
+			                            .primaryLatitude(valueOf(60.2))
+			                            .primaryLongitude(valueOf(24.2))
+			                            // radius might be null in builder, set via setter if needed
+			                            .build();
 			e2.setRadius(valueOf(200));
 
 			when(locationGuardRepository.findAll()).thenReturn(List.of(e1, e2));
@@ -124,7 +124,7 @@ class LocationServiceITC {
 
 			assertThat(results).hasSize(2);
 			assertThat(results.stream()
-							  .map(LocationGuardResponse::getId)).containsExactlyInAnyOrder(1L, 2L);
+			                  .map(LocationGuardResponse::getId)).containsExactlyInAnyOrder(1L, 2L);
 			verify(locationGuardRepository).findAll();
 		}
 	}
@@ -136,21 +136,21 @@ class LocationServiceITC {
 		@Test
 		void createsCircleGuard_andPersists() {
 			var primaryCoordinate = GeoCoordinate.builder()
-												 .longitude(valueOf(24.93545))
-												 .latitude(valueOf(60.16952))
-												 .build();
+			                                     .longitude(valueOf(24.93545))
+			                                     .latitude(valueOf(60.16952))
+			                                     .build();
 			var locationGuardRequest = LocationGuardRequest.builder()
-														   .guardType(GuardTypeEnum.CIRCLE)
-														   .primaryCoordinate(primaryCoordinate)
-														   .radius(BigDecimal.valueOf(100.5))
-														   .build();
+			                                               .guardType(GuardTypeEnum.CIRCLE)
+			                                               .primaryCoordinate(primaryCoordinate)
+			                                               .radius(BigDecimal.valueOf(100.5))
+			                                               .build();
 			// Note: radius optional in request; service copies if present. We focus on lat/lon mapping.
 			var saved = LocationGuardEntity.builder()
-										   .id(10L)
-										   .guardType(GuardTypeEnum.CIRCLE)
-										   .primaryLongitude(valueOf(24.93545).setScale(5))
-										   .primaryLatitude(valueOf(60.16952).setScale(5))
-										   .build();
+			                               .id(10L)
+			                               .guardType(GuardTypeEnum.CIRCLE)
+			                               .primaryLongitude(valueOf(24.93545).setScale(5))
+			                               .primaryLatitude(valueOf(60.16952).setScale(5))
+			                               .build();
 
 			when(locationGuardRepository.save(any(LocationGuardEntity.class))).thenReturn(saved);
 
@@ -170,27 +170,27 @@ class LocationServiceITC {
 		@Test
 		void createsSquareGuard_andPersists() {
 			var primaryCoordinate = GeoCoordinate.builder()
-												 .longitude(valueOf(24.90000))
-												 .latitude(valueOf(60.10000))
-												 .build();
+			                                     .longitude(valueOf(24.90000))
+			                                     .latitude(valueOf(60.10000))
+			                                     .build();
 			var secondaryCoordinate = GeoCoordinate.builder()
-												   .longitude(valueOf(24.95000))
-												   .latitude(valueOf(60.15000))
-												   .build();
+			                                       .longitude(valueOf(24.95000))
+			                                       .latitude(valueOf(60.15000))
+			                                       .build();
 
 			var locationGuardRequest = LocationGuardRequest.builder()
-														   .guardType(GuardTypeEnum.SQUARE)
-														   .primaryCoordinate(primaryCoordinate)
-														   .secondaryCoordinate(secondaryCoordinate)
-														   .build();
+			                                               .guardType(GuardTypeEnum.SQUARE)
+			                                               .primaryCoordinate(primaryCoordinate)
+			                                               .secondaryCoordinate(secondaryCoordinate)
+			                                               .build();
 			var saved = LocationGuardEntity.builder()
-										   .id(11L)
-										   .guardType(GuardTypeEnum.SQUARE)
-										   .primaryLongitude(valueOf(24.90000).setScale(5))
-										   .primaryLatitude(valueOf(60.10000).setScale(5))
-										   .secondaryLongitude(valueOf(24.95000).setScale(5))
-										   .secondaryLatitude(valueOf(60.15000).setScale(5))
-										   .build();
+			                               .id(11L)
+			                               .guardType(GuardTypeEnum.SQUARE)
+			                               .primaryLongitude(valueOf(24.90000).setScale(5))
+			                               .primaryLatitude(valueOf(60.10000).setScale(5))
+			                               .secondaryLongitude(valueOf(24.95000).setScale(5))
+			                               .secondaryLatitude(valueOf(60.15000).setScale(5))
+			                               .build();
 
 			when(locationGuardRepository.save(any(LocationGuardEntity.class))).thenReturn(saved);
 
@@ -210,18 +210,18 @@ class LocationServiceITC {
 		@Test
 		void throws_whenIdMissing() {
 			var primaryCoordinate = GeoCoordinate.builder()
-												 .longitude(valueOf(24.9))
-												 .latitude(valueOf(60.1))
-												 .build();
+			                                     .longitude(valueOf(24.9))
+			                                     .latitude(valueOf(60.1))
+			                                     .build();
 			var secondaryCoordinate = GeoCoordinate.builder()
-												   .longitude(valueOf(24.95))
-												   .latitude(valueOf(60.15))
-												   .build();
+			                                       .longitude(valueOf(24.95))
+			                                       .latitude(valueOf(60.15))
+			                                       .build();
 			var locationGuardRequest = LocationGuardRequest.builder()
-														   .guardType(GuardTypeEnum.SQUARE)
-														   .primaryCoordinate(primaryCoordinate)
-														   .secondaryCoordinate(secondaryCoordinate)
-														   .build();
+			                                               .guardType(GuardTypeEnum.SQUARE)
+			                                               .primaryCoordinate(primaryCoordinate)
+			                                               .secondaryCoordinate(secondaryCoordinate)
+			                                               .build();
 
 			assertThrows(IllegalArgumentException.class, () -> locationService.updateLocationGuard(locationGuardRequest));
 			verifyNoInteractions(locationGuardRepository);
@@ -230,26 +230,26 @@ class LocationServiceITC {
 		@Test
 		void updatesExisting_toCircle() {
 			var existing = LocationGuardEntity.builder()
-											  .id(100L)
-											  .guardType(GuardTypeEnum.SQUARE)
-											  .primaryLongitude(valueOf(24.9))
-											  .primaryLatitude(valueOf(60.1))
-											  .secondaryLongitude(valueOf(24.95))
-											  .secondaryLatitude(valueOf(60.15))
-											  .build();
+			                                  .id(100L)
+			                                  .guardType(GuardTypeEnum.SQUARE)
+			                                  .primaryLongitude(valueOf(24.9))
+			                                  .primaryLatitude(valueOf(60.1))
+			                                  .secondaryLongitude(valueOf(24.95))
+			                                  .secondaryLatitude(valueOf(60.15))
+			                                  .build();
 
 			when(locationGuardRepository.findById(100L)).thenReturn(Optional.of(existing));
 			when(locationGuardRepository.save(any(LocationGuardEntity.class))).thenAnswer(inv -> inv.getArgument(0, LocationGuardEntity.class));
 
 			var primaryCoordinate = GeoCoordinate.builder()
-												 .longitude(valueOf(24.93500))
-												 .latitude(valueOf(60.17000))
-												 .build();
+			                                     .longitude(valueOf(24.93500))
+			                                     .latitude(valueOf(60.17000))
+			                                     .build();
 			var locationGuardRequest = LocationGuardRequest.builder()
-														   .id(100L)
-														   .guardType(GuardTypeEnum.CIRCLE)
-														   .primaryCoordinate(primaryCoordinate)
-														   .build();
+			                                               .id(100L)
+			                                               .guardType(GuardTypeEnum.CIRCLE)
+			                                               .primaryCoordinate(primaryCoordinate)
+			                                               .build();
 
 			var resp = locationService.updateLocationGuard(locationGuardRequest);
 
@@ -267,30 +267,30 @@ class LocationServiceITC {
 		@Test
 		void updatesExisting_toSquare() {
 			var existing = LocationGuardEntity.builder()
-											  .id(101L)
-											  .guardType(GuardTypeEnum.CIRCLE)
-											  .primaryLongitude(valueOf(24.9))
-											  .primaryLatitude(valueOf(60.1))
-											  .build();
+			                                  .id(101L)
+			                                  .guardType(GuardTypeEnum.CIRCLE)
+			                                  .primaryLongitude(valueOf(24.9))
+			                                  .primaryLatitude(valueOf(60.1))
+			                                  .build();
 			existing.setRadius(valueOf(300));
 
 			when(locationGuardRepository.findById(101L)).thenReturn(Optional.of(existing));
 			when(locationGuardRepository.save(any(LocationGuardEntity.class))).thenAnswer(inv -> inv.getArgument(0, LocationGuardEntity.class));
 
 			var primaryCoordinate = GeoCoordinate.builder()
-												 .longitude(valueOf(24.90))
-												 .latitude(valueOf(60.10))
-												 .build();
+			                                     .longitude(valueOf(24.90))
+			                                     .latitude(valueOf(60.10))
+			                                     .build();
 			var secondaryCoordinate = GeoCoordinate.builder()
-												   .longitude(valueOf(24.95))
-												   .latitude(valueOf(60.15))
-												   .build();
+			                                       .longitude(valueOf(24.95))
+			                                       .latitude(valueOf(60.15))
+			                                       .build();
 			var locationGuardRequest = LocationGuardRequest.builder()
-														   .id(101L)
-														   .guardType(GuardTypeEnum.SQUARE)
-														   .primaryCoordinate(primaryCoordinate)
-														   .secondaryCoordinate(secondaryCoordinate)
-														   .build();
+			                                               .id(101L)
+			                                               .guardType(GuardTypeEnum.SQUARE)
+			                                               .primaryCoordinate(primaryCoordinate)
+			                                               .secondaryCoordinate(secondaryCoordinate)
+			                                               .build();
 
 			var resp = locationService.updateLocationGuard(locationGuardRequest);
 
@@ -346,12 +346,12 @@ class LocationServiceITC {
 		})
 		void evaluatesInsideForSquare(double lat, double lon, boolean expectedInside) {
 			var square = LocationGuardEntity.builder()
-											.guardType(GuardTypeEnum.SQUARE)
-											.primaryLatitude(valueOf(60.10000))
-											.primaryLongitude(valueOf(24.90000))
-											.secondaryLatitude(valueOf(60.15000))
-											.secondaryLongitude(valueOf(24.95000))
-											.build();
+			                                .guardType(GuardTypeEnum.SQUARE)
+			                                .primaryLatitude(valueOf(60.10000))
+			                                .primaryLongitude(valueOf(24.90000))
+			                                .secondaryLatitude(valueOf(60.15000))
+			                                .secondaryLongitude(valueOf(24.95000))
+			                                .build();
 
 			when(locationGuardRepository.findAll()).thenReturn(List.of(square));
 
@@ -378,11 +378,11 @@ class LocationServiceITC {
 			double centerLat = 60.1700;
 			double centerLon = 24.9350;
 			var locationGuardEntity = LocationGuardEntity.builder()
-														 .guardType(GuardTypeEnum.CIRCLE)
-														 .primaryLatitude(valueOf(centerLat))
-														 .primaryLongitude(valueOf(centerLon))
-														 .radius(valueOf(200))
-														 .build();
+			                                             .guardType(GuardTypeEnum.CIRCLE)
+			                                             .primaryLatitude(valueOf(centerLat))
+			                                             .primaryLongitude(valueOf(centerLon))
+			                                             .radius(valueOf(200))
+			                                             .build();
 
 			when(locationGuardRepository.findAll()).thenReturn(List.of(locationGuardEntity));
 
@@ -409,12 +409,12 @@ class LocationServiceITC {
 		void delegatesToGuardCheck_whenLocationExists() {
 			// Include a square guard (60.10..60.15 , 24.90..24.95)
 			var square = LocationGuardEntity.builder()
-											.guardType(GuardTypeEnum.SQUARE)
-											.primaryLatitude(valueOf(60.10000))
-											.primaryLongitude(valueOf(24.90000))
-											.secondaryLatitude(valueOf(60.15000))
-											.secondaryLongitude(valueOf(24.95000))
-											.build();
+			                                .guardType(GuardTypeEnum.SQUARE)
+			                                .primaryLatitude(valueOf(60.10000))
+			                                .primaryLongitude(valueOf(24.90000))
+			                                .secondaryLatitude(valueOf(60.15000))
+			                                .secondaryLongitude(valueOf(24.95000))
+			                                .build();
 			when(locationGuardRepository.findAll()).thenReturn(List.of(square));
 
 			var gps = gps(60.12, 24.92);

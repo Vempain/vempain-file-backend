@@ -26,7 +26,7 @@ public class VideoFileController implements VideoFileAPI {
 
 		if (response == null) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		return ResponseEntity.ok(response);
@@ -35,6 +35,6 @@ public class VideoFileController implements VideoFileAPI {
 	@Override
 	public ResponseEntity<Void> delete(long id) {
 		return ResponseEntity.status(videoFileService.delete(id))
-							 .build();
+		                     .build();
 	}
 }

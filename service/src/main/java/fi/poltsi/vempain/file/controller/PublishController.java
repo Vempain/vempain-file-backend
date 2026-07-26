@@ -24,32 +24,32 @@ public class PublishController implements PublishAPI {
 
 		if (count == 0L) {
 			return ResponseEntity.notFound()
-								 .build();
+			                     .build();
 		}
 
 		publishService.publishFileGroup(request);
 		return ResponseEntity.accepted()
-							 .body(new PublishFileGroupResponse(count));
+		                     .body(new PublishFileGroupResponse(count));
 	}
 
 	@Override
 	public ResponseEntity<PublishAllFileGroupsResponse> publishAllFileGroups() {
 		long scheduled = publishService.publishAllFileGroups();
 		return ResponseEntity.accepted()
-							 .body(new PublishAllFileGroupsResponse(scheduled));
+		                     .body(new PublishAllFileGroupsResponse(scheduled));
 	}
 
 	@Override
 	public ResponseEntity<PublishProgressResponse> getPublishProgress() {
 		var resp = PublishProgressResponse.builder()
-										  .totalGroups(publishProgressStore.getTotal())
-										  .scheduled(publishProgressStore.getScheduled())
-										  .started(publishProgressStore.getStarted())
-										  .completed(publishProgressStore.getCompleted())
-										  .failed(publishProgressStore.getFailed())
-										  .perGroupStatus(publishProgressStore.getPerGroupStatus())
-										  .lastUpdated(publishProgressStore.getLastUpdated())
-										  .build();
+		                                  .totalGroups(publishProgressStore.getTotal())
+		                                  .scheduled(publishProgressStore.getScheduled())
+		                                  .started(publishProgressStore.getStarted())
+		                                  .completed(publishProgressStore.getCompleted())
+		                                  .failed(publishProgressStore.getFailed())
+		                                  .perGroupStatus(publishProgressStore.getPerGroupStatus())
+		                                  .lastUpdated(publishProgressStore.getLastUpdated())
+		                                  .build();
 
 		return ResponseEntity.ok(resp);
 	}

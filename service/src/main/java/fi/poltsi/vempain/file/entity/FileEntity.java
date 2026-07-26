@@ -42,31 +42,31 @@ public abstract class FileEntity extends AbstractVempainEntity {
 
 	@Basic
 	@Column(name = "original_datetime")
-	protected Instant         originalDatetime;
+	protected Instant      originalDatetime;
 	@Basic
 	@Column(name = "original_second_fraction")
-	protected Integer         originalSecondFraction;
+	protected Integer      originalSecondFraction;
 	@Basic
 	@Column(name = "original_document_id")
-	protected String          originalDocumentId;
+	protected String       originalDocumentId;
 	@Basic
 	@Column(name = "description")
-	protected String          description;
+	protected String       description;
 	@Column(name = "filename", nullable = false)
-	private   String          filename;
+	private   String       filename;
 	@Column(name = "file_path", nullable = false)
-	private String       filePath;
+	private   String       filePath;
 	@Column(name = "external_file_id", nullable = false)
-	private   String          externalFileId;
+	private   String       externalFileId;
 	@Column(name = "mimetype", nullable = false)
-	private   String          mimetype;
+	private   String       mimetype;
 	@Column(name = "filesize", nullable = false)
-	private   long            filesize;
+	private   long         filesize;
 	@Column(name = "sha256sum", nullable = false, length = 64)
-	private   String          sha256sum;
+	private   String       sha256sum;
 	@Enumerated(EnumType.STRING)
 	@Column(name = "file_type", nullable = false)
-	private FileTypeEnum fileType;
+	private   FileTypeEnum fileType;
 
 	@EqualsAndHashCode.Exclude
 	@Column(name = "metadata_raw", nullable = false)
@@ -143,8 +143,8 @@ public abstract class FileEntity extends AbstractVempainEntity {
 		// Map relation to response DTO
 		response.setLocation(this.gpsLocation != null ? this.gpsLocation.toResponse() : null);
 		response.setTags(this.tags.stream()
-								  .map(TagEntity::getTagName)
-								  .collect(Collectors.toList()));
+		                          .map(TagEntity::getTagName)
+		                          .collect(Collectors.toList()));
 	}
 
 	public FileResponse toResponse() {

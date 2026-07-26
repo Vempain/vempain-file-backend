@@ -29,9 +29,9 @@ public class FontFileService {
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = fontFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(FontFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(FontFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class FontFileService {
 	public FontFileResponse findById(long id) {
 		var entityOpt = fontFileRepository.findById(id);
 		return entityOpt.map(FontFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

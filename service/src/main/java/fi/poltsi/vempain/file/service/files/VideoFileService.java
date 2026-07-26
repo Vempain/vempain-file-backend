@@ -29,9 +29,9 @@ public class VideoFileService {
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = videoFileRepository.findAll(spec, pageable);
 		var content = pageResult.getContent()
-								.stream()
-								.map(VideoFileEntity::toResponse)
-								.toList();
+		                        .stream()
+		                        .map(VideoFileEntity::toResponse)
+		                        .toList();
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +47,7 @@ public class VideoFileService {
 	public VideoFileResponse findById(long id) {
 		var entityOpt = videoFileRepository.findById(id);
 		return entityOpt.map(VideoFileEntity::toResponse)
-						.orElse(null);
+		                .orElse(null);
 
 	}
 

@@ -46,8 +46,8 @@ public class ThumbFileService {
 	@Transactional(readOnly = true)
 	public ThumbFileResponse findById(long id) {
 		return repository.findById(id)
-						 .map(ThumbFileEntity::toResponse)
-						 .orElse(null);
+		                 .map(ThumbFileEntity::toResponse)
+		                 .orElse(null);
 	}
 
 	public HttpStatus delete(long id) {

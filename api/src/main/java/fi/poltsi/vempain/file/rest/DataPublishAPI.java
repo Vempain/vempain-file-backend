@@ -26,8 +26,8 @@ public interface DataPublishAPI {
 	)
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Music dataset published successfully",
-						 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-											schema = @Schema(implementation = DataResponse.class))),
+			             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+			                                schema = @Schema(implementation = DataResponse.class))),
 			@ApiResponse(responseCode = "404", description = "No music files found", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
@@ -43,8 +43,8 @@ public interface DataPublishAPI {
 	)
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "GPS time-series dataset published successfully",
-						 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-											schema = @Schema(implementation = DataResponse.class))),
+			             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+			                                schema = @Schema(implementation = DataResponse.class))),
 			@ApiResponse(responseCode = "400", description = "Invalid request parameters", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No GPS-tagged images found in file group", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content),

@@ -56,15 +56,15 @@ public class ExportFileEntity {
 
 	public ExportFileResponse toResponse() {
 		return ExportFileResponse.builder()
-								 .id(id)
-								 .file_id(file.getId())
-								 .filename(filename)
-								 .filePath(filePath)
-								 .mimetype(mimetype)
-								 .filesize(filesize)
-								 .sha256sum(sha256sum)
-								 .originalDocumentId(originalDocumentId)
-								 .created(created)
-								 .build();
+		                         .id(id)
+		                         .file_id(file.getId())
+		                         .filename(filename)
+		                         .filePath(filePath)
+		                         .mimetype(mimetype)
+		                         .filesize(filesize)
+		                         .sha256sum(sha256sum)
+		                         .originalDocumentId(originalDocumentId)
+		                         .created(created)
+		                         .build();
 	}
 }

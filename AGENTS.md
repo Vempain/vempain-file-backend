@@ -68,7 +68,7 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
-- Background refresh of modified source files runs via `UpdatedFileRefreshSchedulerService` (`vempain.refresh-updated-files.*`)
+- Background refresh of modified source files runs via `UpdatedFileRefreshSchedule` (`vempain.refresh-updated-files.*`)
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
 - Data dataset publication flows:
     - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.

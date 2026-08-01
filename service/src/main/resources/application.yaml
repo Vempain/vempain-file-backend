@@ -108,6 +108,12 @@ vempain:
   refresh-updated-files:
     enabled: true
     cron: "0 */10 * * * *"
+  generate-missing-thumbnails:
+    batch-size: 1000
+    thumb-image-size: 250
+    thumb-image-quality: 0.7
+    enabled: true
+    cron: "0 0 * * * *"
 
 ---
 ### Local machine ###

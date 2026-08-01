@@ -8,3 +8,7 @@ logging:
     root: INFO
     fi:
       poltsi: DEBUG
+
+vempain:
+  generate-missing-thumbnails:
+    cron: "0 */10 * * * *"

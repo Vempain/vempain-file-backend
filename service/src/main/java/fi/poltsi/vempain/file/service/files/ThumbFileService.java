@@ -23,7 +23,7 @@ public class ThumbFileService {
 	@Transactional(readOnly = true)
 	public PagedResponse<ThumbFileResponse> findAll(PagedRequest pagedRequest) {
 		var                            safePage   = Math.max(0, pagedRequest.getPage());
-		var                            safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
 		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
 		Specification<ThumbFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);

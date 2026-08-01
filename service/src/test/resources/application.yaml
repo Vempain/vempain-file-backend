@@ -19,6 +19,8 @@ vempain:
   export-file-type: jpeg
   refresh-updated-files:
     enabled: false
+  generate-missing-thumbnails:
+    enabled: false
   cors:
     allowed-origins: "${vempain.app.frontend-url},http://localhost:8081"
     cors-pattern: '/**'

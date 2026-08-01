@@ -1,4 +1,4 @@
-package fi.poltsi.vempain.file.service;
+package fi.poltsi.vempain.file.schedule;
 
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
@@ -8,6 +8,9 @@ import fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
+import fi.poltsi.vempain.file.service.DirectoryProcessorService;
+import fi.poltsi.vempain.file.service.PublishService;
+import fi.poltsi.vempain.file.service.VempainAdminService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,16 +32,16 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UpdatedFileRefreshSchedulerService {
+public class UpdatedFileRefreshSchedule {
 
 	private static final String TASK_NAME = "updated_file_refresh";
 
 	private final FileRepository                fileRepository;
 	private final ExportFileRepository          exportFileRepository;
 	private final SchedulerCheckpointRepository schedulerCheckpointRepository;
-	private final DirectoryProcessorService     directoryProcessorService;
-	private final PublishService                publishService;
-	private final VempainAdminService           vempainAdminService;
+	private final DirectoryProcessorService directoryProcessorService;
+	private final PublishService            publishService;
+	private final VempainAdminService       vempainAdminService;
 
 	@Value("${vempain.refresh-updated-files.enabled:true}")
 	private boolean schedulerEnabled;

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface ImageFileRepository extends JpaRepository<ImageFileEntity, Long>, JpaSpecificationExecutor<ImageFileEntity> {
+public interface ImageFileRepository extends JpaRepository<ImageFileEntity, Long>, JpaSpecificationExecutor<ImageFileEntity>, ImageFileRepositoryCustom {
 
 	/**
 	 * Find all image files in the given directory path that have GPS location data,

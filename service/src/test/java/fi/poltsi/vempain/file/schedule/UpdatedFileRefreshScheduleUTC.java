@@ -1,4 +1,4 @@
-package fi.poltsi.vempain.file.service;
+package fi.poltsi.vempain.file.schedule;
 
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
@@ -7,8 +7,12 @@ import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
+import fi.poltsi.vempain.file.service.DirectoryProcessorService;
+import fi.poltsi.vempain.file.service.PublishService;
+import fi.poltsi.vempain.file.service.VempainAdminService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
@@ -27,7 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class UpdatedFileRefreshSchedulerServiceUTC {
+class UpdatedFileRefreshScheduleUTC {
 
 	@Mock
 	private FileRepository                fileRepository;
@@ -41,6 +45,8 @@ class UpdatedFileRefreshSchedulerServiceUTC {
 	private PublishService                publishService;
 	@Mock
 	private VempainAdminService           vempainAdminService;
+	@InjectMocks
+	private UpdatedFileRefreshSchedule updatedFileRefreshSchedule;
 
 	@Test
 	void runRefresh_updatesChangedFile_andRepublishesSiteFileWhenKnownPublished() throws Exception {
@@ -62,17 +68,11 @@ class UpdatedFileRefreshSchedulerServiceUTC {
 		when(directoryProcessorService.refreshExistingOriginalFile(eq(fileEntity), eq(filePath.toFile()))).thenReturn(true);
 		when(exportFileRepository.findByFileId(1L)).thenReturn(Optional.empty());
 
-		var service = new UpdatedFileRefreshSchedulerService(fileRepository,
-		                                                     exportFileRepository,
-		                                                     schedulerCheckpointRepository,
-		                                                     directoryProcessorService,
-		                                                     publishService,
-		                                                     vempainAdminService);
-		ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
-		ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
-		ReflectionTestUtils.setField(service, "exportFileType", "jpeg");
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root.toString());
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportRootDirectory", root.toString());
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportFileType", "jpeg");
 
-		service.runRefresh();
+		updatedFileRefreshSchedule.runRefresh();
 
 		verify(directoryProcessorService).refreshExistingOriginalFile(eq(fileEntity), eq(filePath.toFile()));
 		verify(publishService).republishSiteFile(fileEntity);
@@ -114,17 +114,11 @@ class UpdatedFileRefreshSchedulerServiceUTC {
 		when(vempainAdminService.getPageableSiteFiles(eq(FileTypeEnum.IMAGE), eq(0), eq(50), eq("id"), eq(Sort.Direction.ASC), eq("known.jpg"), any()))
 				.thenReturn(pagedResponse);
 
-		var service = new UpdatedFileRefreshSchedulerService(fileRepository,
-		                                                     exportFileRepository,
-		                                                     schedulerCheckpointRepository,
-		                                                     directoryProcessorService,
-		                                                     publishService,
-		                                                     vempainAdminService);
-		ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
-		ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
-		ReflectionTestUtils.setField(service, "exportFileType", "jpeg");
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root.toString());
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportRootDirectory", root.toString());
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportFileType", "jpeg");
 
-		service.runRefresh();
+		updatedFileRefreshSchedule.runRefresh();
 
 		verify(fileRepository).save(fileEntity);
 		verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());

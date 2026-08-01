@@ -44,6 +44,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 		"vempain.app.frontend-url=http://localhost:3000",
 		"vempain.original-root-directory=/tmp",
 		"vempain.export-root-directory=/tmp",
+		"vempain.generate-missing-thumbnails.batch-size=10",
+		"vempain.generate-missing-thumbnails.thumb-image-quality=0.5",
+		"vempain.generate-missing-thumbnails.thumb-image-size=100",
 		"spring.jpa.properties.hibernate.generate_statistics=true",
 		"spring.jpa.show-sql=true",
 		"spring.jpa.properties.hibernate.format_sql=true"

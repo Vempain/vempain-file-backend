@@ -76,7 +76,7 @@ class GenerateMissingThumbnailsScheduleUTC {
 		ReflectionTestUtils.setField(schedule, "schedulerEnabled", true);
 		ReflectionTestUtils.setField(schedule, "thumbnailQuality", 0.7f);
 		ReflectionTestUtils.setField(schedule, "thumbnailMinimumSize", 250);
-		ReflectionTestUtils.setField(schedule, "originalRootDirectory", root.toString());
+		ReflectionTestUtils.setField(schedule, "exportRootDirectory", root.toString());
 		schedule.generateMissingThumbnails();
 
 		var captor = ArgumentCaptor.forClass(fi.poltsi.vempain.file.entity.ThumbFileEntity.class);

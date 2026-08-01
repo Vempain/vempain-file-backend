@@ -119,7 +119,7 @@ class FileTypeServicesUTC {
 		doReturn(emptyPage).when(iconFileRepository)
 		                   .findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class));
 		doReturn(emptyPage).when(imageFileRepository)
-		                   .findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class));
+		                   .findAllWithRelationships(any(Specification.class), any(org.springframework.data.domain.Pageable.class));
 		doReturn(emptyPage).when(interactiveFileRepository)
 		                   .findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class));
 		doReturn(emptyPage).when(thumbFileRepository)

@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ExecutableFileResponse;
 import fi.poltsi.vempain.file.entity.ExecutableFileEntity;
 import fi.poltsi.vempain.file.repository.files.ExecutableFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ExecutableFileService {
 
 	private final ExecutableFileRepository repository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ExecutableFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class ExecutableFileService {
 		Specification<ExecutableFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                                 pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                                 pageResult = repository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(ExecutableFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<ExecutableFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class ExecutableFileService {
 	@Transactional(readOnly = true)
 	public ExecutableFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(ExecutableFileEntity::toResponse)
+		                 .map(entity -> fileResponseEnricher.<ExecutableFileResponse>toResponse(entity))
 		                 .orElse(null);
 	}
 
@@ -59,4 +58,3 @@ public class ExecutableFileService {
 		return HttpStatus.OK;
 	}
 }
-

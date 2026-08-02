@@ -22,6 +22,7 @@ import java.util.ArrayList;
 public class FileScannerService {
 
 	private final DirectoryProcessorService directoryProcessorService;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -64,6 +65,7 @@ public class FileScannerService {
 			newFilesCount += results.get(1);
 			success = success && scannedFilesCount == newFilesCount;
 		}
+		fileResponseEnricher.enrichAll(successfulFileResponses);
 
 		return ScanOriginalResponse.builder()
 		                           .success(success)

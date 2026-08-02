@@ -14,6 +14,8 @@ import fi.poltsi.vempain.file.repository.files.InteractiveFileRepository;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.repository.files.VectorFileRepository;
 import fi.poltsi.vempain.file.repository.files.VideoFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -61,6 +63,12 @@ class FileTypeServicesUTC {
 	private VectorFileRepository      vectorFileRepository;
 	@Mock
 	private VideoFileRepository       videoFileRepository;
+	private FileResponseEnricher fileResponseEnricher;
+
+	@BeforeEach
+	void setUp() {
+		fileResponseEnricher = new FileResponseEnricher(thumbFileRepository);
+	}
 
 	@Test
 	void findById_returnsNull_whenMissing_forAllFileTypeServices() {
@@ -78,19 +86,19 @@ class FileTypeServicesUTC {
 		when(vectorFileRepository.findById(1L)).thenReturn(Optional.empty());
 		when(videoFileRepository.findById(1L)).thenReturn(Optional.empty());
 
-		assertThat(new ArchiveFileService(archiveFileRepository).findById(1L)).isNull();
-		assertThat(new AudioFileService(audioFileRepository).findById(1L)).isNull();
-		assertThat(new BinaryFileService(binaryFileRepository).findById(1L)).isNull();
-		assertThat(new DataFileService(dataFileRepository).findById(1L)).isNull();
-		assertThat(new DocumentFileService(documentFileRepository).findById(1L)).isNull();
-		assertThat(new ExecutableFileService(executableFileRepository).findById(1L)).isNull();
-		assertThat(new FontFileService(fontFileRepository).findById(1L)).isNull();
-		assertThat(new IconFileService(iconFileRepository).findById(1L)).isNull();
-		assertThat(new ImageFileService(imageFileRepository).findById(1L)).isNull();
-		assertThat(new InteractiveFileService(interactiveFileRepository).findById(1L)).isNull();
-		assertThat(new ThumbFileService(thumbFileRepository).findById(1L)).isNull();
-		assertThat(new VectorFileService(vectorFileRepository).findById(1L)).isNull();
-		assertThat(new VideoFileService(videoFileRepository).findById(1L)).isNull();
+		assertThat(new ArchiveFileService(archiveFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new AudioFileService(audioFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new BinaryFileService(binaryFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new DataFileService(dataFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new DocumentFileService(documentFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new ExecutableFileService(executableFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new FontFileService(fontFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new IconFileService(iconFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new ImageFileService(imageFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new InteractiveFileService(interactiveFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new ThumbFileService(thumbFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new VectorFileService(vectorFileRepository, fileResponseEnricher).findById(1L)).isNull();
+		assertThat(new VideoFileService(videoFileRepository, fileResponseEnricher).findById(1L)).isNull();
 	}
 
 	@Test
@@ -129,19 +137,19 @@ class FileTypeServicesUTC {
 		doReturn(emptyPage).when(videoFileRepository)
 		                   .findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class));
 
-		assertThat(new ArchiveFileService(archiveFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new AudioFileService(audioFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new BinaryFileService(binaryFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new DataFileService(dataFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new DocumentFileService(documentFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new ExecutableFileService(executableFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new FontFileService(fontFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new IconFileService(iconFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new ImageFileService(imageFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new InteractiveFileService(interactiveFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new ThumbFileService(thumbFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new VectorFileService(vectorFileRepository).findAll(pagedRequest)).isNotNull();
-		assertThat(new VideoFileService(videoFileRepository).findAll(pagedRequest)).isNotNull();
+		assertThat(new ArchiveFileService(archiveFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new AudioFileService(audioFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new BinaryFileService(binaryFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new DataFileService(dataFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new DocumentFileService(documentFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new ExecutableFileService(executableFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new FontFileService(fontFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new IconFileService(iconFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new ImageFileService(imageFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new InteractiveFileService(interactiveFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new ThumbFileService(thumbFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new VectorFileService(vectorFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
+		assertThat(new VideoFileService(videoFileRepository, fileResponseEnricher).findAll(pagedRequest)).isNotNull();
 	}
 
 	@Test
@@ -188,36 +196,36 @@ class FileTypeServicesUTC {
 		when(vectorFileRepository.findById(2L)).thenReturn(Optional.of(vector));
 		when(videoFileRepository.findById(2L)).thenReturn(Optional.of(video));
 
-		assertThat(new ArchiveFileService(archiveFileRepository).findById(2L)).isNotNull();
-		assertThat(new AudioFileService(audioFileRepository).findById(2L)).isNotNull();
-		assertThat(new BinaryFileService(binaryFileRepository).findById(2L)).isNotNull();
-		assertThat(new DataFileService(dataFileRepository).findById(2L)).isNotNull();
-		assertThat(new DocumentFileService(documentFileRepository).findById(2L)).isNotNull();
-		assertThat(new ExecutableFileService(executableFileRepository).findById(2L)).isNotNull();
-		assertThat(new FontFileService(fontFileRepository).findById(2L)).isNotNull();
-		assertThat(new IconFileService(iconFileRepository).findById(2L)).isNotNull();
-		assertThat(new ImageFileService(imageFileRepository).findById(2L)).isNotNull();
-		assertThat(new InteractiveFileService(interactiveFileRepository).findById(2L)).isNotNull();
-		assertThat(new ThumbFileService(thumbFileRepository).findById(2L)).isNotNull();
-		assertThat(new VectorFileService(vectorFileRepository).findById(2L)).isNotNull();
-		assertThat(new VideoFileService(videoFileRepository).findById(2L)).isNotNull();
+		assertThat(new ArchiveFileService(archiveFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new AudioFileService(audioFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new BinaryFileService(binaryFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new DataFileService(dataFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new DocumentFileService(documentFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new ExecutableFileService(executableFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new FontFileService(fontFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new IconFileService(iconFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new ImageFileService(imageFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new InteractiveFileService(interactiveFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new ThumbFileService(thumbFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new VectorFileService(vectorFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
+		assertThat(new VideoFileService(videoFileRepository, fileResponseEnricher).findById(2L)).isNotNull();
 	}
 
 	@Test
 	void delete_returnsExpectedStatus_forAllFileTypeServices() {
-		var archiveService     = new ArchiveFileService(archiveFileRepository);
-		var audioService       = new AudioFileService(audioFileRepository);
-		var binaryService      = new BinaryFileService(binaryFileRepository);
-		var dataService        = new DataFileService(dataFileRepository);
-		var documentService    = new DocumentFileService(documentFileRepository);
-		var executableService  = new ExecutableFileService(executableFileRepository);
-		var fontService        = new FontFileService(fontFileRepository);
-		var iconService        = new IconFileService(iconFileRepository);
-		var imageService       = new ImageFileService(imageFileRepository);
-		var interactiveService = new InteractiveFileService(interactiveFileRepository);
-		var thumbService       = new ThumbFileService(thumbFileRepository);
-		var vectorService      = new VectorFileService(vectorFileRepository);
-		var videoService       = new VideoFileService(videoFileRepository);
+		var archiveService     = new ArchiveFileService(archiveFileRepository, fileResponseEnricher);
+		var audioService       = new AudioFileService(audioFileRepository, fileResponseEnricher);
+		var binaryService      = new BinaryFileService(binaryFileRepository, fileResponseEnricher);
+		var dataService        = new DataFileService(dataFileRepository, fileResponseEnricher);
+		var documentService    = new DocumentFileService(documentFileRepository, fileResponseEnricher);
+		var executableService  = new ExecutableFileService(executableFileRepository, fileResponseEnricher);
+		var fontService        = new FontFileService(fontFileRepository, fileResponseEnricher);
+		var iconService        = new IconFileService(iconFileRepository, fileResponseEnricher);
+		var imageService       = new ImageFileService(imageFileRepository, fileResponseEnricher);
+		var interactiveService = new InteractiveFileService(interactiveFileRepository, fileResponseEnricher);
+		var thumbService       = new ThumbFileService(thumbFileRepository, fileResponseEnricher);
+		var vectorService      = new VectorFileService(vectorFileRepository, fileResponseEnricher);
+		var videoService       = new VideoFileService(videoFileRepository, fileResponseEnricher);
 
 		when(archiveFileRepository.existsById(1L)).thenReturn(true);
 		when(audioFileRepository.existsById(1L)).thenReturn(true);

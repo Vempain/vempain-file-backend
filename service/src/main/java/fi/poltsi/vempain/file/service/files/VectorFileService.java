@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VectorFileResponse;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.repository.files.VectorFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class VectorFileService {
 
 	private final VectorFileRepository vectorFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<VectorFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class VectorFileService {
 		Specification<VectorFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                             pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                             pageResult = vectorFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(VectorFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<VectorFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class VectorFileService {
 	@Transactional(readOnly = true)
 	public VectorFileResponse findById(long id) {
 		var entityOpt = vectorFileRepository.findById(id);
-		return entityOpt.map(VectorFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<VectorFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

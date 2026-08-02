@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ThumbFileResponse;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ThumbFileService {
 
 	private final ThumbFileRepository repository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ThumbFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class ThumbFileService {
 		Specification<ThumbFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = repository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(ThumbFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<ThumbFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class ThumbFileService {
 	@Transactional(readOnly = true)
 	public ThumbFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(ThumbFileEntity::toResponse)
+		                 .map(entity -> fileResponseEnricher.<ThumbFileResponse>toResponse(entity))
 		                 .orElse(null);
 	}
 
@@ -59,4 +58,3 @@ public class ThumbFileService {
 		return HttpStatus.OK;
 	}
 }
-

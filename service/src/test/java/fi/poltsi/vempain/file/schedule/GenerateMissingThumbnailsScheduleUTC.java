@@ -1,31 +1,27 @@
 package fi.poltsi.vempain.file.schedule;
 
-import fi.poltsi.vempain.auth.entity.Acl;
-import fi.poltsi.vempain.auth.service.AclService;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
-import fi.poltsi.vempain.file.tools.ImageTool;
+import fi.poltsi.vempain.file.service.ThumbnailGenerationService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.awt.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,67 +29,73 @@ import static org.mockito.Mockito.when;
 class GenerateMissingThumbnailsScheduleUTC {
 
 	@Mock
-	private ExportFileRepository              exportFileRepository;
+	private ExportFileRepository       exportFileRepository;
 	@Mock
-	private ThumbFileRepository               thumbFileRepository;
-	@Mock
-	private ImageTool                         imageTool;
-	@Mock
-	private AclService                        aclService;
+	private ThumbnailGenerationService thumbnailGenerationService;
 	@InjectMocks
 	private GenerateMissingThumbnailsSchedule schedule;
 
+	@AfterEach
+	void stopExecutor() {
+		schedule.shutdownExecutor();
+	}
+
 	@Test
-	void generateMissingThumbnails_createsJpegThumbnailAndPersistsRelation() throws Exception {
-		var root   = Files.createTempDirectory("thumbnail-root");
-		var source = root.resolve("image/Matkailu/Pohjola-2008/Pohjola-2008-0043.jpg");
-		Files.createDirectories(source.getParent());
-		Files.writeString(source, "source");
+	void usesConfiguredWorkerCountAndSubmitsFilesInParallel() throws Exception {
+		var first   = exportFile(1L);
+		var second  = exportFile(2L);
+		var started = new CountDownLatch(2);
+		var release = new CountDownLatch(1);
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of(first, second));
+		doAnswer(invocation -> {
+			started.countDown();
+			if (started.getCount() == 0) {
+				release.countDown();
+			}
+			release.await(2, TimeUnit.SECONDS);
+			return null;
+		}).when(thumbnailGenerationService)
+		  .generateThumbnail(any(), any(), any(Integer.class), any(Float.class));
 
-		var targetFile = new ImageFileEntity();
-		targetFile.setId(48111L);
-		targetFile.setCreator(7L);
-		var exportFile = ExportFileEntity.builder()
-		                                 .id(39884L)
-		                                 .file(targetFile)
-		                                 .filename("Pohjola-2008-0043.jpg")
-		                                 .filePath("/image/Matkailu/Pohjola-2008")
-		                                 .mimetype("image/jpeg")
-		                                 .build();
-		var acl = org.mockito.Mockito.mock(Acl.class);
-
-		when(exportFileRepository.findImagesMissingThumbnails(any(Pageable.class))).thenReturn(List.of(exportFile));
-		when(aclService.createUniqueAcl(eq(7L), isNull(), eq(true), eq(true), eq(true), eq(true))).thenReturn(acl);
-		when(acl.getAclId()).thenReturn(99L);
-		when(imageTool.resizeImage(eq(source), any(), eq(250), eq(0.7f), isNull()))
-				.thenAnswer(invocation -> {
-					var destination = invocation.getArgument(1, Path.class);
-					Files.writeString(destination, "thumbnail");
-					return new Dimension(300, 200);
-				});
-
-		ReflectionTestUtils.setField(schedule, "batchSize", 1000);
-		ReflectionTestUtils.setField(schedule, "schedulerEnabled", true);
-		ReflectionTestUtils.setField(schedule, "thumbnailQuality", 0.7f);
-		ReflectionTestUtils.setField(schedule, "thumbnailMinimumSize", 250);
-		ReflectionTestUtils.setField(schedule, "exportRootDirectory", root.toString());
+		configure(2);
 		schedule.generateMissingThumbnails();
 
-		var captor = ArgumentCaptor.forClass(fi.poltsi.vempain.file.entity.ThumbFileEntity.class);
-		verify(thumbFileRepository).save(captor.capture());
-		var thumbnail = captor.getValue();
-		assertThat(thumbnail.getTargetFile()).isSameAs(targetFile);
-		assertThat(thumbnail.getFileType()).isEqualTo(FileTypeEnum.THUMB);
-		assertThat(thumbnail.getFilePath() + "/" + thumbnail.getFilename())
-				.isEqualTo("/thumb/image/Matkailu/Pohjola-2008/Pohjola-2008-0043.jpeg");
-		assertThat(thumbnail.getFilename()).isEqualTo("Pohjola-2008-0043.jpeg");
-		assertThat(thumbnail.getFilePath()).isEqualTo("/thumb/image/Matkailu/Pohjola-2008");
-		assertThat(thumbnail.getMimetype()).isEqualTo("image/jpeg");
-		assertThat(Files.exists(root.resolve("thumb/image/Matkailu/Pohjola-2008/Pohjola-2008-0043.jpeg"))).isTrue();
+		assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
+		assertThat(((ThreadPoolTaskExecutor) ReflectionTestUtils.getField(schedule, "executor"))
+						   .getCorePoolSize()).isEqualTo(2);
+		verify(thumbnailGenerationService).generateThumbnail(first, null, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(second, null, 0, 0);
+	}
 
-		var pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-		verify(exportFileRepository).findImagesMissingThumbnails(pageableCaptor.capture());
-		assertThat(pageableCaptor.getValue()
-		                         .getPageSize()).isEqualTo(1000);
+	@Test
+	void isolatesWorkerFailureFromOtherFiles() throws Exception {
+		var failed     = exportFile(1L);
+		var successful = exportFile(2L);
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of(failed, successful));
+		doThrow(new IOException("conversion failed")).when(thumbnailGenerationService)
+		                                             .generateThumbnail(failed, null, 0, 0);
+
+		configure(2);
+		schedule.generateMissingThumbnails();
+
+		verify(thumbnailGenerationService).generateThumbnail(failed, null, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(successful, null, 0, 0);
+	}
+
+	private void configure(int workers) {
+		ReflectionTestUtils.setField(schedule, "schedulerEnabled", true);
+		ReflectionTestUtils.setField(schedule, "workerCount", workers);
+		ReflectionTestUtils.setField(schedule, "batchSize", 10);
+		schedule.initializeExecutor();
+	}
+
+	private ExportFileEntity exportFile(long id) {
+		var target = new ImageFileEntity();
+		target.setId(id);
+		return ExportFileEntity.builder()
+		                       .id(id)
+		                       .file(target)
+		                       .filename("image.jpg")
+		                       .build();
 	}
 }

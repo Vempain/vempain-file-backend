@@ -11,5 +11,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface ThumbFileRepository extends JpaRepository<ThumbFileEntity, Long>, JpaSpecificationExecutor<ThumbFileEntity> {
-	// ...existing code...
+	boolean existsByTargetFileId(Long targetFileId);
 }

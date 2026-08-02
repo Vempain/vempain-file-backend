@@ -110,6 +110,7 @@ vempain:
     cron: "0 */10 * * * *"
   generate-missing-thumbnails:
     batch-size: 1000
+    worker-count: ${VEMPAIN_THUMBNAIL_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
     thumb-image-size: 250
     thumb-image-quality: 0.7
     enabled: true

@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ArchiveFileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.repository.files.ArchiveFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArchiveFileService {
 
 	private final ArchiveFileRepository archiveFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ArchiveFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class ArchiveFileService {
 		Specification<ArchiveFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                              pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                              pageResult = archiveFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(ArchiveFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<ArchiveFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class ArchiveFileService {
 	@Transactional(readOnly = true)
 	public ArchiveFileResponse findById(long id) {
 		var entityOpt = archiveFileRepository.findById(id);
-		return entityOpt.map(ArchiveFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<ArchiveFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

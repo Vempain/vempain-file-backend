@@ -47,6 +47,8 @@ class AllCoreServicesUTC {
 	@Mock
 	private FileRepository                                         fileRepository;
 	@Mock
+	private FileResponseEnricher                                   fileResponseEnricher;
+	@Mock
 	private TagRepository                                          tagRepository;
 	@Mock
 	private FileTagRepository                                      fileTagRepository;
@@ -136,7 +138,7 @@ class AllCoreServicesUTC {
 
 	@Test
 	void fileScannerServiceUTC_returnsResponse() {
-		var service = new FileScannerService(directoryProcessorService);
+		var service = new FileScannerService(directoryProcessorService, fileResponseEnricher);
 		ReflectionTestUtils.setField(service, "originalRootDirectory", "/tmp");
 		ReflectionTestUtils.setField(service, "exportRootDirectory", "/tmp");
 
@@ -179,7 +181,7 @@ class AllCoreServicesUTC {
 
 	@Test
 	void fileGroupServiceUTC_getByIdNotFound() {
-		var service = new FileGroupService(fileGroupRepository, fileRepository);
+		var service = new FileGroupService(fileGroupRepository, fileRepository, fileResponseEnricher);
 		when(fileGroupRepository.findById(999L)).thenReturn(Optional.empty());
 		assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> service.getById(999L));
 	}
@@ -225,4 +227,3 @@ class AllCoreServicesUTC {
 		assertThat(result.get(1)).isEqualTo(0L);
 	}
 }
-

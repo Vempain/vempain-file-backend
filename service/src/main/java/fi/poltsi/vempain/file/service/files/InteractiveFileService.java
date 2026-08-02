@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.InteractiveFileResponse;
 import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.repository.files.InteractiveFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InteractiveFileService {
 
 	private final InteractiveFileRepository repository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<InteractiveFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class InteractiveFileService {
 		Specification<InteractiveFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                                  pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                                  pageResult = repository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(InteractiveFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<InteractiveFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class InteractiveFileService {
 	@Transactional(readOnly = true)
 	public InteractiveFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(InteractiveFileEntity::toResponse)
+		                 .map(entity -> fileResponseEnricher.<InteractiveFileResponse>toResponse(entity))
 		                 .orElse(null);
 	}
 
@@ -59,4 +58,3 @@ public class InteractiveFileService {
 		return HttpStatus.OK;
 	}
 }
-

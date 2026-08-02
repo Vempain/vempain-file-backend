@@ -11,3 +11,8 @@ logging:
         web: WARN
       hibernate:
         SQL: WARN
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false

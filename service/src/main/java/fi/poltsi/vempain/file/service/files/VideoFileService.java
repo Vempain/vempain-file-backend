@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.files.VideoFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class VideoFileService {
 
 	private final VideoFileRepository videoFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<VideoFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class VideoFileService {
 		Specification<VideoFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = videoFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(VideoFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<VideoFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class VideoFileService {
 	@Transactional(readOnly = true)
 	public VideoFileResponse findById(long id) {
 		var entityOpt = videoFileRepository.findById(id);
-		return entityOpt.map(VideoFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<VideoFileResponse>toResponse(entity))
 		                .orElse(null);
 
 	}

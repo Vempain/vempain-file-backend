@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ImageFileResponse;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.files.ImageFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ImageFileService {
 
 	private final ImageFileRepository imageFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ImageFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class ImageFileService {
 		Specification<ImageFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var pageable = PageRequest.of(safePage, safeSize, sort);
 		var pageResult = imageFileRepository.findAllWithRelationships(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(ImageFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<ImageFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -47,7 +46,7 @@ public class ImageFileService {
 	@Transactional(readOnly = true)
 	public ImageFileResponse findById(long id) {
 		var entityOpt = imageFileRepository.findById(id);
-		return entityOpt.map(ImageFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<ImageFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

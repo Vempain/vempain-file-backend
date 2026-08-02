@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import fi.poltsi.vempain.file.entity.DataFileEntity;
 import fi.poltsi.vempain.file.repository.files.DataFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataFileService {
 
 	private final DataFileRepository repository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<DataFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class DataFileService {
 		Specification<DataFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = repository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(DataFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<DataFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class DataFileService {
 	@Transactional(readOnly = true)
 	public DataFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(DataFileEntity::toResponse)
+		                 .map(entity -> fileResponseEnricher.<DataFileResponse>toResponse(entity))
 		                 .orElse(null);
 	}
 
@@ -59,4 +58,3 @@ public class DataFileService {
 		return HttpStatus.OK;
 	}
 }
-

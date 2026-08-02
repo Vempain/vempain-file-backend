@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.IconFileResponse;
 import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.repository.files.IconFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class IconFileService {
 
 	private final IconFileRepository iconFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<IconFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class IconFileService {
 		Specification<IconFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = iconFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(IconFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<IconFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class IconFileService {
 	@Transactional(readOnly = true)
 	public IconFileResponse findById(long id) {
 		var entityOpt = iconFileRepository.findById(id);
-		return entityOpt.map(IconFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<IconFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

@@ -150,15 +150,19 @@ class FileTypeControllersCTC extends AbstractControllerCTC {
 			String urlSegment, String fileType, String mimeType,
 			String filename, String filePath, String typeInsertSql) throws Exception {
 
-		seedFileRow(9001L, fileType, mimeType, filename, filePath);
-		jdbcTemplate.update(typeInsertSql);
-
 		try {
+			seedFileRow(9001L, fileType, mimeType, filename, filePath);
+			jdbcTemplate.update(typeInsertSql);
+			seedFileRow(9002L, "THUMB", "image/jpeg", "test-thumb-9002.jpg", "/test/thumb-9002");
+			jdbcTemplate.update("INSERT INTO thumb_files (id, target_file_id, relation_type) VALUES (9002, 9001, 'thumbnail')");
+
 			doGet("/files/" + urlSegment + "/9001")
 					.andExpect(status().isOk())
 					.andExpect(jsonPath("$.id").value(9001))
-					.andExpect(jsonPath("$.file_type").value(fileType));
+					.andExpect(jsonPath("$.file_type").value(fileType))
+					.andExpect(jsonPath("$.thumbnail_id").value(9002));
 		} finally {
+			deleteFileRow(9002L);
 			deleteFileRow(9001L);
 		}
 	}
@@ -199,4 +203,3 @@ class FileTypeControllersCTC extends AbstractControllerCTC {
 				.andExpect(status().isNotFound());
 	}
 }
-

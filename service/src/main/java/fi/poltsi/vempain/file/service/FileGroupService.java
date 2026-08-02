@@ -29,12 +29,13 @@ public class FileGroupService {
 
 	private final FileGroupRepository fileGroupRepository;
 	private final FileRepository fileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FileGroupListResponse> getAll(PagedRequest pagedRequest) {
 		log.debug("Got paged request: {}", pagedRequest);
 		var safePage = Math.max(0, pagedRequest.getPage());
-		var safeSize = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+		var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
 		var sortSpec = buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
 		log.debug("Page number: {}, size: {}, sort: {}", safePage, safeSize, sortSpec);
 		var pageable = PageRequest.of(safePage, safeSize, sortSpec);
@@ -71,7 +72,9 @@ public class FileGroupService {
 	public FileGroupResponse getById(Long id) {
 		FileGroupEntity entity = fileGroupRepository.findById(id)
 		                                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
-		return entity.toResponse();
+		var response = entity.toResponse();
+		fileResponseEnricher.enrichAll(response.getFiles());
+		return response;
 	}
 
 	@Transactional
@@ -85,7 +88,9 @@ public class FileGroupService {
 			fileGroupEntity.replaceFiles(files);                 // mutate managed collection + inverse
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
-		return saved.toResponse();
+		var response = saved.toResponse();
+		fileResponseEnricher.enrichAll(response.getFiles());
+		return response;
 	}
 
 	@Transactional
@@ -114,6 +119,8 @@ public class FileGroupService {
 			fileGroupEntity.replaceFiles(newFiles);                 // mutate managed collection + inverse
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
-		return saved.toResponse();
+		var response = saved.toResponse();
+		fileResponseEnricher.enrichAll(response.getFiles());
+		return response;
 	}
 }

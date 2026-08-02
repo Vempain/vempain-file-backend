@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.AudioFileResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.repository.files.AudioFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AudioFileService {
 
 	private final AudioFileRepository audioFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<AudioFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class AudioFileService {
 		Specification<AudioFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = audioFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(AudioFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<AudioFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class AudioFileService {
 	@Transactional(readOnly = true)
 	public AudioFileResponse findById(long id) {
 		var entityOpt = audioFileRepository.findById(id);
-		return entityOpt.map(AudioFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<AudioFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

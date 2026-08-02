@@ -38,6 +38,8 @@ public class GenerateMissingThumbnailsSchedule {
 	private float  thumbnailQuality;
 	@Value("${vempain.generate-missing-thumbnails.thumb-image-size}")
 	private int    thumbnailMinimumSize;
+	@Value("${vempain.original-root-directory}")
+	private String originalRootDirectory;
 	@Value("${vempain.export-root-directory}")
 	private String exportRootDirectory;
 
@@ -96,7 +98,7 @@ public class GenerateMissingThumbnailsSchedule {
 				var future = executor.submit((Callable<Void>) () -> {
 					try {
 						thumbnailGenerationService.generateThumbnail(
-								exportFile, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality);
+								exportFile, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality);
 					} catch (DataIntegrityViolationException e) {
 						log.debug("Thumbnail for export file id={} was created concurrently", exportFile.getId());
 					}

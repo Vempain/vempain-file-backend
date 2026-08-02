@@ -33,7 +33,7 @@ public class ThumbnailGenerationService {
 	private final AclService          aclService;
 
 	@Transactional
-	public void generateThumbnail(ExportFileEntity exportFile, String exportRootDirectory,
+	public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory,
 	                              int thumbnailMinimumSize, float thumbnailQuality)
 			throws IOException, VempainAclException {
 		var targetFile = exportFile.getFile();
@@ -43,11 +43,11 @@ public class ThumbnailGenerationService {
 
 		var sourcePath = resolveOriginalPath(exportFile, exportRootDirectory);
 		if (!Files.isRegularFile(sourcePath)) {
-			log.warn("Original image does not exist for export file id={}: {}", exportFile.getId(), sourcePath);
+			log.warn("Export image does not exist for file id={}: {}", exportFile.getId(), sourcePath);
 			return;
 		}
 
-		var thumbnail = resolveThumbnail(exportFile, exportRootDirectory);
+		var thumbnail = resolveThumbnail(exportFile, originalRootDirectory);
 		Files.createDirectories(thumbnail.destinationPath()
 		                                 .getParent());
 		Path temporaryPath = Files.createTempFile(
@@ -103,12 +103,12 @@ public class ThumbnailGenerationService {
 		           .resolve(exportFile.getFilename());
 	}
 
-	private ThumbnailPath resolveThumbnail(ExportFileEntity exportFile, String exportRootDirectory) {
+	private ThumbnailPath resolveThumbnail(ExportFileEntity exportFile, String originalRootDirectory) {
 		var relativeDirectory  = normalizePath(exportFile.getFilePath());
 		var thumbnailFilename  = replaceExtension(exportFile.getFilename(), "jpeg");
 		var thumbnailDirectory = "/thumb" + (relativeDirectory.isEmpty() ? "" : "/" + relativeDirectory);
 		var relativePath       = thumbnailDirectory + "/" + thumbnailFilename;
-		var destinationPath    = Path.of(exportRootDirectory)
+		var destinationPath = Path.of(originalRootDirectory)
 		                             .resolve(relativePath.substring(1));
 		return new ThumbnailPath(relativePath, thumbnailDirectory, thumbnailFilename, destinationPath);
 	}

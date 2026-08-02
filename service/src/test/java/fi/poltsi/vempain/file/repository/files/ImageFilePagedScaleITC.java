@@ -167,10 +167,11 @@ class ImageFilePagedScaleITC {
 		log.info("ImageFileEntity load count for one page of {} out of {} rows: {}, query executions: {}",
 		         PAGE_SIZE, IMAGE_COUNT, imageLoads, queryExecutions);
 
-		// The repository uses one page-id query, one count query, and one page-entity query.
+		// The repository uses one page-id query, one count query, one page-entity query,
+		// and one batch thumbnail lookup.
 		assertThat(queryExecutions)
 				.as("A single page must use the expected paged query sequence")
-				.isEqualTo(3);
+				.isEqualTo(4);
 	}
 
 	@Test

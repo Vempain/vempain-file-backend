@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.repository.files.FontFileRepository;
+import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FontFileService {
 
 	private final FontFileRepository fontFileRepository;
+	private final FileResponseEnricher fileResponseEnricher;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FontFileResponse> findAll(PagedRequest pagedRequest) {
@@ -28,10 +30,7 @@ public class FontFileService {
 		Specification<FontFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = fontFileRepository.findAll(spec, pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(FontFileEntity::toResponse)
-		                        .toList();
+		var content = fileResponseEnricher.<FontFileResponse>toResponses(pageResult.getContent());
 		return PagedResponse.of(
 				content,
 				pageResult.getNumber(),
@@ -46,7 +45,7 @@ public class FontFileService {
 	@Transactional(readOnly = true)
 	public FontFileResponse findById(long id) {
 		var entityOpt = fontFileRepository.findById(id);
-		return entityOpt.map(FontFileEntity::toResponse)
+		return entityOpt.map(entity -> fileResponseEnricher.<FontFileResponse>toResponse(entity))
 		                .orElse(null);
 	}
 

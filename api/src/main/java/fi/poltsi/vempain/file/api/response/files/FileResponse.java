@@ -30,6 +30,9 @@ public class FileResponse extends AbstractResponse {
 	@Schema(description = "Path of the file, relative to the root directory", example = "/some/path")
 	private String filePath;
 
+	@Schema(description = "Thumbnail file ID", example = "123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private Long thumbnailId;
+
 	@Schema(description = "External file identifier", example = "ext12345")
 	private String externalFileId;
 

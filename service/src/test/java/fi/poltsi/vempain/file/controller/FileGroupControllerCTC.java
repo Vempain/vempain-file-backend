@@ -71,6 +71,28 @@ class FileGroupControllerCTC extends AbstractControllerCTC {
 				.andExpect(jsonPath("$.content[0].group_name", is("Alpha Group")));
 	}
 
+	@Test
+	void getFileGroups_supportsSortingByFileCount() throws Exception {
+		jdbcTemplate.update(
+				"INSERT INTO file_group (path, group_name, description) VALUES (?, ?, ?)",
+				"/z-empty", "Empty Group", "No files");
+		jdbcTemplate.update(
+				"INSERT INTO file_group (path, group_name, description) VALUES (?, ?, ?)",
+				"/a-with-file", "File Group", "One file");
+
+		Long groupWithFileId = jdbcTemplate.queryForObject(
+				"SELECT id FROM file_group WHERE path = '/a-with-file'", Long.class);
+		jdbcTemplate.update(
+				"INSERT INTO file_group_files (file_group_id, file_id) VALUES (?, ?)",
+				groupWithFileId, 1L);
+
+		doPost("/file-groups/paged",
+			   "{\"page\":0,\"size\":10,\"sort_by\":\"file_count\",\"direction\":\"DESC\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].group_name", is("File Group")))
+				.andExpect(jsonPath("$.content[0].file_count", is(1)));
+	}
+
 	// -----------------------------------------------------------------------
 	// GET /api/file-groups/{id}
 	// -----------------------------------------------------------------------
@@ -166,4 +188,3 @@ class FileGroupControllerCTC extends AbstractControllerCTC {
 				.andExpect(status().isNotFound());
 	}
 }
-

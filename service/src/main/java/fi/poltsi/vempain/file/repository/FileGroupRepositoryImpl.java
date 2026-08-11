@@ -137,6 +137,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 			case "path" -> "fg.path";
 			case "groupname", "group_name" -> "fg.group_name";
 			case "description" -> "fg.description";
+			case "filecount", "file_count" -> "file_count";
 			default -> "fg.path";
 		};
 	}

@@ -61,6 +61,7 @@ public class FileGroupService {
 			case "id" -> "id";
 			case "groupname", "group_name" -> "groupName";
 			case "description" -> "description";
+			case "filecount", "file_count" -> "file_count";
 			default -> "path";
 		};
 

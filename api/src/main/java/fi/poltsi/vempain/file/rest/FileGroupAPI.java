@@ -28,7 +28,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface FileGroupAPI {
 	String BASE_PATH = "/file-groups";
 
-	@Operation(summary = "List all file groups (paged)", tags = "FileGroupAPI")
+	@Operation(summary = "List file groups using a pageable request",
+	           description = "Accepts one PagedRequest JSON body containing the 0-based page, page size, optional sort, direction, search, and case_sensitive fields.",
+	           tags = "FileGroupAPI")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Successfully retrieved all file groups",
 			             content = {@Content(schema = @Schema(implementation = PagedResponse.class),

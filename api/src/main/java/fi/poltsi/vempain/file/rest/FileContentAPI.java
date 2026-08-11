@@ -30,4 +30,3 @@ public interface FileContentAPI {
 	@GetMapping(path = BASE_PATH + "/{id}/content", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
 	ResponseEntity<Resource> getFileContent(@PathVariable("id") long id);
 }
-

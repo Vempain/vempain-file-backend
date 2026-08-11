@@ -48,6 +48,8 @@
 - JSON DTOs use **snake_case** through `@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)` in `api/**`; request/response examples should follow
   that. Example: `ScanRequest` expects `original_directory` / `export_directory`.
 - JSON field names are mandatory snake_case for all API contracts in this repo; do not introduce camelCase JSON keys in DTOs, payload examples, or tests.
+- Pageable list endpoints use `POST <resource>/paged` with one `PagedRequest` JSON body. The body uses a 0-based `page`, positive `size`, optional
+  `sort_by` and `direction`, plus optional `search` and `case_sensitive`; responses use `PagedResponse` with `content` and `total_elements`.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON behavior; keep non-`tools.jackson` annotations only when no `tools.jackson`
   equivalent exists in active dependencies.
 - Be careful with repo scripts: `scripts/testScanning.sh` still posts `directory_name`, which does not match the current `ScanRequest` fields.
@@ -137,5 +139,4 @@ empty values are rejected, and names that would otherwise start with a digit are
 
 `DataService.createOrUpdate()` first attempts `PUT` (update). If the Admin service responds with 404 it
 falls back to `POST` (create). After a successful create/update it always calls the `publish` endpoint.
-
 

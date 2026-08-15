@@ -41,6 +41,34 @@ vempain:
     cron: "0 */10 * * * *"
 ```
 
+## Video export queue
+
+Newly imported video files without an entry in `export_files` are recorded in
+`file_processing_queue`. A scheduled worker processes queued files concurrently every 15 minutes by default. The video encoder uses JavaCV and bundled FFmpeg
+native libraries; no host FFmpeg installation is required. `exiftool` remains required for scanning source metadata.
+
+The output can be configured in the active Spring profile:
+
+```yaml
+vempain:
+    file-processing:
+        cron: "0 */15 * * * *"
+        video:
+            width: 1280
+            height: 720
+            fps: 30
+            audio-bitrate: 128000
+            audio-codec: vorbis
+            video-codec: mpeg4
+            container: mp4
+            quality: 23
+```
+
+The default video codec is the JavaCV-supported `mpeg4` encoder, the default audio codec is Ogg Vorbis, and the default container is MP4. In configuration, use
+`vorbis` for the Ogg audio codec because `ogg` is a container format, not an FFmpeg audio encoder name. The bundled JavaCV FFmpeg runtime does not expose a
+Theora encoder or an OGV-compatible video encoder, so Theora/OGV cannot safely be the default without replacing the native runtime or invoking the host `ffmpeg`
+executable. OGV requires a Theora video stream; pairing OGV with the bundled MPEG-4 encoder fails with `Unsupported codec id in stream 0`.
+
 ## File grouping
 
 The default way to group files is based on the directory structure. Each directory forms a file group and all files within that directory belong to that group.

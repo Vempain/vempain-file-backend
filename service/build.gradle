@@ -70,6 +70,7 @@ dependencies {
 	implementation "org.json:json:${jsonVersion}"
 	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:${springCloudStarterOpenfeignVersion}"
 	implementation "net.coobird:thumbnailator:${thumbnailatorVersion}"
+	implementation "org.bytedeco:javacv-platform:${javacvVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 	runtimeOnly "org.postgresql:postgresql:${postgresqlVersion}"

@@ -115,6 +115,20 @@ vempain:
     thumb-image-quality: 0.7
     enabled: true
     cron: "0 0 * * * *"
+  file-processing:
+    enabled: true
+    batch-size: 100
+    worker-count: ${VEMPAIN_FILE_PROCESSING_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
+    cron: "0 */15 * * * *"
+    video:
+      width: 1280
+      height: 720
+      fps: 30
+      audio-bitrate: 128000
+      audio-codec: vorbis
+      video-codec: mpeg4
+      container: mp4
+      quality: 23
 
 ---
 ### Local machine ###

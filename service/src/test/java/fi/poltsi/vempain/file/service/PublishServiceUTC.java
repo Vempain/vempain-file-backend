@@ -4,9 +4,11 @@ import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
+import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
+import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +21,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
@@ -31,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -211,6 +215,52 @@ class PublishServiceUTC {
 
 			var result = publishService.republishSiteFile(mockDocEntity);
 			assertTrue(result);
+		}
+
+		@Test
+		void publishFileGroupMarksMissingGroupAsFailed() {
+			when(fileGroupRepository.findById(404L)).thenReturn(Optional.empty());
+
+			publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+																									  .fileGroupId(404L)
+																									  .build());
+
+			org.mockito.Mockito.verify(progressStore)
+			                   .markStarted(404L);
+			org.mockito.Mockito.verify(progressStore)
+			                   .markFailed(404L);
+		}
+
+		@Test
+		void publishFileGroupWithNoFilesCompletes() {
+			var group = FileGroupEntity.builder()
+			                           .files(List.of())
+			                           .build();
+			when(fileGroupRepository.findById(405L)).thenReturn(Optional.of(group));
+
+			publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+																									  .fileGroupId(405L)
+																									  .build());
+
+			org.mockito.Mockito.verify(progressStore)
+			                   .markCompleted(405L);
+		}
+
+		@Test
+		void publishAllFileGroupsSchedulesEveryPage() {
+			var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+			when(fileGroupRepository.count()).thenReturn(1L);
+			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
+					.thenReturn(new PageImpl<>(List.of(projection)));
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			assertThat(publishService.publishAllFileGroups()).isEqualTo(1L);
+			org.mockito.Mockito.verify(progressStore)
+			                   .init(1L);
+			org.mockito.Mockito.verify(progressStore)
+			                   .markScheduled(7L);
+			org.mockito.Mockito.verify(progressStore)
+			                   .markStarted(7L);
 		}
 	}
 }

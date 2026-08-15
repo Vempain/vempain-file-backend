@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -124,5 +125,41 @@ class UpdatedFileRefreshScheduleUTC {
 		verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());
 		verify(publishService, never()).republishSiteFile(any());
 	}
-}
 
+	@Test
+	void scheduledRefreshDoesNothingWhenDisabled() {
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "schedulerEnabled", false);
+
+		updatedFileRefreshSchedule.refreshUpdatedFilesScheduled();
+
+		verifyNoInteractions(fileRepository, schedulerCheckpointRepository);
+	}
+
+	@Test
+	void runRefreshSkipsMissingSourceAndOldFiles() throws Exception {
+		var root    = Files.createTempDirectory("refresh-root-missing");
+		var missing = new ImageFileEntity();
+		missing.setFilePath("/");
+		missing.setFilename("missing.jpg");
+		var old = new ImageFileEntity();
+		old.setFilePath("/");
+		old.setFilename("old.jpg");
+		var oldPath = root.resolve("old.jpg");
+		Files.writeString(oldPath, "old");
+		old.setSha256sum("different");
+
+		when(fileRepository.findAll()).thenReturn(List.of(missing, old));
+		when(schedulerCheckpointRepository.findById("updated_file_refresh"))
+				.thenReturn(Optional.of(fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity.builder()
+																							   .taskName("updated_file_refresh")
+																							   .lastChecked(Instant.now()
+				                                                                                                   .plusSeconds(60))
+																							   .build()));
+		ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root.toString());
+
+		updatedFileRefreshSchedule.runRefresh();
+
+		verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());
+		verify(schedulerCheckpointRepository).save(any());
+	}
+}

@@ -5,6 +5,8 @@ import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
 import lombok.extern.slf4j.Slf4j;
+import org.bytedeco.ffmpeg.global.avcodec;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -217,8 +219,13 @@ public class MetadataTool {
 	}
 
 	public static String extractVideoCodec(File file) throws IOException {
-		var output = runExifTool(file, "-VideoCodec");
-		return getTagValue(output, "VideoCodec");
+		try (var grabber = new FFmpegFrameGrabber(file)) {
+			grabber.start();
+			var codecName = avcodec.avcodec_get_name(grabber.getVideoCodec());
+			return codecName == null ? null : codecName.getString();
+		} catch (FFmpegFrameGrabber.Exception e) {
+			throw new IOException("Failed to extract video codec from " + file.getAbsolutePath(), e);
+		}
 	}
 
 	public static Duration extractAudioVideoDuration(File file) throws IOException {

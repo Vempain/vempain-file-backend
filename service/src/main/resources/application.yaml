@@ -107,14 +107,34 @@ vempain:
   site-video-size: 720p
   refresh-updated-files:
     enabled: true
-    cron: "0 */10 * * * *"
+    cron: "0 0 * * * *"
   generate-missing-thumbnails:
     batch-size: 1000
     worker-count: ${VEMPAIN_THUMBNAIL_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
     thumb-image-size: 250
     thumb-image-quality: 0.7
+    video-capture-percentage: 0.3
     enabled: true
     cron: "0 0 * * * *"
+  queue-missing-video-exports:
+    batch-size: 1000
+    worker-count: ${VEMPAIN_VIDEO_QUEUE_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
+    enabled: true
+    cron: "0 0 * * * *"
+  file-processing:
+    enabled: true
+    batch-size: 100
+    worker-count: ${VEMPAIN_FILE_PROCESSING_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
+    cron: "0 0 * * * *"
+    video:
+      width: 1280
+      height: 720
+      fps: 30
+      audio-bitrate: 128000
+      audio-codec: vorbis
+      video-codec: mpeg4
+      container: mp4
+      quality: 23
 
 ---
 ### Local machine ###

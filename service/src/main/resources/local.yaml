@@ -12,3 +12,7 @@ logging:
 vempain:
   generate-missing-thumbnails:
     cron: "0 */10 * * * *"
+  file-processing:
+    cron: "0 */10 * * * *"
+  queue-missing-video-exports:
+    cron: "0 */10 * * * *"

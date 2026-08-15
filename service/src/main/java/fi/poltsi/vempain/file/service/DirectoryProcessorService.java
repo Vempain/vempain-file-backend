@@ -37,9 +37,9 @@ import fi.poltsi.vempain.file.repository.GpsLocationRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -112,7 +112,6 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DirectoryProcessorService {
 
 	private final FileGroupRepository  fileGroupRepository;
@@ -124,7 +123,47 @@ public class DirectoryProcessorService {
 
 	private final AclService            aclService;
 	private final ExportedFilesService  exportedFilesService;
+	private final FileProcessingQueueService fileProcessingQueueService;
 	private final GpsLocationRepository gpsLocationRepository;
+
+	@Autowired
+	public DirectoryProcessorService(FileGroupRepository fileGroupRepository,
+									 FileRepository fileRepository,
+									 TagRepository tagRepository,
+									 MetadataRepository metadataRepository,
+									 FileTagRepository fileTagRepository,
+									 ExportFileRepository exportFileRepository,
+									 AclService aclService,
+									 ExportedFilesService exportedFilesService,
+									 FileProcessingQueueService fileProcessingQueueService,
+									 GpsLocationRepository gpsLocationRepository) {
+		this.fileGroupRepository        = fileGroupRepository;
+		this.fileRepository             = fileRepository;
+		this.tagRepository              = tagRepository;
+		this.metadataRepository         = metadataRepository;
+		this.fileTagRepository          = fileTagRepository;
+		this.exportFileRepository       = exportFileRepository;
+		this.aclService                 = aclService;
+		this.exportedFilesService       = exportedFilesService;
+		this.fileProcessingQueueService = fileProcessingQueueService;
+		this.gpsLocationRepository      = gpsLocationRepository;
+	}
+
+	/**
+	 * Keeps the small legacy unit-test construction path source-compatible.
+	 */
+	public DirectoryProcessorService(FileGroupRepository fileGroupRepository,
+									 FileRepository fileRepository,
+									 TagRepository tagRepository,
+									 MetadataRepository metadataRepository,
+									 FileTagRepository fileTagRepository,
+									 ExportFileRepository exportFileRepository,
+									 AclService aclService,
+									 ExportedFilesService exportedFilesService,
+									 GpsLocationRepository gpsLocationRepository) {
+		this(fileGroupRepository, fileRepository, tagRepository, metadataRepository, fileTagRepository,
+			 exportFileRepository, aclService, exportedFilesService, null, gpsLocationRepository);
+	}
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -613,6 +652,11 @@ public class DirectoryProcessorService {
 
 		saveTags(jsonObject, fileEntity);
 		processMetadata(jsonObject, fileEntity);
+
+		if (fileProcessingQueueService != null) {
+			fileProcessingQueueService.enqueueIfNotExported(fileEntity);
+		}
+
 		return Boolean.TRUE;
 	}
 

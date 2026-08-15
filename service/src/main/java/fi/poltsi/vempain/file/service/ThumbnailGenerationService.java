@@ -11,10 +11,14 @@ import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Java2DFrameConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +40,13 @@ public class ThumbnailGenerationService {
 	public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory,
 	                              int thumbnailMinimumSize, float thumbnailQuality)
 			throws IOException, VempainAclException {
+		generateThumbnail(exportFile, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality, 0.3f);
+	}
+
+	@Transactional
+	public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory,
+								  int thumbnailMinimumSize, float thumbnailQuality, float videoCapturePercentage)
+			throws IOException, VempainAclException {
 		var targetFile = exportFile.getFile();
 		if (thumbFileRepository.existsByTargetFileId(targetFile.getId())) {
 			return;
@@ -43,19 +54,25 @@ public class ThumbnailGenerationService {
 
 		var sourcePath = resolveOriginalPath(exportFile, exportRootDirectory);
 		if (!Files.isRegularFile(sourcePath)) {
-			log.warn("Export image does not exist for file id={}: {}", exportFile.getId(), sourcePath);
+			log.warn("Export file does not exist for file id={}: {}", exportFile.getId(), sourcePath);
 			return;
 		}
 
 		var thumbnail = resolveThumbnail(exportFile, originalRootDirectory);
 		Files.createDirectories(thumbnail.destinationPath()
 		                                 .getParent());
+		Path videoFramePath = null;
 		Path temporaryPath = Files.createTempFile(
 				thumbnail.destinationPath()
 				         .getParent(),
 				"." + thumbnail.filename() + ".",
 				".tmp.jpeg");
 		try {
+			if (targetFile.getFileType() == FileTypeEnum.VIDEO) {
+				videoFramePath = Files.createTempFile("video-thumbnail-frame-", ".jpeg");
+				extractVideoFrame(sourcePath, videoFramePath, videoCapturePercentage);
+				sourcePath = videoFramePath;
+			}
 			Dimension dimensions = imageTool.resizeImage(
 					sourcePath, temporaryPath, thumbnailMinimumSize, thumbnailQuality, null);
 			Files.move(temporaryPath, thumbnail.destinationPath(),
@@ -67,6 +84,33 @@ public class ThumbnailGenerationService {
 			log.info("Generated thumbnail for file id={} at {}", targetFile.getId(), thumbnail.relativePath());
 		} finally {
 			Files.deleteIfExists(temporaryPath);
+			if (videoFramePath != null) {
+				Files.deleteIfExists(videoFramePath);
+			}
+		}
+	}
+
+	private void extractVideoFrame(Path sourcePath, Path targetPath, float capturePercentage) throws IOException {
+		if (capturePercentage < 0 || capturePercentage > 1) {
+			throw new IllegalArgumentException("Video capture percentage must be between 0 and 1");
+		}
+
+		try (var grabber = new FFmpegFrameGrabber(sourcePath.toFile());
+			 var converter = new Java2DFrameConverter()) {
+			grabber.setImageMode(org.bytedeco.javacv.FrameGrabber.ImageMode.COLOR);
+			grabber.start();
+			var timestamp = Math.round(grabber.getLengthInTime() * capturePercentage);
+			grabber.setTimestamp(timestamp);
+			var frame = grabber.grab();
+			if (frame != null && frame.imageChannels > 4) {
+				// JavaCV derives channels from the aligned stride for very small frames.
+				frame.imageChannels = 3;
+			}
+			BufferedImage image = frame == null ? null : converter.getBufferedImage(frame);
+			if (image == null || !ImageIO.write(image, "jpeg", targetPath.toFile())) {
+				throw new IOException("Could not extract a video frame from " + sourcePath);
+			}
+			grabber.stop();
 		}
 	}
 

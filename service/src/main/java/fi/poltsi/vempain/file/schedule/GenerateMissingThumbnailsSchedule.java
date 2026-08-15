@@ -38,6 +38,8 @@ public class GenerateMissingThumbnailsSchedule {
 	private float  thumbnailQuality;
 	@Value("${vempain.generate-missing-thumbnails.thumb-image-size}")
 	private int    thumbnailMinimumSize;
+	@Value("${vempain.generate-missing-thumbnails.video-capture-percentage:0.3}")
+	private float videoCapturePercentage;
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
 	@Value("${vempain.export-root-directory}")
@@ -83,7 +85,7 @@ public class GenerateMissingThumbnailsSchedule {
 			initializeExecutor();
 			var exportFiles = exportFileRepository.findImagesMissingThumbnails(
 					org.springframework.data.domain.PageRequest.of(0, batchSize));
-			log.info("Generating missing thumbnails for {} image files using {} workers",
+			log.info("Generating missing thumbnails for {} files using {} workers",
 			         exportFiles.size(), workerCount);
 			awaitThumbnailJobs(exportFiles);
 		} finally {
@@ -98,7 +100,8 @@ public class GenerateMissingThumbnailsSchedule {
 				var future = executor.submit((Callable<Void>) () -> {
 					try {
 						thumbnailGenerationService.generateThumbnail(
-								exportFile, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality);
+								exportFile, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality,
+								videoCapturePercentage);
 					} catch (DataIntegrityViolationException e) {
 						log.debug("Thumbnail for export file id={} was created concurrently", exportFile.getId());
 					}

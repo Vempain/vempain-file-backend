@@ -1,22 +1,62 @@
 package fi.poltsi.vempain.file.tools;
 
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Java2DFrameConverter;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetadataToolUTC {
 
 	private static final double DELTA = 1e-6;
+
+	@Test
+	void extractsVideoCodecUsingJavaCv(@TempDir Path tempDirectory) throws Exception {
+		var video = tempDirectory.resolve("sample.mp4");
+		try (var recorder = new FFmpegFrameRecorder(video.toString(), 16, 12);
+			 var converter = new Java2DFrameConverter()) {
+			recorder.setFormat("mp4");
+			recorder.setFrameRate(10);
+			recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_MPEG4);
+			recorder.start();
+			var image    = new BufferedImage(16, 12, BufferedImage.TYPE_3BYTE_BGR);
+			var graphics = image.createGraphics();
+			graphics.setColor(Color.RED);
+			graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+			graphics.dispose();
+			recorder.record(converter.convert(image));
+			recorder.stop();
+		}
+
+		assertEquals("mpeg4", MetadataTool.extractVideoCodec(video.toFile()));
+	}
+
+	@Test
+	void reportsUnreadableVideoAsIoException(@TempDir Path tempDirectory) {
+		var exception = assertThrows(IOException.class,
+									 () -> MetadataTool.extractVideoCodec(tempDirectory.resolve("missing.mp4")
+		                                                                               .toFile()));
+
+		assertTrue(exception.getMessage()
+		                    .contains("Failed to extract video codec"));
+	}
 
 	@ParameterizedTest
 	@CsvSource({

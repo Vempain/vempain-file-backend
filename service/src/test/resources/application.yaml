@@ -21,6 +21,8 @@ vempain:
     enabled: false
   generate-missing-thumbnails:
     enabled: false
+  queue-missing-video-exports:
+    enabled: false
   file-processing:
     enabled: false
   cors:

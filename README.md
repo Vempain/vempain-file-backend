@@ -69,6 +69,17 @@ The default video codec is the JavaCV-supported `mpeg4` encoder, the default aud
 Theora encoder or an OGV-compatible video encoder, so Theora/OGV cannot safely be the default without replacing the native runtime or invoking the host `ffmpeg`
 executable. OGV requires a Theora video stream; pairing OGV with the bundled MPEG-4 encoder fails with `Unsupported codec id in stream 0`.
 
+Missing video exports are rediscovered by a scheduled job, so files imported while queue discovery is unavailable are eventually queued:
+
+```yaml
+vempain:
+    queue-missing-video-exports:
+        batch-size: 1000
+        worker-count: 4
+        enabled: true
+        cron: "0 0 * * * *"
+```
+
 ## File grouping
 
 The default way to group files is based on the directory structure. Each directory forms a file group and all files within that directory belong to that group.

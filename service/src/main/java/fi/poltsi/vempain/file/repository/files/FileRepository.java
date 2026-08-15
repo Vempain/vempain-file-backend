@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.repository.files;
 
 import fi.poltsi.vempain.file.entity.FileEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,16 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, JpaSpec
 	Optional<FileEntity> findByFilePathAndFilename(String filePath, String filename);
 
 	FileEntity findByOriginalDocumentId(String originalDocumentId);
+
+	@Query("""
+			SELECT f
+			FROM FileEntity f
+			WHERE f.fileType = fi.poltsi.vempain.file.api.FileTypeEnum.VIDEO
+			  AND NOT EXISTS (SELECT e.id FROM ExportFileEntity e WHERE e.file = f)
+			  AND NOT EXISTS (SELECT q.id FROM FileProcessingQueueEntity q WHERE q.file = f)
+			ORDER BY f.id
+			""")
+	List<FileEntity> findVideosMissingExports(Pageable pageable);
 
 	@Query(value = "SELECT file_type AS fileType, COUNT(*) AS fileCount FROM files GROUP BY file_type", nativeQuery = true)
 	List<FileTypeCountProjection> countFilesByType();

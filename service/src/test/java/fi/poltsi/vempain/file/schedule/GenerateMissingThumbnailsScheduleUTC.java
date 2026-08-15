@@ -55,7 +55,7 @@ class GenerateMissingThumbnailsScheduleUTC {
 			release.await(2, TimeUnit.SECONDS);
 			return null;
 		}).when(thumbnailGenerationService)
-		  .generateThumbnail(any(), any(), any(), any(Integer.class), any(Float.class));
+		  .generateThumbnail(any(), any(), any(), any(Integer.class), any(Float.class), any(Float.class));
 
 		configure(2);
 		schedule.generateMissingThumbnails();
@@ -63,8 +63,8 @@ class GenerateMissingThumbnailsScheduleUTC {
 		assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
 		assertThat(((ThreadPoolTaskExecutor) ReflectionTestUtils.getField(schedule, "executor"))
 						   .getCorePoolSize()).isEqualTo(2);
-		verify(thumbnailGenerationService).generateThumbnail(first, null, null, 0, 0);
-		verify(thumbnailGenerationService).generateThumbnail(second, null, null, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(first, null, null, 0, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(second, null, null, 0, 0, 0);
 	}
 
 	@Test
@@ -73,13 +73,13 @@ class GenerateMissingThumbnailsScheduleUTC {
 		var successful = exportFile(2L);
 		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of(failed, successful));
 		doThrow(new IOException("conversion failed")).when(thumbnailGenerationService)
-		                                             .generateThumbnail(failed, null, null, 0, 0);
+													 .generateThumbnail(failed, null, null, 0, 0, 0);
 
 		configure(2);
 		schedule.generateMissingThumbnails();
 
-		verify(thumbnailGenerationService).generateThumbnail(failed, null, null, 0, 0);
-		verify(thumbnailGenerationService).generateThumbnail(successful, null, null, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(failed, null, null, 0, 0, 0);
+		verify(thumbnailGenerationService).generateThumbnail(successful, null, null, 0, 0, 0);
 	}
 
 	private void configure(int workers) {

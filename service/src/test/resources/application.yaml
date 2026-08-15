@@ -21,6 +21,7 @@ vempain:
     enabled: false
   generate-missing-thumbnails:
     enabled: false
+    video-capture-percentage: 0.3
   queue-missing-video-exports:
     enabled: false
   file-processing:

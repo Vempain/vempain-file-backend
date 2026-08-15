@@ -20,7 +20,7 @@ public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Lo
 	@Query(value = """
 			SELECT e.*
 			FROM export_files e
-			WHERE e.mimetype LIKE 'image/%'
+			WHERE (e.mimetype LIKE 'image/%' OR e.mimetype LIKE 'video/%')
 			  AND NOT EXISTS (
 			      SELECT 1
 			      FROM thumb_files t

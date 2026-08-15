@@ -113,6 +113,7 @@ vempain:
     worker-count: ${VEMPAIN_THUMBNAIL_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}
     thumb-image-size: 250
     thumb-image-quality: 0.7
+    video-capture-percentage: 0.3
     enabled: true
     cron: "0 0 * * * *"
   queue-missing-video-exports:

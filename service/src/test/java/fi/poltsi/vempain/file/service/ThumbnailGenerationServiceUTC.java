@@ -5,8 +5,11 @@ import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Java2DFrameConverter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -14,7 +17,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -91,5 +96,59 @@ class ThumbnailGenerationServiceUTC {
 		assertThat(captor.getValue()
 		                 .getFileType()).isEqualTo(FileTypeEnum.THUMB);
 		assertThat(Files.readString(originalDir.resolve("thumb/image/image.jpeg"))).isEqualTo("thumbnail");
+	}
+
+	@Test
+	void extractsVideoFrameAndStoresJpegThumbnail() throws Exception {
+		var originalDir = Files.createTempDirectory("thumbnail-video-original");
+		var exportDir   = Files.createTempDirectory("thumbnail-video-export");
+		var source      = exportDir.resolve("video/sample.mp4");
+		Files.createDirectories(source.getParent());
+		createSampleVideo(source);
+		var target = new VideoFileEntity();
+		target.setId(48112L);
+		target.setCreator(7L);
+		target.setFileType(FileTypeEnum.VIDEO);
+		var export = ExportFileEntity.builder()
+									 .file(target)
+									 .filename("sample.mp4")
+									 .filePath("/video")
+									 .build();
+		var acl = mock(Acl.class);
+		when(thumbFileRepository.existsByTargetFileId(48112L)).thenReturn(false);
+		when(aclService.createUniqueAcl(eq(7L), eq(null), eq(true), eq(true), eq(true), eq(true))).thenReturn(acl);
+		when(acl.getAclId()).thenReturn(99L);
+		when(imageTool.resizeImage(any(), any(), eq(250), eq(0.7f), eq(null))).thenAnswer(invocation -> {
+			var input  = ImageIO.read(invocation.getArgument(0, Path.class)
+			                                    .toFile());
+			var output = invocation.getArgument(1, Path.class);
+			ImageIO.write(input, "jpeg", output.toFile());
+			return new Dimension(input.getWidth(), input.getHeight());
+		});
+
+		thumbnailGenerationService.generateThumbnail(export, originalDir.toString(), exportDir.toString(), 250, 0.7f, 0.3f);
+
+		var thumbnail = originalDir.resolve("thumb/video/sample.jpeg");
+		assertThat(ImageIO.read(thumbnail.toFile())).isNotNull();
+		verify(thumbFileRepository).saveAndFlush(any());
+	}
+
+	private void createSampleVideo(Path target) throws Exception {
+		try (var recorder = new FFmpegFrameRecorder(target.toString(), 16, 12);
+			 var converter = new Java2DFrameConverter()) {
+			recorder.setFormat("mp4");
+			recorder.setFrameRate(10);
+			recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_MPEG4);
+			recorder.start();
+			for (var color : new Color[]{Color.RED, Color.BLUE, Color.GREEN}) {
+				var image    = new BufferedImage(16, 12, BufferedImage.TYPE_3BYTE_BGR);
+				var graphics = image.createGraphics();
+				graphics.setColor(color);
+				graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+				graphics.dispose();
+				recorder.record(converter.convert(image));
+			}
+			recorder.stop();
+		}
 	}
 }

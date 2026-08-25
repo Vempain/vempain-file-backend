@@ -68,6 +68,7 @@ public final class FileSearchHelper {
 			case "description" -> "description";
 			case "mimetype" -> "mimetype";
 			case "filesize" -> "filesize";
+			case "filetype", "file_type" -> "fileType";
 			case "created" -> "created";
 			case "modified" -> "modified";
 			default -> "filename";
@@ -90,4 +91,3 @@ public final class FileSearchHelper {
 		return tokens;
 	}
 }
-

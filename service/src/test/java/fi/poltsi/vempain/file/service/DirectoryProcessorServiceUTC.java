@@ -134,6 +134,18 @@ class DirectoryProcessorServiceUTC {
 	}
 
 	@Test
+	void processOriginalDirectory_emptyDirectoryReturnsZeroCounts() throws IOException {
+		testRoot = Path.of("build", "dps-empty-utc-" + UUID.randomUUID());
+		var emptyDirectory = Files.createDirectories(testRoot.resolve("empty"));
+		var service        = newService();
+		ReflectionTestUtils.setField(service, "originalRootDirectory", testRoot.toString());
+
+		var result = service.processOriginalDirectory(emptyDirectory, new StringBuilder(), new ArrayList<>(), new ArrayList<>());
+
+		assertThat(result).containsExactly(0L, 0L);
+	}
+
+	@Test
 	void processExportDirectorySkipsAlreadyStoredMatchingFile() throws Exception {
 		testRoot = Path.of("build", "dps-utc-" + UUID.randomUUID());
 		var leaf     = Files.createDirectories(testRoot.resolve("export"));

@@ -38,6 +38,7 @@ import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.Hibernate;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -665,6 +666,7 @@ public class DirectoryProcessorService {
 		if (existingFile == null || file == null || !file.exists()) {
 			return false;
 		}
+		existingFile = Hibernate.unproxy(existingFile, FileEntity.class);
 
 		String metadata;
 		try {

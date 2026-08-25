@@ -5,6 +5,7 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
@@ -32,5 +33,35 @@ class MetadataToolITC {
 		}
 
 		assertThat(MetadataTool.extractVideoCodec(video.toFile())).isEqualTo("mpeg4");
+	}
+
+	@Test
+	void replacesSubjectsInAllExifToolLocations(@TempDir Path tempDirectory) throws Exception {
+		var image = tempDirectory.resolve("subjects.jpg")
+		                         .toFile();
+		ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
+
+		MetadataTool.writeSubjects(image, java.util.List.of("2. maailmansota", "Kanada"));
+		MetadataTool.writeSubjects(image, java.util.List.of("toinen maailmansota", "Kanada"));
+
+		var metadata = MetadataTool.extractMetadataJsonObject(image);
+		assertThat(MetadataTool.extractSubjects(metadata))
+				.containsExactly("toinen maailmansota", "Kanada");
+		assertThat(metadata.getJSONObject("XMP-dc")
+		                   .getJSONArray("Subject")
+		                   .toList())
+				.containsExactly("toinen maailmansota", "Kanada");
+		assertThat(metadata.getJSONObject("XMP-lr")
+		                   .getJSONArray("HierarchicalSubject")
+		                   .toList())
+				.containsExactly("toinen maailmansota", "Kanada");
+		assertThat(metadata.getJSONObject("XMP-lr")
+		                   .getJSONArray("WeightedFlatSubject")
+		                   .toList())
+				.containsExactly("toinen maailmansota", "Kanada");
+		assertThat(metadata.getJSONObject("IPTC")
+		                   .getJSONArray("Keywords")
+		                   .toList())
+				.containsExactly("toinen maailmansota", "Kanada");
 	}
 }

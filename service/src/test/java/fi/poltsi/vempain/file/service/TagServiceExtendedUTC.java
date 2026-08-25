@@ -1,10 +1,13 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
+import fi.poltsi.vempain.file.repository.files.FileRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -12,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,9 +38,41 @@ class TagServiceExtendedUTC {
 	private TagRepository     tagRepository;
 	@Mock
 	private FileTagRepository fileTagRepository;
+	@Mock
+	private FileRepository fileRepository;
 
 	@InjectMocks
 	private TagService tagService;
+
+	@Nested
+	@DisplayName("replaceTag")
+	class ReplaceTag {
+
+		@Test
+		void missingReplacementTag_failsBeforeMutatingFiles() {
+			var request = new TagOperationRequest();
+			request.setTagName("old");
+			request.setReplacementTagName("missing");
+			when(tagRepository.findByTagName("missing")).thenReturn(Optional.empty());
+
+			assertThrows(IllegalArgumentException.class, () -> tagService.replaceTag(request, true));
+			verify(fileRepository, never()).findAllById(any());
+		}
+
+		@Nested
+		@DisplayName("getFilesByTag")
+		class GetFilesByTag {
+
+			@Test
+			void missingTag_failsBeforeQueryingFiles() {
+				when(tagRepository.existsById(99L)).thenReturn(false);
+
+				assertThrows(IllegalArgumentException.class,
+							 () -> tagService.getFilesByTag(99L, new PagedRequest(0, 10, null, null, null, false)));
+				verify(fileRepository, never()).findAll(any(Specification.class), any(Pageable.class));
+			}
+		}
+	}
 
 	@Nested
 	@DisplayName("getTagById")
@@ -59,6 +97,21 @@ class TagServiceExtendedUTC {
 			when(tagRepository.findById(99L)).thenReturn(Optional.empty());
 
 			assertThrows(IllegalArgumentException.class, () -> tagService.getTagById(99L));
+		}
+
+		@Test
+		void getAllTags_mapsEntities() {
+			var tag = TagEntity.builder()
+							   .id(1L)
+							   .tagName("nature")
+							   .build();
+			when(tagRepository.findAll()).thenReturn(List.of(tag));
+
+			var result = tagService.getAllTags();
+
+			assertThat(result).hasSize(1);
+			assertThat(result.getFirst()
+			                 .getTagName()).isEqualTo("nature");
 		}
 	}
 

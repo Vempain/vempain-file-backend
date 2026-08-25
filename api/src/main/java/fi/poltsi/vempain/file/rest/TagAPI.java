@@ -1,7 +1,11 @@
 package fi.poltsi.vempain.file.rest;
 
+import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
+import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
+import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +36,11 @@ public interface TagAPI {
 	@GetMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<TagResponse> getTagById(@PathVariable Long id);
 
+	@Operation(summary = "Get files for a tag", description = "Retrieve files associated with a tag using paging, sorting and search")
+	@SecurityRequirement(name = "******")
+	@PostMapping(path = BASE_PATH + "/{id}/files/paged", produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<PagedResponse<FileResponse>> getFilesByTag(@PathVariable Long id, @Valid @RequestBody PagedRequest pagedRequest);
+
 	@Operation(summary = "Create a new tag", description = "Add a new tag to the system")
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(value = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -47,4 +56,25 @@ public interface TagAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@DeleteMapping(path = BASE_PATH + "/{id}")
 	ResponseEntity<Void> deleteTag(@PathVariable(name = "id") Long id);
+
+	@PostMapping(path = BASE_PATH + "/files/add", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> addTag(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/files/remove", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> removeTag(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/files/replace", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> replaceTag(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/files/rename", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> renameTag(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/all/remove", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> removeTagFromAll(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/all/replace", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> replaceTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
+
+	@PostMapping(path = BASE_PATH + "/all/rename", consumes = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<Void> renameTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
 }

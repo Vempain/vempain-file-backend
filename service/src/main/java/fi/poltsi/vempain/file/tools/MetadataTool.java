@@ -32,10 +32,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -726,32 +728,44 @@ public class MetadataTool {
 	 * @return String value retrieved, or null if none were found
 	 */
 	public static List<String> extractSubjects(JSONObject jsonObject) {
-		var locations = new HashMap<String, List<String>>();
-		locations.put(XMP_KEY, List.of("Subject"));
-		locations.put(XMP_DC_KEY, List.of("Subject"));
-		locations.put(XMP_LR_KEY, List.of("HierarchicalSubject", "WeightedFlatSubject"));
-		locations.put(IPTC_KEY, List.of(IPTC_KEYWORD_FIELD));
+		var subjectList = new LinkedHashSet<String>();
+		addSubjects(jsonObject, XMP_KEY, "Subject", subjectList);
+		addSubjects(jsonObject, XMP_DC_KEY, "Subject", subjectList);
+		addSubjects(jsonObject, XMP_LR_KEY, "HierarchicalSubject", subjectList);
+		addSubjects(jsonObject, XMP_LR_KEY, "WeightedFlatSubject", subjectList);
+		addSubjects(jsonObject, IPTC_KEY, IPTC_KEYWORD_FIELD, subjectList);
+		return subjectList.stream()
+		                  .toList();
+	}
 
-		// We try first to extract an array of strings
-		var subjectList = extractJsonArray(jsonObject, locations);
-
-		// If the array is empty, we try to extract a single string
-		if (subjectList.isEmpty()) {
-			var subject = extractJsonString(jsonObject, locations);
-
-			if (subject != null && !subject.isBlank()) {
-				// clean the subject string so that it does not contain any leading or trailing spaces before adding it to the list
-				subjectList.add(subject.trim());
-			}
+	private static void addSubjects(JSONObject jsonObject, String group, String key, Set<String> subjects) {
+		if (jsonObject == null || !jsonObject.has(group)) {
+			return;
 		}
 
-		// Make sure the list contains only unique subjects
-		subjectList = subjectList.stream()
-		                         .filter(Objects::nonNull)
-		                         .distinct()
-		                         .toList();
+		var groupObject = jsonObject.optJSONObject(group);
+		if (groupObject == null || !groupObject.has(key)) {
+			return;
+		}
 
-		return subjectList;
+		var value = groupObject.opt(key);
+		if (value instanceof JSONArray array) {
+			for (var item : array) {
+				addSubject(item, subjects);
+			}
+		} else {
+			addSubject(value, subjects);
+		}
+	}
+
+	private static void addSubject(Object value, Set<String> subjects) {
+		if (value != null && !(value instanceof JSONObject)) {
+			var subject = Objects.toString(value, "")
+			                     .trim();
+			if (!subject.isBlank()) {
+				subjects.add(subject);
+			}
+		}
 	}
 
 	public static String extractRightsHolder(JSONObject jsonObject) {
@@ -1191,17 +1205,70 @@ public class MetadataTool {
 				} else {
 					log.debug("Exiftool copy process completed successfully.");
 				}
+
 			} catch (InterruptedException e) {
 				Thread.currentThread()
 				      .interrupt();
 				log.error("Exiftool copy process was interrupted", e);
 			}
+
 		} else {
 			log.error("Exiftool copy process failed to start.");
 		}
 	}
 
+	public static void writeSubjects(File file, List<String> subjects) throws IOException {
+		var command = new ArrayList<String>();
+		command.add("exiftool");
+		command.add("-overwrite_original_in_place");
+		addSubjectWriteArguments(command, "XMP-dc:Subject", subjects);
+		addSubjectWriteArguments(command, "XMP-lr:HierarchicalSubject", subjects);
+		addSubjectWriteArguments(command, "XMP-lr:WeightedFlatSubject", subjects);
+		addSubjectWriteArguments(command, "IPTC:Keywords", subjects);
+		command.add(file.getAbsolutePath());
+		try {
+			runWriteCommand(command, file);
+		} catch (IOException e) {
+			if (!isUnparseableMakerNotesError(e)) {
+				throw e;
+			}
 
+			log.warn("Retrying subject write with ExifTool minor-error suppression for {}", file.getAbsolutePath());
+			command.add(1, "-m");
+			runWriteCommand(command, file);
+		}
+	}
+
+	private static boolean isUnparseableMakerNotesError(IOException exception) {
+		var message = exception.getMessage();
+		return message != null
+			   && (message.contains("Bad MakerNotes offset") || message.contains("Maker notes could not be parsed"));
+	}
+
+	private static void addSubjectWriteArguments(List<String> command, String tag, List<String> subjects) {
+		for (var subject : subjects) {
+			if (subject != null && !subject.isBlank()) {
+				command.add("-" + tag + "=" + subject);
+			}
+		}
+	}
+
+	private static void runWriteCommand(List<String> command, File file) throws IOException {
+		var process = new ProcessBuilder(command).redirectErrorStream(true)
+		                                         .start();
+		try {
+			var output = new String(process.getInputStream()
+			                               .readAllBytes(), StandardCharsets.UTF_8);
+			var exit   = process.waitFor();
+			if (exit != 0) {
+				throw new IOException("ExifTool failed for " + file.getAbsolutePath() + ": " + output);
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread()
+			      .interrupt();
+			throw new IOException("ExifTool was interrupted for " + file.getAbsolutePath(), e);
+		}
+	}
 	public static void writeMetadataFromJson(File file, String metadataJson) {
 		if (file == null || metadataJson == null || metadataJson.isBlank()) {
 			log.warn("writeMetadataFromJson called with empty inputs. File: {}, metadataJson empty: {}", file, metadataJson == null || metadataJson.isBlank());

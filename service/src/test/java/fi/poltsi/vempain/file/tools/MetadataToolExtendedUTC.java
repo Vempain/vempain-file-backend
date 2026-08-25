@@ -209,6 +209,19 @@ class MetadataToolExtendedUTC {
 			assertThat(subjects).hasSize(2)
 			                    .contains("tag", "unique");
 		}
+
+		@Test
+		void combinesSubjectsFromAllMetadataLocations() {
+			var json = new JSONObject();
+			json.put("XMP-dc", new JSONObject().put("Subject", List.of("xmp", "shared")));
+			json.put("XMP-lr", new JSONObject()
+					.put("HierarchicalSubject", List.of("hierarchical"))
+					.put("WeightedFlatSubject", List.of("weighted", "shared")));
+			json.put("IPTC", new JSONObject().put("Keywords", List.of("iptc")));
+
+			assertThat(MetadataTool.extractSubjects(json))
+					.containsExactly("xmp", "shared", "hierarchical", "weighted", "iptc");
+		}
 	}
 
 	// ------------------------------------------------------------------

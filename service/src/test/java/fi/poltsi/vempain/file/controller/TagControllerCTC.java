@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Tests all REST endpoints declared in {@code TagAPI}:
  * <ul>
  *   <li>GET    /api/tags      – list all tags</li>
+ *   <li>POST   /api/tags/paged – paged, searchable tag list</li>
  *   <li>GET    /api/tags/{id} – single tag</li>
  *   <li>POST   /api/tags      – create</li>
  *   <li>PUT    /api/tags      – update</li>
@@ -38,6 +39,49 @@ class TagControllerCTC extends AbstractControllerCTC {
 	void cleanTags() {
 		// file_tags has FK to tags; CASCADE removes it
 		jdbcTemplate.execute("TRUNCATE TABLE tags RESTART IDENTITY CASCADE");
+	}
+
+	// -----------------------------------------------------------------------
+	// POST /api/tags/paged
+	// -----------------------------------------------------------------------
+
+	@Test
+	void getAllTagsPageable_returnsRequestedPageAndSearchesAllLanguageFields() throws Exception {
+		jdbcTemplate.update(
+				"INSERT INTO tags (tag_name, tag_name_de, tag_name_en, tag_name_es, tag_name_fi, tag_name_sv) VALUES (?,?,?,?,?,?)",
+				"animal", "Tier", "animal", "animal", "eläin", "djur");
+		jdbcTemplate.update(
+				"INSERT INTO tags (tag_name, tag_name_de, tag_name_en, tag_name_es, tag_name_fi, tag_name_sv) VALUES (?,?,?,?,?,?)",
+				"landscape", "Landschaft", "landscape", "paisaje", "maisema", "landskap");
+
+		doPost("/tags/paged", """
+				{"page":0,"size":1,"search":"Landschaft","sort_by":"tag_name","direction":"ASC"}
+				""")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content", hasSize(1)))
+				.andExpect(jsonPath("$.content[0].tag_name", is("landscape")))
+				.andExpect(jsonPath("$.total_elements", is(1)))
+				.andExpect(jsonPath("$.page", is(0)))
+				.andExpect(jsonPath("$.size", is(1)));
+	}
+
+	@Test
+	void getAllTagsPageable_appliesServerSidePaginationAndSorting() throws Exception {
+		jdbcTemplate.update(
+				"INSERT INTO tags (tag_name, tag_name_de, tag_name_en, tag_name_es, tag_name_fi, tag_name_sv) VALUES (?,?,?,?,?,?)",
+				"zulu", "z", "z", "z", "z", "z");
+		jdbcTemplate.update(
+				"INSERT INTO tags (tag_name, tag_name_de, tag_name_en, tag_name_es, tag_name_fi, tag_name_sv) VALUES (?,?,?,?,?,?)",
+				"alpha", "a", "a", "a", "a", "a");
+
+		doPost("/tags/paged", """
+				{"page":0,"size":1,"sort_by":"tag_name","direction":"ASC"}
+				""")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content", hasSize(1)))
+				.andExpect(jsonPath("$.content[0].tag_name", is("alpha")))
+				.andExpect(jsonPath("$.total_elements", is(2)))
+				.andExpect(jsonPath("$.total_pages", is(2)));
 	}
 
 	// -----------------------------------------------------------------------
@@ -185,4 +229,3 @@ class TagControllerCTC extends AbstractControllerCTC {
 				.andExpect(status().isNoContent());
 	}
 }
-

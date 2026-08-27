@@ -27,6 +27,11 @@ public class TagController implements TagAPI {
 	}
 
 	@Override
+	public ResponseEntity<PagedResponse<TagResponse>> getAllTagsPageable(PagedRequest pagedRequest) {
+		return ResponseEntity.ok(tagService.getAllTagsPageable(pagedRequest));
+	}
+
+	@Override
 	public ResponseEntity<TagResponse> getTagById(Long id) {
 		TagResponse tag = tagService.getTagById(id);
 		return ResponseEntity.ok(tag);

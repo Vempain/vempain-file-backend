@@ -1,8 +1,17 @@
 package fi.poltsi.vempain.file.controller;
 
+import fi.poltsi.vempain.auth.service.UserDetailsImpl;
+import fi.poltsi.vempain.file.tools.MetadataTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.nio.file.Path;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -227,5 +236,47 @@ class TagControllerCTC extends AbstractControllerCTC {
 		// deleteById does not throw if entity is missing in JPA default impl
 		doDelete("/tags/99999")
 				.andExpect(status().isNoContent());
+	}
+
+	@Test
+	void renameTagAcrossAll_renamesExistingTagWithoutCreatingDuplicate(@TempDir Path tempDirectory) throws Exception {
+		var image = tempDirectory.resolve("rename.jpg")
+		                         .toFile();
+		ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
+		MetadataTool.writeSubjects(image, java.util.List.of("I maailmansota"));
+
+		var relativeDirectory = "/" + tempDirectory.getFileName();
+		seedFileRow(9001L, "IMAGE", "image/jpeg", image.getName(), relativeDirectory);
+		jdbcTemplate.update(
+				"INSERT INTO image_files (id, width, height, color_depth, dpi, group_label) VALUES (?,?,?,?,?,?)",
+				9001L, 8, 8, 24, 72, "");
+		jdbcTemplate.update("INSERT INTO tags (tag_name) VALUES (?)", "I maailmansota");
+		var oldTagId = jdbcTemplate.queryForObject(
+				"SELECT id FROM tags WHERE tag_name = ?", Long.class, "I maailmansota");
+		jdbcTemplate.update("INSERT INTO file_tags (file_id, tag_id) VALUES (?,?)", 9001L, oldTagId);
+
+		try {
+			var principal = new UserDetailsImpl(
+					1L, "admin", "Admin", "admin@nohost.nodomain", "Disabled",
+					java.util.Set.of(), java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")));
+			mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/tags/all/rename")
+			                                                                                   .with(SecurityMockMvcRequestPostProcessors.user(principal))
+			                                                                                   .with(SecurityMockMvcRequestPostProcessors.csrf())
+			                                                                                   .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			                                                                                   .content("""
+																												{"tag_name":"I maailmansota","replacement_tag_name":"ensimmäinen maailmansota","file_ids":[]}
+																												"""))
+			       .andExpect(status().isNoContent());
+
+			assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tags", Integer.class)).isEqualTo(1);
+			assertThat(jdbcTemplate.queryForObject(
+					"SELECT COUNT(*) FROM tags WHERE tag_name = ?", Integer.class,
+					"ensimmäinen maailmansota")).isEqualTo(1);
+			assertThat(jdbcTemplate.queryForObject(
+					"SELECT COUNT(*) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE ft.file_id = ? AND t.tag_name = ?",
+					Integer.class, 9001L, "ensimmäinen maailmansota")).isEqualTo(1);
+		} finally {
+			deleteFileRow(9001L);
+		}
 	}
 }

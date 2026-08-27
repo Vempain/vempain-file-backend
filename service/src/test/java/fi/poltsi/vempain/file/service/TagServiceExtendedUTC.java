@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -262,5 +263,25 @@ class TagServiceExtendedUTC {
 			when(tagRepository.findAll()).thenReturn(List.of());
 			assertThat(tagService.getAllTags()).isEmpty();
 		}
+	}
+
+	@Test
+	void getAllTagsPageable_returnsPagedMappedTags() {
+		var tag = TagEntity.builder()
+		                   .id(1L)
+		                   .tagName("nature")
+		                   .tagNameFi("luonto")
+		                   .build();
+		when(tagRepository.findAll(any(Specification.class), any(Pageable.class)))
+				.thenReturn(new PageImpl<>(List.of(tag), Pageable.ofSize(1), 2));
+
+		var result = tagService.getAllTagsPageable(new PagedRequest(0, 1, "tag_name", null, "luonto", false));
+
+		assertThat(result.getContent()).hasSize(1);
+		assertThat(result.getContent()
+		                 .getFirst()
+		                 .getTagName()).isEqualTo("nature");
+		assertThat(result.getTotalElements()).isEqualTo(2);
+		verify(tagRepository).findAll(any(Specification.class), any(Pageable.class));
 	}
 }

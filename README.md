@@ -127,6 +127,15 @@ Animals/
 
 [Local UI](http://localhost:8081/actuator/swagger-ui/index.html)
 
+### Paged tags
+
+Use `POST /api/tags/paged` for server-side tag listing. The request follows the shared
+`PagedRequest` contract: `page` is zero-based, `size` is positive, and optional `sort_by`,
+`direction`, `search`, and `case_sensitive` control the result. Search matches every tag
+name field (`tag_name` and the German, English, Spanish, Finnish, and Swedish translations).
+The response is a `PagedResponse<TagResponse>` containing the current `content` and
+`total_elements`. The legacy `GET /api/tags` endpoint remains available.
+
 ## How to build
 
 In order to build the project, you need to have Java 21 and Git installed on your machine. Begin with cloning the repository. After that run the following

@@ -20,6 +20,7 @@ import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +62,22 @@ public class TagService {
 		                    .stream()
 		                    .map(this::mapToResponseDTO)
 		                    .collect(Collectors.toList());
+	}
+
+	@Transactional(readOnly = true)
+	public PagedResponse<TagResponse> getAllTagsPageable(PagedRequest pagedRequest) {
+		var page = Math.max(0, pagedRequest.getPage());
+		var size = Math.clamp(pagedRequest.getSize(), 1, 200);
+		var sort = buildTagSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+		var specification = buildTagSpecification(pagedRequest.getSearch(),
+		                                          Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		var result  = tagRepository.findAll(specification, PageRequest.of(page, size, sort));
+		var content = result.getContent()
+		                    .stream()
+		                    .map(this::mapToResponseDTO)
+		                    .toList();
+		return PagedResponse.of(content, result.getNumber(), result.getSize(), result.getTotalElements(),
+		                        result.getTotalPages(), result.isFirst(), result.isLast());
 	}
 
 	public TagResponse getTagById(Long id) {
@@ -301,6 +318,40 @@ public class TagService {
 	private TagResponse mapToResponseDTO(TagEntity entity) {
 		return new TagResponse(entity.getId(), entity.getTagName(), entity.getTagNameDe(), entity.getTagNameEn(),
 							   entity.getTagNameEs(), entity.getTagNameFi(), entity.getTagNameSv());
+	}
+
+	private Sort buildTagSort(String sortBy, Sort.Direction direction) {
+		String property = switch (sortBy == null ? "" : sortBy.toLowerCase()) {
+			case "id" -> "id";
+			case "tag_name" -> "tagName";
+			case "tag_name_de" -> "tagNameDe";
+			case "tag_name_en" -> "tagNameEn";
+			case "tag_name_es" -> "tagNameEs";
+			case "tag_name_fi" -> "tagNameFi";
+			case "tag_name_sv" -> "tagNameSv";
+			default -> "tagName";
+		};
+		return Sort.by(direction == null ? Sort.Direction.ASC : direction, property);
+	}
+
+	private Specification<TagEntity> buildTagSpecification(String search, boolean caseSensitive) {
+		if (search == null || search.isBlank()) {
+			return null;
+		}
+		var tokens = search.trim()
+		                   .split("\\s+");
+		return (root, query, cb) -> cb.and(java.util.Arrays.stream(tokens)
+		                                                   .map(token -> {
+															   var pattern = "%" + (caseSensitive ? token : token.toLowerCase()) + "%";
+															   var fields  = List.of("tagName", "tagNameDe", "tagNameEn", "tagNameEs", "tagNameFi", "tagNameSv");
+															   return cb.or(fields.stream()
+			                                                                      .map(field -> {
+																					  var path = root.<String>get(field);
+																					  return caseSensitive ? cb.like(path, pattern) : cb.like(cb.lower(path), pattern);
+																				  })
+			                                                                      .toArray(jakarta.persistence.criteria.Predicate[]::new));
+														   })
+		                                                   .toArray(jakarta.persistence.criteria.Predicate[]::new));
 	}
 
 	private enum Operation {ADD, REMOVE, REPLACE}

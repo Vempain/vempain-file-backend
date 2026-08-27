@@ -31,6 +31,11 @@ public interface TagAPI {
 	@GetMapping(value = BASE_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<List<TagResponse>> getAllTags();
 
+	@Operation(summary = "Get tags page", description = "Retrieve tags with paging, sorting and search")
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(path = BASE_PATH + "/paged", produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<PagedResponse<TagResponse>> getAllTagsPageable(@Valid @RequestBody PagedRequest pagedRequest);
+
 	@Operation(summary = "Get a tag by ID", description = "Retrieve a specific tag by its unique identifier")
 	@SecurityRequirement(name = "Bearer Authentication")
 	@GetMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)

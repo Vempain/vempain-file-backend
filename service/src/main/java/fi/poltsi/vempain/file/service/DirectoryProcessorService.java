@@ -1016,6 +1016,7 @@ public class DirectoryProcessorService {
 
 	@Transactional
 	protected void saveTags(JSONObject jsonObject, FileEntity fileEntity) {
+		tagRepository.lockTagMutations();
 		var subjects = extractSubjects(jsonObject);
 
 		if (subjects.isEmpty()) {

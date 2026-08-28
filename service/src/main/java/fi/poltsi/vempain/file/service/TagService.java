@@ -108,14 +108,18 @@ public class TagService {
 								result.getTotalPages(), result.isFirst(), result.isLast());
 	}
 
+	@Transactional
 	public TagResponse createTag(TagRequest requestDTO) {
+		tagRepository.lockTagMutations();
 		return mapToResponseDTO(tagRepository.save(mapToEntity(requestDTO)));
 	}
 
+	@Transactional
 	public TagResponse updateTag(TagRequest requestDTO) {
 		if (requestDTO.getId() == null) {
 			throw new IllegalArgumentException("Tag ID must be provided for update");
 		}
+		tagRepository.lockTagMutations();
 		var tag = tagRepository.findById(requestDTO.getId())
 							   .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
 		tag.setTagName(requestDTO.getTagName());
@@ -171,10 +175,22 @@ public class TagService {
 	@Transactional
 	public void renameTag(TagOperationRequest request, boolean all) {
 		requireReplacement(request);
-		var files = all ? filesForTag(request.getTagName()) : request.getFileIds();
-		mutate(request, files, Operation.REPLACE);
+		tagRepository.lockTagMutations();
 		var tag = tagRepository.findByTagName(request.getTagName())
 							   .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
+		if (!request.getTagName()
+		            .equals(request.getReplacementTagName())
+		    && tagRepository.findByTagName(request.getReplacementTagName())
+		                    .isPresent()) {
+			throw new IllegalArgumentException("Replacement tag already exists");
+		}
+		var files = all ? fileTagRepository.findByTag(tag)
+		                                   .stream()
+		                                   .map(fileTag -> fileTag.getFile()
+		                                                          .getId())
+		                                   .distinct()
+		                                   .toList()
+		                : request.getFileIds();
 		tag.setTagName(request.getReplacementTagName());
 		tag.setTagNameDe(request.getTagNameDe());
 		tag.setTagNameEn(request.getTagNameEn());
@@ -182,6 +198,7 @@ public class TagService {
 		tag.setTagNameFi(request.getTagNameFi());
 		tag.setTagNameSv(request.getTagNameSv());
 		tagRepository.save(tag);
+		mutate(request, files, Operation.REPLACE);
 	}
 
 	private void mutate(TagOperationRequest request, List<Long> fileIds, Operation operation) {

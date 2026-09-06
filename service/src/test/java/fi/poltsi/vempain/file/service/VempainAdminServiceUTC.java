@@ -4,6 +4,7 @@ import feign.FeignException;
 import feign.Request;
 import feign.RequestTemplate;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
@@ -32,7 +33,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -162,8 +162,7 @@ class VempainAdminServiceUTC {
 		@Test
 		void success_returnsBody() {
 			var mockBody = new PagedResponse<SiteFileResponse>();
-			when(vempainAdminFileClient.getPageableSiteFiles(
-					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+			when(vempainAdminFileClient.getPageableSiteFiles(any(SiteFilePagedRequest.class)))
 					.thenReturn(ResponseEntity.ok(mockBody));
 
 			var result = vempainAdminService.getPageableSiteFiles(
@@ -173,8 +172,7 @@ class VempainAdminServiceUTC {
 
 		@Test
 		void nullResponse_returnsNull() {
-			when(vempainAdminFileClient.getPageableSiteFiles(
-					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+			when(vempainAdminFileClient.getPageableSiteFiles(any(SiteFilePagedRequest.class)))
 					.thenReturn(null);
 
 			var result = vempainAdminService.getPageableSiteFiles(
@@ -184,8 +182,7 @@ class VempainAdminServiceUTC {
 
 		@Test
 		void nonSuccessStatus_returnsNull() {
-			when(vempainAdminFileClient.getPageableSiteFiles(
-					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+			when(vempainAdminFileClient.getPageableSiteFiles(any(SiteFilePagedRequest.class)))
 					.thenReturn(ResponseEntity.badRequest()
 					                          .build());
 
@@ -196,8 +193,7 @@ class VempainAdminServiceUTC {
 
 		@Test
 		void feignException_returnsNull() {
-			when(vempainAdminFileClient.getPageableSiteFiles(
-					any(), anyInt(), anyInt(), any(), any(), any(), any()))
+			when(vempainAdminFileClient.getPageableSiteFiles(any(SiteFilePagedRequest.class)))
 					.thenThrow(fakeFeignException(503));
 
 			var result = vempainAdminService.getPageableSiteFiles(

@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.service;
 
 import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
@@ -65,7 +66,16 @@ public class VempainAdminService {
 	                                                            String filter,
 	                                                            String filterColumn) {
 		try {
-			var responseEntity = vempainAdminFileClient.getPageableSiteFiles(fileType, pageNumber, pageSize, sortBy, direction, filter, filterColumn);
+			var request = new SiteFilePagedRequest();
+			request.setFileType(fileType);
+			request.setPage(pageNumber);
+			request.setSize(pageSize);
+			request.setSortBy(sortBy);
+			request.setDirection(direction);
+			request.setSearch(filter);
+			request.setFilterColumn(filterColumn);
+
+			var responseEntity = vempainAdminFileClient.getPageableSiteFiles(request);
 			if (responseEntity == null || !responseEntity.getStatusCode()
 			                                             .is2xxSuccessful()) {
 				HttpStatusCode status = responseEntity != null ? responseEntity.getStatusCode() : null;

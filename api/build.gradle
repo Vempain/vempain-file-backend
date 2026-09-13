@@ -5,6 +5,8 @@ plugins {
 	id "jacoco"
 }
 
+def apiArtifactName = "${rootProject.name}-api"
+
 repositories {
 	maven {
 		url = "https://maven.pkg.github.com/Vempain/vempain-auth"
@@ -20,7 +22,7 @@ group = 'fi.poltsi.vempain'
 version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
 
 jar {
-	archiveFileName = "${rootProject.name}-api-${version}.jar"
+	archiveFileName = "${apiArtifactName}-${version}.jar"
 }
 
 java {
@@ -53,14 +55,13 @@ publishing {
 	publications {
 		mavenJava(MavenPublication) {
 			from components.java
-			// Optional: keep artifactId as project name ('api')
 			groupId = project.group
-			artifactId = "vempain-file-backend-api"
+			artifactId = apiArtifactName
 			version = project.version
 			pom {
-				name = "vempain-file-backend-api"
+				name = apiArtifactName
 				description = "Public API (DTOs and interfaces) for Vempain File backend"
-				url = "https://github.com/Vempain/vempain-file-backend"
+				url = "https://github.com/Vempain/${rootProject.name}"
 				licenses {
 					license {
 						name = "GPL-2.0 License"
@@ -68,7 +69,7 @@ publishing {
 					}
 				}
 				scm {
-					url = "https://github.com/Vempain/vempain-file-backend"
+					url = "https://github.com/Vempain/${rootProject.name}"
 				}
 			}
 		}
@@ -76,7 +77,7 @@ publishing {
 	repositories {
 		maven {
 			name = "GitHubPackages"
-			url = uri("https://maven.pkg.github.com/Vempain/vempain-file-backend")
+			url = uri("https://maven.pkg.github.com/Vempain/${rootProject.name}")
 			credentials {
 				username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
 				password = project.findProperty("gpr.token") ?: System.getenv("GITHUB_TOKEN")

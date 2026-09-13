@@ -2,7 +2,6 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
-import fi.poltsi.vempain.auth.tools.JsonTools;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
@@ -196,7 +195,7 @@ public class PublishService {
 						fileIngestRequest.setPages(documentFileEntity.getPageCount());
 					}
 
-					log.debug("Publishing {}", JsonTools.toJson(fileIngestRequest));
+					log.debug("Publishing file {} from group {}", fileEntity.getFilename(), publishFileGroupRequest.getFileGroupId());
 					// Upload with authentication retry (up to 5 attempts)
 					final int maxRetries = 3;
 					int       attempt    = 0;

@@ -1,7 +1,5 @@
 ---
 spring:
-  profiles:
-    default: local
   docker:
     compose:
       enabled: false
@@ -16,10 +14,10 @@ spring:
       cleanup-cron: "5 * * * * *"
       initialize-schema: always
   datasource:
-    url: jdbc:postgresql://localhost:5432/vempain_file_db?currentSchema=vempain_file&useSSL=false
+    url: ${SPRING_DATASOURCE_URL}
     driver-class-name: org.postgresql.Driver
-    username: vempain_file
-    password: vempain_file_password
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     show-sql: false
     open-in-view: false
@@ -39,7 +37,7 @@ actuator:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health
 
 management:
   server:
@@ -47,9 +45,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: [ "*", "openapi", "swagger-ui" ]
-    access:
-      default: unrestricted
+        include: health,info
   metrics:
     tags:
       application: vempain-file-backend

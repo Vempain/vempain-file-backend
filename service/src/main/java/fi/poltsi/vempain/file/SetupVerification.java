@@ -16,6 +16,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -50,7 +51,7 @@ class SetupVerification implements ApplicationContextAware {
 
 		for (String[] keyPair : requiredKeys) {
 			var value = env.getProperty(keyPair[0]);
-			log.debug("Verifying that key {} is defined and not empty: {}", keyPair[0], value);
+			log.debug("Verifying that key {} is defined and not empty", keyPair[0]);
 
 			if (value == null || value.isEmpty()) {
 				closeApplication("Missing configuration value for key: " + keyPair[0]);
@@ -62,13 +63,13 @@ class SetupVerification implements ApplicationContextAware {
 				switch (keyPair[1]) {
 					case TYPE_NUMBER:
 						if (!NumberUtils.isCreatable(value)) {
-							closeApplication("Failed to parse number from configuration " + keyPair[0] + " value " + value);
+							closeApplication("Failed to parse number from configuration " + keyPair[0]);
 						}
 
 						break;
 					case TYPE_PATH:
 						if (!Files.exists(path)) {
-							closeApplication("Path from configuration " + keyPair[0] + " pointing to " + value + " does not exist");
+							closeApplication("Path from configuration " + keyPair[0] + " does not exist");
 						}
 						break;
 					case TYPE_FILE:
@@ -89,6 +90,19 @@ class SetupVerification implements ApplicationContextAware {
 						break;
 					default:
 						closeApplication("Unknown configuration type: " + keyPair[1]);
+				}
+			}
+
+			if (env.acceptsProfiles(org.springframework.core.env.Profiles.of("prod"))) {
+				var adminUrl = env.getProperty("vempain.service.admin-backend-url", "");
+				if (!"https".equalsIgnoreCase(URI.create(adminUrl)
+				                                 .getScheme())) {
+					closeApplication("Production Admin backend URL must use HTTPS");
+				}
+
+				var datasourceUrl = env.getProperty("spring.datasource.url", "");
+				if (datasourceUrl.contains("useSSL=false") || !datasourceUrl.contains("sslmode=")) {
+					closeApplication("Production datasource URL must require TLS");
 				}
 			}
 		}
@@ -116,18 +130,10 @@ class SetupVerification implements ApplicationContextAware {
 		                                          .sorted()
 		                                          .toList();
 
-		propertyNames.forEach(prop -> printProperty(env, prop));
+		propertyNames.forEach(prop -> log.debug("Configuration key available: {}", prop));
 		log.debug("===========================================");
 	}
 
-
-	private void printProperty(Environment env, String key) {
-		try {
-			log.debug("{}: {}", key, env.getProperty(key));
-		} catch (Exception e) {
-			log.error("Failed to fetch property value for {}", key);
-		}
-	}
 
 	@Override
 	public void setApplicationContext(@NonNull ApplicationContext applicationContext) throws BeansException {

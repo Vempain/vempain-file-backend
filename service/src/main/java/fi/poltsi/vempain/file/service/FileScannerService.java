@@ -123,11 +123,21 @@ public class FileScannerService {
 	}
 
 	private Path resolveScanDirectory(String configuredRoot, String selectedDirectory) {
+		var root = Path.of(configuredRoot)
+		               .toAbsolutePath()
+		               .normalize();
 		if (selectedDirectory == null || "/".equals(selectedDirectory)) {
-			return Path.of(configuredRoot);
+			return root;
 		}
 		var relativePath = selectedDirectory.startsWith("/") ? selectedDirectory.substring(1) : selectedDirectory;
-		return Path.of(configuredRoot, relativePath);
+		var resolved = root.resolve(relativePath)
+		                   .normalize();
+		if (!resolved.startsWith(root)) {
+			throw new org.springframework.web.server.ResponseStatusException(
+					org.springframework.http.HttpStatus.BAD_REQUEST,
+					"Selected directory is outside the configured scan root");
+		}
+		return resolved;
 	}
 
 	private boolean populateLeafDirectory(ArrayList<Path> leafDirectories, StringBuilder errorMessage, Path scanDirectory) {
@@ -141,8 +151,7 @@ public class FileScannerService {
 			                            .toList());
 		} catch (IOException e) {
 			log.error("Error scanning directory: {}", scanDirectory, e);
-			errorMessage.append("Error scanning directory: ")
-			            .append(scanDirectory);
+			errorMessage.append("Unable to scan the requested directory");
 			return false;
 		}
 

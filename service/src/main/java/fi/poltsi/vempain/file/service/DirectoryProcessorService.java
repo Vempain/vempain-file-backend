@@ -230,10 +230,8 @@ public class DirectoryProcessorService {
 				}
 			} catch (IOException e) {
 				log.error("Error processing file: {}", file.getAbsolutePath(), e);
-				errorMessage.append("Error processing file: ")
-				            .append(file.getAbsolutePath())
-				            .append(" - ")
-				            .append(e.getMessage())
+				errorMessage.append("Unable to process file ")
+				            .append(file.getName())
 				            .append("\n");
 			}
 		}

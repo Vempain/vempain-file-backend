@@ -51,13 +51,13 @@ public abstract class AbstractControllerCTC {
 
 	protected ResultActions doGet(String path) throws Exception {
 		return mockMvc.perform(
-				get(path).with(user("ctc-user").roles("USER")));
+				get(path).with(user("ctc-user").roles("ADMIN")));
 	}
 
 	protected ResultActions doPost(String path, String body) throws Exception {
 		return mockMvc.perform(
 				post(path)
-						.with(user("ctc-user").roles("USER"))
+						.with(user("ctc-user").roles("ADMIN"))
 						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(body));
@@ -66,7 +66,7 @@ public abstract class AbstractControllerCTC {
 	protected ResultActions doPut(String path, String body) throws Exception {
 		return mockMvc.perform(
 				put(path)
-						.with(user("ctc-user").roles("USER"))
+						.with(user("ctc-user").roles("ADMIN"))
 						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(body));
@@ -75,7 +75,7 @@ public abstract class AbstractControllerCTC {
 	protected ResultActions doDelete(String path) throws Exception {
 		return mockMvc.perform(
 				delete(path)
-						.with(user("ctc-user").roles("USER"))
+						.with(user("ctc-user").roles("ADMIN"))
 						.with(csrf()));
 	}
 
@@ -115,4 +115,3 @@ public abstract class AbstractControllerCTC {
 		jdbcTemplate.update("DELETE FROM files WHERE id = ?", id);
 	}
 }
-

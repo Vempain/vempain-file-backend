@@ -40,12 +40,14 @@ class DataServiceUTC {
 	private ImageFileRepository    imageFileRepository;
 	@Mock
 	private VempainAdminDataClient vempainAdminDataClient;
+	@Mock
+	private LocationService locationService;
 
 	private DataService dataService;
 
 	@BeforeEach
 	void setUp() {
-		dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient);
+		dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient, locationService);
 	}
 
 	// -----------------------------------------------------------------------
@@ -331,6 +333,24 @@ class DataServiceUTC {
 		assertThat(req.getCsvData()).contains("photo.jpg");
 		verify(vempainAdminDataClient).getDataSetByIdentifier("holidays_2024");
 		verify(vempainAdminDataClient, never()).updateDataSet(any(DataRequest.class));
+	}
+
+	@Test
+	void generateAndPublishGpsTimeSeriesByFileGroup_excludesGuardedLocations() {
+		var gps = GpsLocationEntity.builder()
+		                           .latitude(new BigDecimal("60.12345"))
+		                           .longitude(new BigDecimal("24.98765"))
+		                           .build();
+		var image = new ImageFileEntity();
+		image.setFilename("private.jpg");
+		image.setGpsLocation(gps);
+
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(43L)).thenReturn(List.of(image));
+		when(locationService.isGuardedLocation(gps)).thenReturn(true);
+
+		assertThrows(ResponseStatusException.class,
+		             () -> dataService.generateAndPublishGpsTimeSeriesByFileGroup(43L, "private-series"));
+		verify(vempainAdminDataClient, never()).createDataSet(any(DataRequest.class));
 	}
 
 	@Test

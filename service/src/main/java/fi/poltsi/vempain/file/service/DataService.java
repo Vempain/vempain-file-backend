@@ -49,6 +49,7 @@ public class DataService {
 	private final MusicFileService    musicFileService;
 	private final ImageFileRepository imageFileRepository;
 	private final VempainAdminDataClient vempainAdminDataClient;
+	private final LocationService locationService;
 
 	// -----------------------------------------------------------------------
 	// Music dataset
@@ -195,7 +196,10 @@ public class DataService {
 		var normPath = "/%s".formatted(directoryPath.substring(start, end));
 		log.info("Generating GPS time-series dataset for directory: {}", normPath);
 
-		var images = imageFileRepository.findByFilePathWithGpsOrderedByTime(normPath);
+		var images = imageFileRepository.findByFilePathWithGpsOrderedByTime(normPath)
+		                                .stream()
+		                                .filter(image -> !locationService.isGuardedLocation(image.getGpsLocation()))
+		                                .toList();
 
 		if (images.isEmpty()) {
 			log.warn("No GPS-tagged images found in directory: {}", normPath);
@@ -236,13 +240,16 @@ public class DataService {
 
 		log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, normalizedIdentifier);
 
-		var images = imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(fileGroupId);
+		var images = imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(fileGroupId)
+		                                .stream()
+		                                .filter(image -> !locationService.isGuardedLocation(image.getGpsLocation()))
+		                                .toList();
 
 		if (images.isEmpty()) {
-			log.warn("No GPS-tagged images found in file group: {}", fileGroupId);
+			log.warn("No publishable GPS-tagged images found in file group: {}", fileGroupId);
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
 			                                  """
-													  No GPS-tagged images found in file group: %d
+													  No publishable GPS-tagged images found in file group
 													  """.formatted(fileGroupId)
 			                                             .strip());
 		}
@@ -509,9 +516,8 @@ public class DataService {
 	// -----------------------------------------------------------------------
 
 	private ResponseStatusException mapAdminException(FeignException exception, String action, String identifier) {
-		var body = exception.contentUTF8();
-		var reason = "Admin service failed to %s dataset '%s': %s".formatted(action, identifier,
-		                                                                     body != null && !body.isBlank() ? body : exception.getMessage());
+		log.warn("Admin service failed to {} dataset '{}' with status {}", action, identifier, exception.status());
+		var reason = "Admin service failed to %s dataset".formatted(action);
 		return switch (exception.status()) {
 			case 400 -> new ResponseStatusException(HttpStatus.BAD_REQUEST, reason, exception);
 			case 404 -> new ResponseStatusException(HttpStatus.NOT_FOUND, reason, exception);

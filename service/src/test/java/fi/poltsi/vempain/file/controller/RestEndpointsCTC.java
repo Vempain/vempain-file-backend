@@ -118,7 +118,7 @@ class RestEndpointsCTC {
 		};
 
 		if (authenticated) {
-			builder = builder.with(user("ctc-user").roles("USER"));
+			builder = builder.with(user("ctc-user").roles("ADMIN"));
 		}
 		if (endpoint.csrf()) {
 			builder = builder.with(csrf());

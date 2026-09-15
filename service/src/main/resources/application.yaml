@@ -86,8 +86,7 @@ vempain:
   app:
     frontend-url: override-me
     jwt-secret: override-me
-    jwt-expiration-ms: 86400000
-  test: true
+    jwt-expiration-ms: 900000
   cors:
     allowed-origins: ${vempain.app.frontend-url}
     cors-pattern: '/**'

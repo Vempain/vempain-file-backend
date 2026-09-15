@@ -123,27 +123,42 @@ public class FileScannerService {
 	}
 
 	private Path resolveScanDirectory(String configuredRoot, String selectedDirectory) {
-		var root = Path.of(configuredRoot)
-		               .toAbsolutePath()
-		               .normalize();
+		final Path root;
+		try {
+			root = Path.of(configuredRoot)
+			           .toRealPath();
+		} catch (IOException e) {
+			throw new org.springframework.web.server.ResponseStatusException(
+					org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+					"Configured scan root is unavailable");
+		}
 		if (selectedDirectory == null || "/".equals(selectedDirectory)) {
 			return root;
 		}
 		var relativePath = selectedDirectory.startsWith("/") ? selectedDirectory.substring(1) : selectedDirectory;
-		var resolved = root.resolve(relativePath)
-		                   .normalize();
-		if (!resolved.startsWith(root)) {
+		var        resolved = root.resolve(relativePath)
+		                          .normalize();
+		final Path realResolved;
+		try {
+			realResolved = resolved.toRealPath();
+		} catch (IOException e) {
+			throw new org.springframework.web.server.ResponseStatusException(
+					org.springframework.http.HttpStatus.BAD_REQUEST,
+					"Selected directory does not exist");
+		}
+		if (!realResolved.startsWith(root) || Files.isSymbolicLink(resolved)) {
 			throw new org.springframework.web.server.ResponseStatusException(
 					org.springframework.http.HttpStatus.BAD_REQUEST,
 					"Selected directory is outside the configured scan root");
 		}
-		return resolved;
+		return realResolved;
 	}
 
 	private boolean populateLeafDirectory(ArrayList<Path> leafDirectories, StringBuilder errorMessage, Path scanDirectory) {
 		try {
 			leafDirectories.addAll(Files.walk(scanDirectory)
 			                            .filter(Files::isDirectory)
+			                            .filter(path -> !Files.isSymbolicLink(path))
 			                            .filter(path -> !path.getFileName()
 			                                                 .toString()
 			                                                 .startsWith("."))

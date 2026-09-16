@@ -14,10 +14,10 @@ spring:
       cleanup-cron: "5 * * * * *"
       initialize-schema: always
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
+    url: override-me
     driver-class-name: org.postgresql.Driver
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    username: override-me
+    password: override-me
   jpa:
     show-sql: false
     open-in-view: false

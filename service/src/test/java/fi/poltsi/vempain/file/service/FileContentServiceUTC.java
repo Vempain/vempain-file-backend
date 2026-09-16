@@ -71,5 +71,23 @@ class FileContentServiceUTC {
 		assertThat(ex.getStatusCode()
 		             .value()).isEqualTo(400);
 	}
-}
 
+	@Test
+	void resolveOriginalFile_rejectsSymlinkOutsideRoot() throws Exception {
+		var link = tempDir.resolve("linked");
+		try {
+			Files.createSymbolicLink(link, Path.of("/etc"));
+		} catch (UnsupportedOperationException | java.nio.file.FileSystemException e) {
+			return;
+		}
+
+		var entity = mock(FileEntity.class);
+		when(entity.getFilePath()).thenReturn("/linked");
+		when(entity.getFilename()).thenReturn("passwd");
+		when(fileRepository.findById(4L)).thenReturn(Optional.of(entity));
+
+		var ex = assertThrows(ResponseStatusException.class, () -> fileContentService.resolveOriginalFile(4L));
+		assertThat(ex.getStatusCode()
+		             .value()).isEqualTo(400);
+	}
+}

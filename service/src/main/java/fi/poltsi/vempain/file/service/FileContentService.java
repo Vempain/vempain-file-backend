@@ -28,9 +28,14 @@ public class FileContentService {
 		                           .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
 		                                                                          "File with id %d not found".formatted(fileId)));
 
-		var rootPath = Paths.get(originalRootDirectory)
-		                    .normalize()
-		                    .toAbsolutePath();
+		final Path rootPath;
+		try {
+			rootPath = Paths.get(originalRootDirectory)
+			                .toRealPath();
+		} catch (IOException e) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+			                                  "Configured original file storage is unavailable");
+		}
 
 		var relativeDir = normalizeRelativeDirectory(entity.getFilePath());
 		var resolvedPath = rootPath.resolve(relativeDir)
@@ -42,17 +47,24 @@ public class FileContentService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Resolved file path is outside configured original root");
 		}
 
-		if (!Files.exists(resolvedPath) || !Files.isRegularFile(resolvedPath)) {
+		final Path realPath;
+		try {
+			realPath = resolvedPath.toRealPath();
+		} catch (IOException e) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
 			                                  "File content for id %d not found from storage".formatted(fileId));
+		}
+		if (!realPath.startsWith(rootPath) || !Files.isRegularFile(realPath)) {
+			log.warn("Rejected file content request through a path outside original root. fileId={}", fileId);
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Resolved file path is outside configured original root");
 		}
 
 		try {
 			return new ContentFile(
-					resolvedPath,
+					realPath,
 					entity.getFilename(),
 					entity.getMimetype(),
-					Files.size(resolvedPath)
+					Files.size(realPath)
 			);
 		} catch (IOException e) {
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -76,4 +88,3 @@ public class FileContentService {
 	public record ContentFile(Path absolutePath, String filename, String mimetype, long size) {
 	}
 }
-

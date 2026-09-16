@@ -41,8 +41,7 @@ public class PathCompletionService {
 
 		try {
 			var rootPath = Paths.get(rootDirectory)
-			                    .normalize()
-			                    .toAbsolutePath();
+			                    .toRealPath();
 			var sanitizedRequestPath = requestPath.replaceFirst("^[\\\\/]+", "");
 			// Resolve user path against root and ensure it cannot escape the configured root directory.
 			var fullPath = rootPath.resolve(sanitizedRequestPath)
@@ -52,11 +51,13 @@ public class PathCompletionService {
 				return new PathCompletionResponse(completions);
 			}
 
-			if (Files.exists(fullPath) && Files.isDirectory(fullPath)) {
+			if (Files.exists(fullPath) && Files.isDirectory(fullPath) && !Files.isSymbolicLink(fullPath)
+			    && fullPath.toRealPath()
+			               .startsWith(rootPath)) {
 				// If an exact directory exists, list its immediate subdirectories.
 				try (DirectoryStream<Path> stream = Files.newDirectoryStream(fullPath)) {
 					for (var entry : stream) {
-						if (Files.isDirectory(entry) && !entry.getFileName()
+						if (Files.isDirectory(entry) && !Files.isSymbolicLink(entry) && !entry.getFileName()
 						                                      .toString()
 						                                      .startsWith(".")) {
 							// Construct completion as the relative path starting with a '/'
@@ -75,12 +76,14 @@ public class PathCompletionService {
 			} else {
 				// Else, perform prefix matching in the parent directory.
 				var parentPath = fullPath.getParent();
-				if (parentPath != null && parentPath.startsWith(rootPath) && Files.exists(parentPath)) {
+				if (parentPath != null && parentPath.startsWith(rootPath) && Files.exists(parentPath)
+				    && parentPath.toRealPath()
+				                 .startsWith(rootPath)) {
 					var prefix = fullPath.getFileName()
 					                     .toString();
 					try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath)) {
 						for (var entry : stream) {
-							if (Files.isDirectory(entry) && entry.getFileName()
+							if (Files.isDirectory(entry) && !Files.isSymbolicLink(entry) && entry.getFileName()
 							                                     .toString()
 							                                     .startsWith(prefix)) {
 								String candidate = "/" + parentPath.relativize(entry)

@@ -30,7 +30,7 @@
 
 ## Local setup and workflows
 
-- Use Java **25** for local work: CI, Gradle toolchain, and Docker all target 25 (`gradle.properties`, `.github/workflows/ci.yaml`, `Dockerfile`). `README.md`
+- Use Java **25** for local work: CI, Gradle toolchain, and Docker all target 25 (`gradle/libs.versions.toml`, `.github/workflows/ci.yaml`, `Dockerfile`). `README.md`
   still mentions Java 21.
 - Private dependencies come from GitHub Packages. Builds need `gpr.user` / `gpr.token` Gradle properties or `GITHUB_ACTOR` / `GITHUB_TOKEN` env vars (
   `api/build.gradle`, `service/build.gradle`).
@@ -139,4 +139,3 @@ empty values are rejected, and names that would otherwise start with a digit are
 
 `DataService.createOrUpdate()` first attempts `PUT` (update). If the Admin service responds with 404 it
 falls back to `POST` (create). After a successful create/update it always calls the `publish` endpoint.
-

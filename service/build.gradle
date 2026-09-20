@@ -2,14 +2,14 @@ import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
 	id 'application'
-	id 'org.springframework.boot' version "${springBootVersion}"
-	id "io.freefair.lombok" version "${ioFreeFairLombok}"
-	id 'io.spring.dependency-management' version "${gradleSpringPluginVersion}"
+	alias(libs.plugins.spring.boot)
+	alias(libs.plugins.freefair.lombok)
+	alias(libs.plugins.spring.dependency.management)
 	id 'jacoco'
 }
 
 group = 'fi.poltsi.vempain'
-version = project.hasProperty("releaseVersion") ? project.releaseVersion : '0.0.1-SNAPSHOT'
+version = libs.versions.release.get()
 
 bootJar {
 	archiveFileName = "${rootProject.name}-${version}.jar"
@@ -17,7 +17,7 @@ bootJar {
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of("${javaVersion}")
+		languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
 	}
 }
 
@@ -49,45 +49,45 @@ repositories {
 dependencies {
 	implementation project(':api')
 	// This needs to be built first in vempain-auth
-	implementation "fi.poltsi.vempain:vempain-auth-core:${vempainAuthVersion}"
-	implementation "fi.poltsi.vempain:vempain-auth-api:${vempainAuthVersion}"
-	implementation "fi.poltsi.vempain:vempain-admin-backend-api:${vempainAdminVersion}"
+	implementation "fi.poltsi.vempain:vempain-auth-core:${libs.versions.vempain.auth.get()}"
+	implementation "fi.poltsi.vempain:vempain-auth-api:${libs.versions.vempain.auth.get()}"
+	implementation "fi.poltsi.vempain:vempain-admin-backend-api:${libs.versions.vempain.admin.get()}"
 	// Spring
-	implementation "org.springframework.boot:spring-boot-starter-security:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-webmvc:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-web-services:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-data-jpa:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-flyway:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-jackson:${springBootVersion}"
-	implementation "org.springframework.boot:spring-boot-starter-validation:${springBootVersion}"
-	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${springBootVersion}"
-	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
-	implementation "jakarta.xml.bind:jakarta.xml.bind-api:${jakartaBindApiVersion}"
-	implementation "jakarta.annotation:jakarta.annotation-api:${jakartaAnnotationApiVersion}"
-	implementation "commons-codec:commons-codec:${commonsCodecVersion}"
-	implementation "org.json:json:${jsonVersion}"
-	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:${springCloudStarterOpenfeignVersion}"
-	implementation "net.coobird:thumbnailator:${thumbnailatorVersion}"
-	implementation "org.bytedeco:javacv-platform:${javacvVersion}"
-	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
-	runtimeOnly "org.postgresql:postgresql:${postgresqlVersion}"
-	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
-	testImplementation "org.springframework.boot:spring-boot-starter-security-test:${springBootVersion}"
-	testImplementation "org.springframework.boot:spring-boot-starter-webmvc-test:${springBootVersion}"
-	testImplementation "org.springframework.boot:spring-boot-starter-data-jpa-test:${springBootVersion}"
-	testImplementation platform("org.junit:junit-bom:$junitVersion")
-	testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
-	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
-	testImplementation "org.testcontainers:testcontainers-postgresql:${testContainersVersion}"
-	testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
+	implementation "org.springframework.boot:spring-boot-starter-security:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-webmvc:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-web-services:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-data-jpa:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-actuator:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-flyway:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-jackson:${libs.versions.spring.boot.get()}"
+	implementation "org.springframework.boot:spring-boot-starter-validation:${libs.versions.spring.boot.get()}"
+	developmentOnly "org.springframework.boot:spring-boot-docker-compose:${libs.versions.spring.boot.get()}"
+	implementation "io.jsonwebtoken:jjwt-api:${libs.versions.jjwt.get()}"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${libs.versions.springdoc.get()}"
+	implementation "jakarta.xml.bind:jakarta.xml.bind-api:${libs.versions.jakarta.bind.api.get()}"
+	implementation "jakarta.annotation:jakarta.annotation-api:${libs.versions.jakarta.annotation.api.get()}"
+	implementation "commons-codec:commons-codec:${libs.versions.commons.codec.get()}"
+	implementation "org.json:json:${libs.versions.json.get()}"
+	implementation "org.springframework.cloud:spring-cloud-starter-openfeign:${libs.versions.spring.cloud.openfeign.get()}"
+	implementation "net.coobird:thumbnailator:${libs.versions.thumbnailator.get()}"
+	implementation "org.bytedeco:javacv-platform:${libs.versions.javacv.get()}"
+	runtimeOnly "io.jsonwebtoken:jjwt-impl:${libs.versions.jjwt.get()}"
+	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${libs.versions.jjwt.get()}"
+	runtimeOnly "org.postgresql:postgresql:${libs.versions.postgresql.get()}"
+	testImplementation "org.springframework.boot:spring-boot-starter-test:${libs.versions.spring.boot.get()}"
+	testImplementation "org.springframework.boot:spring-boot-starter-security-test:${libs.versions.spring.boot.get()}"
+	testImplementation "org.springframework.boot:spring-boot-starter-webmvc-test:${libs.versions.spring.boot.get()}"
+	testImplementation "org.springframework.boot:spring-boot-starter-data-jpa-test:${libs.versions.spring.boot.get()}"
+	testImplementation platform("org.junit:junit-bom:${libs.versions.junit.get()}")
+	testImplementation "org.junit.jupiter:junit-jupiter:${libs.versions.junit.get()}"
+	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${libs.versions.testcontainers.get()}"
+	testImplementation "org.testcontainers:testcontainers-postgresql:${libs.versions.testcontainers.get()}"
+	testImplementation "org.mockito:mockito-junit-jupiter:${libs.versions.mockito.get()}"
 }
 
 dependencyManagement {
 	imports {
-		mavenBom "org.springframework.cloud:spring-cloud-dependencies:$springCloudVersion"
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${libs.versions.spring.cloud.bom.get()}"
 	}
 }
 

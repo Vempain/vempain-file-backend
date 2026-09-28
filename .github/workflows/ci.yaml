@@ -20,4 +20,5 @@ jobs:
     uses: Vempain/vempain-workflows/.github/workflows/spring-boot-service.yaml@main
     with:
       install_exiftool: true
-    secrets: inherit
+    secrets:
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}

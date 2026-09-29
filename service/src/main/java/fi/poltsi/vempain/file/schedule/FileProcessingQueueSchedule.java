@@ -29,6 +29,8 @@ public class FileProcessingQueueSchedule {
 	private int     batchSize;
 	@Value("${vempain.file-processing.worker-count:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}")
 	private int     workerCount;
+	@Value("${vempain.scheduling.enabled:true}")
+	private boolean schedulingEnabled = true;
 
 	private final AtomicBoolean          running = new AtomicBoolean();
 	private       ThreadPoolTaskExecutor executor;
@@ -55,7 +57,7 @@ public class FileProcessingQueueSchedule {
 
 	@Scheduled(cron = "${vempain.file-processing.cron:0 */15 * * * *}")
 	public void processQueueScheduled() {
-		if (enabled) {
+		if (schedulingEnabled && enabled) {
 			log.debug("Scheduled file processing queue triggered");
 			processQueue();
 		}

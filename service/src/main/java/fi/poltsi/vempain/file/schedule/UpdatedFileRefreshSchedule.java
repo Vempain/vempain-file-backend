@@ -55,9 +55,12 @@ public class UpdatedFileRefreshSchedule {
 	@Value("${vempain.export-file-type:jpeg}")
 	private String exportFileType;
 
+	@Value("${vempain.scheduling.enabled:true}")
+	private boolean schedulingEnabled = true;
+
 	@Scheduled(cron = "${vempain.refresh-updated-files.cron:0 */10 * * * *}")
 	public void refreshUpdatedFilesScheduled() {
-		if (!schedulerEnabled) {
+		if (!schedulingEnabled || !schedulerEnabled) {
 			return;
 		}
 		runRefresh();
@@ -229,4 +232,3 @@ public class UpdatedFileRefreshSchedule {
 		                 .toList();
 	}
 }
-

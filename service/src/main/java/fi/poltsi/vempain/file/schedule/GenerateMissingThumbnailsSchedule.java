@@ -40,6 +40,8 @@ public class GenerateMissingThumbnailsSchedule {
 	private int    thumbnailMinimumSize;
 	@Value("${vempain.generate-missing-thumbnails.video-capture-percentage:0.3}")
 	private float videoCapturePercentage;
+	@Value("${vempain.scheduling.enabled:true}")
+	private boolean schedulingEnabled = true;
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
 	@Value("${vempain.export-root-directory}")
@@ -70,7 +72,7 @@ public class GenerateMissingThumbnailsSchedule {
 
 	@Scheduled(cron = "${vempain.generate-missing-thumbnails.cron:0 0 * * * *}")
 	public void generateMissingThumbnailsScheduled() {
-		if (!schedulerEnabled) {
+		if (!schedulingEnabled || !schedulerEnabled) {
 			return;
 		}
 		generateMissingThumbnails();

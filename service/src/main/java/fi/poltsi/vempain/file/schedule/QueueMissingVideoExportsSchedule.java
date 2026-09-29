@@ -25,12 +25,14 @@ public class QueueMissingVideoExportsSchedule {
 	@Value("${vempain.queue-missing-video-exports.worker-count:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}")
 	private int     workerCount = Runtime.getRuntime()
 	                                     .availableProcessors();
+	@Value("${vempain.scheduling.enabled:true}")
+	private boolean schedulingEnabled = true;
 
 	private final AtomicBoolean running = new AtomicBoolean();
 
 	@Scheduled(cron = "${vempain.queue-missing-video-exports.cron:0 0 * * * *}")
 	public void queueMissingVideoExportsScheduled() {
-		if (!schedulerEnabled) {
+		if (!schedulingEnabled || !schedulerEnabled) {
 			return;
 		}
 

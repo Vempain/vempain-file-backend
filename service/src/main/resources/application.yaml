@@ -25,9 +25,12 @@ spring:
       ddl-auto: validate
   flyway:
     default-schema: vempain_file
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
+  shutdown: graceful
   forward-headers-strategy: native
   servlet:
     context-path: /api
@@ -46,6 +49,15 @@ management:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
   metrics:
     tags:
       application: vempain-file-backend
@@ -74,6 +86,8 @@ logging:
       poltsi: INFO
 
 vempain:
+  scheduling:
+    enabled: ${VEMPAIN_SCHEDULING_ENABLED:true}
   developer:
     name: "Paul-Erik Törrönen"
     url: "https://poltsi.fi/"

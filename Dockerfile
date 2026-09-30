@@ -1,7 +1,7 @@
 FROM eclipse-temurin:25-jre-alpine
-EXPOSE 8080
+EXPOSE 8080 8081
 
-RUN apk add exiftool ffmpeg
+RUN apk add --no-cache curl exiftool ffmpeg
 RUN mkdir /vempain_file
 RUN adduser -D -h /vempain_file/vempain -u 6666 -H vempain
 

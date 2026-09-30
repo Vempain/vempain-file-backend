@@ -258,7 +258,7 @@ class TagControllerCTC extends AbstractControllerCTC {
 		try {
 			var principal = new UserDetailsImpl(
 					1L, "admin", "Admin", "admin@nohost.nodomain", "Disabled",
-					java.util.Set.of(), java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")));
+					java.util.Set.of(), java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")));
 			mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/tags/all/rename")
 			                                                                                   .with(SecurityMockMvcRequestPostProcessors.user(principal))
 			                                                                                   .with(SecurityMockMvcRequestPostProcessors.csrf())

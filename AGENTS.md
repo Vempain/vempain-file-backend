@@ -62,6 +62,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 - JSON field names use snake_case (`@JsonNaming(SnakeCaseStrategy.class)` in DTOs)
 - Snake_case is mandatory for all API JSON contracts; never add camelCase JSON field names in DTO annotations, request/response payloads, or docs/examples.
+- Prefer Lombok annotations for applicable Java boilerplate such as constructors, accessors, builders, and logging, unless they obscure behavior or conflict
+  with framework requirements.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
   `tools.jackson` replacement available in current dependencies.
 - Test class suffix `ITC` = integration test, `UTC` = unit test
@@ -79,4 +81,3 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 See [`docs/AGENTS.md`](docs/AGENTS.md) for deep-dive on GPS/location privacy guards, the publish pipeline, Feign client integrations, and scan/metadata
 extraction flow.
-

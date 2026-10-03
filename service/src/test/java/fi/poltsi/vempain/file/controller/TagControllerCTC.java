@@ -93,6 +93,19 @@ class TagControllerCTC extends AbstractControllerCTC {
 				.andExpect(jsonPath("$.total_pages", is(2)));
 	}
 
+	@Test
+	void getAllTagsPageable_allowsAuthenticatedNonAdminUser() throws Exception {
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/tags/paged")
+																						   .with(SecurityMockMvcRequestPostProcessors.user("user")
+		                                                                                                                             .roles("USER"))
+																						   .with(SecurityMockMvcRequestPostProcessors.csrf())
+																						   .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+																						   .content("""
+																											{"page":0,"size":10,"sort_by":"tag_name","direction":"ASC"}
+																											"""))
+			   .andExpect(status().isOk());
+	}
+
 	// -----------------------------------------------------------------------
 	// GET /api/tags
 	// -----------------------------------------------------------------------

@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import fi.poltsi.vempain.file.entity.DataFileEntity;
 import fi.poltsi.vempain.file.repository.files.DataFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class DataFileService {
 
 	private final DataFileRepository repository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<DataFileResponse> findAll(PagedRequest pagedRequest) {
 		var                           safePage   = Math.max(0, pagedRequest.getPage());
 		var                           safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                           sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<DataFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<DataFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = repository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<DataFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class DataFileService {
 	@Transactional(readOnly = true)
 	public DataFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(entity -> fileResponseEnricher.<DataFileResponse>toResponse(entity))
+						 .map(entity -> {
+							 fileAclService.requireRead(entity);
+							 return fileResponseEnricher.<DataFileResponse>toResponse(entity);
+						 })
 		                 .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class DataFileService {
 			log.warn("Data file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(repository.findById(id)
+		                                       .orElseThrow());
 		repository.deleteById(id);
 		return HttpStatus.OK;
 	}

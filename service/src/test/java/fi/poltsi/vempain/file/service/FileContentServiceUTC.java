@@ -20,13 +20,14 @@ import static org.mockito.Mockito.when;
 class FileContentServiceUTC {
 
 	private final FileRepository     fileRepository = mock(FileRepository.class);
+	private final FileAclService fileAclService = mock(FileAclService.class);
 	@TempDir
 	Path tempDir;
 	private FileContentService fileContentService;
 
 	@BeforeEach
 	void setUp() {
-		fileContentService = new FileContentService(fileRepository);
+		fileContentService = new FileContentService(fileRepository, fileAclService);
 		ReflectionTestUtils.setField(fileContentService, "originalRootDirectory", tempDir.toString());
 	}
 

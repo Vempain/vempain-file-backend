@@ -19,6 +19,7 @@ import java.nio.file.Paths;
 public class FileContentService {
 
 	private final FileRepository fileRepository;
+	private final FileAclService fileAclService;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -27,6 +28,7 @@ public class FileContentService {
 		var entity = fileRepository.findById(fileId)
 		                           .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
 		                                                                          "File with id %d not found".formatted(fileId)));
+		fileAclService.requireRead(entity);
 
 		final Path rootPath;
 		try {

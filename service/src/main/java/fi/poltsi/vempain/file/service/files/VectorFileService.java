@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VectorFileResponse;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.repository.files.VectorFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class VectorFileService {
 
 	private final VectorFileRepository vectorFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<VectorFileResponse> findAll(PagedRequest pagedRequest) {
 		var                             safePage   = Math.max(0, pagedRequest.getPage());
 		var                             safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                             sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<VectorFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<VectorFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                             pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                             pageResult = vectorFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<VectorFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class VectorFileService {
 	@Transactional(readOnly = true)
 	public VectorFileResponse findById(long id) {
 		var entityOpt = vectorFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<VectorFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<VectorFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class VectorFileService {
 			log.warn("Vector file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(vectorFileRepository.findById(id)
+		                                                 .orElseThrow());
 		vectorFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

@@ -21,10 +21,12 @@ class FileGroupServiceUTC {
 	private FileRepository       fileRepository;
 	@Mock
 	private FileResponseEnricher fileResponseEnricher;
+	@Mock
+	private FileAclService fileAclService;
 
 	@Test
 	void getByIdNotFound() {
-		var service = new FileGroupService(fileGroupRepository, fileRepository, fileResponseEnricher);
+		var service = new FileGroupService(fileGroupRepository, fileRepository, fileResponseEnricher, fileAclService);
 		when(fileGroupRepository.findById(999L)).thenReturn(Optional.empty());
 
 		assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> service.getById(999L));

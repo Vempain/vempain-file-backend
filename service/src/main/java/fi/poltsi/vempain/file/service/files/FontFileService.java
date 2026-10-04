@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
 import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.repository.files.FontFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class FontFileService {
 
 	private final FontFileRepository fontFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FontFileResponse> findAll(PagedRequest pagedRequest) {
 		var                           safePage   = Math.max(0, pagedRequest.getPage());
 		var                           safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                           sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<FontFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<FontFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                           pageResult = fontFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<FontFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class FontFileService {
 	@Transactional(readOnly = true)
 	public FontFileResponse findById(long id) {
 		var entityOpt = fontFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<FontFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<FontFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class FontFileService {
 			log.warn("Font file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(fontFileRepository.findById(id)
+		                                               .orElseThrow());
 		fontFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

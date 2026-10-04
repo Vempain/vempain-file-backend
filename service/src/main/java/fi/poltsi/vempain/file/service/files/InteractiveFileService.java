@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.InteractiveFileResponse;
 import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.repository.files.InteractiveFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class InteractiveFileService {
 
 	private final InteractiveFileRepository repository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<InteractiveFileResponse> findAll(PagedRequest pagedRequest) {
 		var                                  safePage   = Math.max(0, pagedRequest.getPage());
 		var                                  safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                                  sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<InteractiveFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<InteractiveFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                                  pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                                  pageResult = repository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<InteractiveFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class InteractiveFileService {
 	@Transactional(readOnly = true)
 	public InteractiveFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(entity -> fileResponseEnricher.<InteractiveFileResponse>toResponse(entity))
+						 .map(entity -> {
+							 fileAclService.requireRead(entity);
+							 return fileResponseEnricher.<InteractiveFileResponse>toResponse(entity);
+						 })
 		                 .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class InteractiveFileService {
 			log.warn("Interactive file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(repository.findById(id)
+		                                       .orElseThrow());
 		repository.deleteById(id);
 		return HttpStatus.OK;
 	}

@@ -64,6 +64,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Snake_case is mandatory for all API JSON contracts; never add camelCase JSON field names in DTO annotations, request/response payloads, or docs/examples.
 - Prefer Lombok annotations for applicable Java boilerplate such as constructors, accessors, builders, and logging, unless they obscure behavior or conflict
   with framework requirements.
+- Vempain authorization is resource-based ACL authorization, not role-based access control. Resources extending `AbstractVempainEntity` carry an `acl_id`;
+  use `AclAuthorizationService` to require the matching user/unit ACL privilege for read, create, modify, or delete operations. Keep only endpoint
+  authentication in the local `WebSecurityConfig`, and enforce resource permissions at the controller/service boundary. Do not use `hasRole`,
+  `ROLE_*`, or administrator-only route matchers.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
   `tools.jackson` replacement available in current dependencies.
 - Test class suffix `ITC` = integration test, `UTC` = unit test

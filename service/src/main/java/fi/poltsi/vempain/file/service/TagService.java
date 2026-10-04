@@ -47,6 +47,7 @@ public class TagService {
 	private final ThumbFileRepository        thumbFileRepository;
 	private final DirectoryProcessorService  directoryProcessorService;
 	private final ThumbnailGenerationService thumbnailGenerationService;
+	private final FileAclService fileAclService;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -101,7 +102,7 @@ public class TagService {
 			return cb.equal(root.join("tags")
 			                    .get("id"), tagId);
 		};
-		var result = fileRepository.findAll(searchSpec == null ? tagSpec : tagSpec.and(searchSpec),
+		var result = fileRepository.findAll(fileAclService.readableFiles(searchSpec == null ? tagSpec : tagSpec.and(searchSpec)),
 											PageRequest.of(page, size, sort));
 		var content = fileResponseEnricher.<FileResponse>toResponses(result.getContent());
 		return PagedResponse.of(content, result.getNumber(), result.getSize(), result.getTotalElements(),
@@ -122,6 +123,7 @@ public class TagService {
 		tagRepository.lockTagMutations();
 		var tag = tagRepository.findById(requestDTO.getId())
 							   .orElseThrow(() -> new IllegalArgumentException("Tag not found"));
+		requireModify(tag.getFiles());
 		tag.setTagName(requestDTO.getTagName());
 		tag.setTagNameDe(requestDTO.getTagNameDe());
 		tag.setTagNameEn(requestDTO.getTagNameEn());
@@ -132,6 +134,10 @@ public class TagService {
 	}
 
 	public void deleteTag(Long id) {
+		tagRepository.findById(id)
+		             .ifPresent(tag -> {
+						 requireModify(tag.getFiles());
+					 });
 		tagRepository.deleteById(id);
 	}
 
@@ -146,6 +152,7 @@ public class TagService {
 
 	@Transactional
 	public void addTag(TagOperationRequest request) {
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(request.getFileIds())));
 		var tag = findOrCreateTag(request.getTagName());
 		tag.setTagNameDe(request.getTagNameDe());
 		tag.setTagNameEn(request.getTagNameEn());
@@ -159,6 +166,7 @@ public class TagService {
 	@Transactional
 	public void removeTag(TagOperationRequest request, boolean all) {
 		var files = all ? filesForTag(request.getTagName()) : request.getFileIds();
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
 		mutate(request, files, Operation.REMOVE);
 		deleteTagIfUnused(request.getTagName());
 	}
@@ -168,6 +176,7 @@ public class TagService {
 		requireReplacement(request);
 		requireExistingTag(request.getReplacementTagName());
 		var files = all ? filesForTag(request.getTagName()) : request.getFileIds();
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
 		mutate(request, files, Operation.REPLACE);
 		deleteTagIfUnused(request.getTagName());
 	}
@@ -191,6 +200,7 @@ public class TagService {
 		                                   .distinct()
 		                                   .toList()
 		                : request.getFileIds();
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
 		tag.setTagName(request.getReplacementTagName());
 		tag.setTagNameDe(request.getTagNameDe());
 		tag.setTagNameEn(request.getTagNameEn());
@@ -210,6 +220,7 @@ public class TagService {
 				if (!Files.isRegularFile(original.toPath())) {
 					throw new IOException("Original file does not exist: " + original);
 				}
+
 				var metadata = MetadataTool.extractMetadataJsonObject(original);
 				var subjects = new ArrayList<>(MetadataTool.extractSubjects(metadata));
 				if (operation == Operation.ADD && !subjects.contains(oldTag)) {
@@ -243,6 +254,12 @@ public class TagService {
 			} catch (IOException | VempainAuthenticationException e) {
 				throw new IllegalStateException("Failed to update tags for file " + file.getId(), e);
 			}
+		}
+	}
+
+	private void requireModify(Iterable<FileEntity> files) {
+		for (var file : files) {
+			fileAclService.requireModify(file);
 		}
 	}
 

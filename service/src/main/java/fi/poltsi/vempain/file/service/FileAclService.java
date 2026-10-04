@@ -5,6 +5,9 @@ import fi.poltsi.vempain.auth.entity.Unit;
 import fi.poltsi.vempain.auth.repository.AclRepository;
 import fi.poltsi.vempain.auth.security.AclAuthorizationService;
 import fi.poltsi.vempain.file.entity.FileEntity;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,15 +25,28 @@ public class FileAclService {
 	private final AclAuthorizationService aclAuthorizationService;
 
 	public <T extends FileEntity> Specification<T> readableFiles() {
-		var aclIds = accessibleAclIds(AclAuthorizationService.AclPrivilege.READ);
+		var access = currentAclAccess();
 		return (root, query, criteriaBuilder) ->
 		{
 			var declaredAclIds = query.subquery(Long.class);
-			var aclRoot = declaredAclIds.from(Acl.class);
-			declaredAclIds.select(aclRoot.get("aclId"));
-			return criteriaBuilder.or(criteriaBuilder.lessThanOrEqualTo(root.get("aclId"), 0L),
-			                          criteriaBuilder.not(root.get("aclId").in(declaredAclIds)),
-			                          aclIds.isEmpty() ? criteriaBuilder.disjunction() : root.get("aclId").in(aclIds));
+			var declaredAclRoot = declaredAclIds.from(Acl.class);
+			declaredAclIds.select(declaredAclRoot.get("aclId"));
+			declaredAclIds.where(criteriaBuilder.equal(declaredAclRoot.get("aclId"), root.get("aclId")));
+
+			var accessibleAclIds  = query.subquery(Long.class);
+			var accessibleAclRoot = accessibleAclIds.from(Acl.class);
+			accessibleAclIds.select(accessibleAclRoot.get("aclId"));
+			accessibleAclIds.where(
+					criteriaBuilder.equal(accessibleAclRoot.get("aclId"), root.get("aclId")),
+					criteriaBuilder.isTrue(accessibleAclRoot.get("readPrivilege")),
+					accessiblePrincipalPredicate(accessibleAclRoot, access, criteriaBuilder)
+			);
+
+			return criteriaBuilder.or(
+					criteriaBuilder.lessThanOrEqualTo(root.get("aclId"), 0L),
+					criteriaBuilder.not(criteriaBuilder.exists(declaredAclIds)),
+					criteriaBuilder.exists(accessibleAclIds)
+			);
 		};
 	}
 
@@ -67,30 +83,39 @@ public class FileAclService {
 		return aclId > 0 && !aclRepository.getAclByAclId(aclId).isEmpty();
 	}
 
-	private Set<Long> accessibleAclIds(AclAuthorizationService.AclPrivilege privilege) {
+	private Predicate accessiblePrincipalPredicate(Root<Acl> aclRoot,
+												   AclAccess access,
+												   CriteriaBuilder criteriaBuilder) {
+		var predicates = new java.util.ArrayList<Predicate>();
+		if (access.userId() != null) {
+			predicates.add(criteriaBuilder.equal(aclRoot.get("userId"), access.userId()));
+		}
+		if (!access.unitIds()
+		           .isEmpty()) {
+			predicates.add(criteriaBuilder.and(
+					criteriaBuilder.isNull(aclRoot.get("userId")),
+					aclRoot.get("unitId")
+					       .in(access.unitIds())
+			));
+		}
+		return predicates.isEmpty()
+			   ? criteriaBuilder.disjunction()
+			   : criteriaBuilder.or(predicates.toArray(Predicate[]::new));
+	}
+
+	private AclAccess currentAclAccess() {
 		var authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication == null || !authentication.isAuthenticated()
 				|| !(authentication.getPrincipal() instanceof fi.poltsi.vempain.auth.service.UserDetailsImpl user)) {
-			return Set.of();
+			return new AclAccess(null, Set.of());
 		}
 
 		var unitIds = user.getUnits() == null
 				? Set.<Long>of()
 				: user.getUnits().stream().map(Unit::getId).filter(Objects::nonNull).collect(Collectors.toSet());
-		return aclRepository.findAll().stream()
-		                    .filter(acl -> Objects.equals(acl.getUserId(), user.getId())
-				                    || (acl.getUserId() == null && acl.getUnitId() != null && unitIds.contains(acl.getUnitId())))
-		                    .filter(acl -> hasPrivilege(acl, privilege))
-		                    .map(Acl::getAclId)
-		                    .collect(Collectors.toSet());
+		return new AclAccess(user.getId(), unitIds);
 	}
 
-	private boolean hasPrivilege(Acl acl, AclAuthorizationService.AclPrivilege privilege) {
-		return switch (privilege) {
-			case READ -> acl.isReadPrivilege();
-			case CREATE -> acl.isCreatePrivilege();
-			case MODIFY -> acl.isModifyPrivilege();
-			case DELETE -> acl.isDeletePrivilege();
-		};
+	private record AclAccess(Long userId, Set<Long> unitIds) {
 	}
 }

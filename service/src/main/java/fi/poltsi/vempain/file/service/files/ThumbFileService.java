@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ThumbFileResponse;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class ThumbFileService {
 
 	private final ThumbFileRepository repository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ThumbFileResponse> findAll(PagedRequest pagedRequest) {
 		var                            safePage   = Math.max(0, pagedRequest.getPage());
 		var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
 		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<ThumbFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<ThumbFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = repository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<ThumbFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class ThumbFileService {
 	@Transactional(readOnly = true)
 	public ThumbFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(entity -> fileResponseEnricher.<ThumbFileResponse>toResponse(entity))
+						 .map(entity -> {
+							 fileAclService.requireRead(entity);
+							 return fileResponseEnricher.<ThumbFileResponse>toResponse(entity);
+						 })
 		                 .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class ThumbFileService {
 			log.warn("Thumb file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(repository.findById(id)
+		                                       .orElseThrow());
 		repository.deleteById(id);
 		return HttpStatus.OK;
 	}

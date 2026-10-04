@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.files.VideoFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class VideoFileService {
 
 	private final VideoFileRepository videoFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<VideoFileResponse> findAll(PagedRequest pagedRequest) {
 		var                            safePage   = Math.max(0, pagedRequest.getPage());
 		var                            safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<VideoFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<VideoFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = videoFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<VideoFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class VideoFileService {
 	@Transactional(readOnly = true)
 	public VideoFileResponse findById(long id) {
 		var entityOpt = videoFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<VideoFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<VideoFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 
 	}
@@ -55,6 +61,8 @@ public class VideoFileService {
 			log.warn("Video file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(videoFileRepository.findById(id)
+		                                                .orElseThrow());
 		videoFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

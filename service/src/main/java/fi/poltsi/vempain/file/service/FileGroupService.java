@@ -30,6 +30,7 @@ public class FileGroupService {
 	private final FileGroupRepository fileGroupRepository;
 	private final FileRepository fileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<FileGroupListResponse> getAll(PagedRequest pagedRequest) {
@@ -74,6 +75,11 @@ public class FileGroupService {
 		FileGroupEntity entity = fileGroupRepository.findById(id)
 		                                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
 		var response = entity.toResponse();
+		response.setFiles(entity.getFiles()
+		                        .stream()
+								.filter(fileAclService::canRead)
+								.map(file -> file.toResponse(false))
+								.toList());
 		fileResponseEnricher.enrichAll(response.getFiles());
 		return response;
 	}
@@ -86,10 +92,16 @@ public class FileGroupService {
 		fileGroupEntity.setDescription(request.getDescription());
 		if (request.getFileIds() != null) {
 			List<FileEntity> files = fileRepository.findAllById(request.getFileIds());
+			requireModify(files);
 			fileGroupEntity.replaceFiles(files);                 // mutate managed collection + inverse
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
 		var response = saved.toResponse();
+		response.setFiles(saved.getFiles()
+		                       .stream()
+							   .filter(fileAclService::canRead)
+							   .map(file -> file.toResponse(false))
+							   .toList());
 		fileResponseEnricher.enrichAll(response.getFiles());
 		return response;
 	}
@@ -104,6 +116,7 @@ public class FileGroupService {
 
 		if (fileGroupRequest.getFileIds() != null) {
 			List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
+			requireModify(newFiles);
 
 			// Enforce: a file must always belong to at least one group
 			var current = new ArrayList<>(fileGroupEntity.getFiles());
@@ -121,7 +134,16 @@ public class FileGroupService {
 		}
 		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
 		var response = saved.toResponse();
+		response.setFiles(saved.getFiles()
+		                       .stream()
+							   .filter(fileAclService::canRead)
+							   .map(file -> file.toResponse(false))
+							   .toList());
 		fileResponseEnricher.enrichAll(response.getFiles());
 		return response;
+	}
+
+	private void requireModify(List<FileEntity> files) {
+		files.forEach(fileAclService::requireModify);
 	}
 }

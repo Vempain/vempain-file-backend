@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.BinaryFileResponse;
 import fi.poltsi.vempain.file.entity.BinaryFileEntity;
 import fi.poltsi.vempain.file.repository.files.BinaryFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class BinaryFileService {
 
 	private final BinaryFileRepository repository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<BinaryFileResponse> findAll(PagedRequest pagedRequest) {
 		var                             safePage   = Math.max(0, pagedRequest.getPage());
 		var                             safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                             sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<BinaryFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<BinaryFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                             pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                             pageResult = repository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<BinaryFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class BinaryFileService {
 	@Transactional(readOnly = true)
 	public BinaryFileResponse findById(long id) {
 		return repository.findById(id)
-		                 .map(entity -> fileResponseEnricher.<BinaryFileResponse>toResponse(entity))
+						 .map(entity -> {
+							 fileAclService.requireRead(entity);
+							 return fileResponseEnricher.<BinaryFileResponse>toResponse(entity);
+						 })
 		                 .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class BinaryFileService {
 			log.warn("Binary file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(repository.findById(id)
+		                                       .orElseThrow());
 		repository.deleteById(id);
 		return HttpStatus.OK;
 	}

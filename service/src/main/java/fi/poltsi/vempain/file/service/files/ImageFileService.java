@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ImageFileResponse;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.files.ImageFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class ImageFileService {
 
 	private final ImageFileRepository imageFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ImageFileResponse> findAll(PagedRequest pagedRequest) {
 		var                            safePage   = Math.max(0, pagedRequest.getPage());
 		var safeSize   = Math.clamp(pagedRequest.getSize(), 1, 200);
 		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<ImageFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<ImageFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var pageable = PageRequest.of(safePage, safeSize, sort);
 		var pageResult = imageFileRepository.findAllWithRelationships(spec, pageable);
 		var content = fileResponseEnricher.<ImageFileResponse>toResponses(pageResult.getContent());
@@ -46,7 +49,10 @@ public class ImageFileService {
 	@Transactional(readOnly = true)
 	public ImageFileResponse findById(long id) {
 		var entityOpt = imageFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<ImageFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<ImageFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -55,6 +61,8 @@ public class ImageFileService {
 			log.warn("Image file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(imageFileRepository.findById(id)
+		                                                .orElseThrow());
 		imageFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

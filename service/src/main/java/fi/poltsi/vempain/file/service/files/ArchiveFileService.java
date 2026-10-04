@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ArchiveFileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.repository.files.ArchiveFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class ArchiveFileService {
 
 	private final ArchiveFileRepository archiveFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<ArchiveFileResponse> findAll(PagedRequest pagedRequest) {
 		var                              safePage   = Math.max(0, pagedRequest.getPage());
 		var                              safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                              sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<ArchiveFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<ArchiveFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                              pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                              pageResult = archiveFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<ArchiveFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class ArchiveFileService {
 	@Transactional(readOnly = true)
 	public ArchiveFileResponse findById(long id) {
 		var entityOpt = archiveFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<ArchiveFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<ArchiveFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class ArchiveFileService {
 			log.warn("Archive file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(archiveFileRepository.findById(id)
+		                                                  .orElseThrow());
 		archiveFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

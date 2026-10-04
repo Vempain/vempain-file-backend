@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.DocumentFileResponse;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.repository.DocumentFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,15 @@ public class DocumentFileService {
 
 	private final DocumentFileRepository documentFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<DocumentFileResponse> findAll(PagedRequest pagedRequest) {
 		var                               safePage   = Math.max(0, pagedRequest.getPage());
 		var                               safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                               sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<DocumentFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<DocumentFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                               pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                               pageResult = documentFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<DocumentFileResponse>toResponses(pageResult.getContent());
@@ -45,7 +48,10 @@ public class DocumentFileService {
 	@Transactional(readOnly = true)
 	public DocumentFileResponse findById(long id) {
 		var entityOpt = documentFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<DocumentFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<DocumentFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -54,6 +60,8 @@ public class DocumentFileService {
 			log.warn("Document file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(documentFileRepository.findById(id)
+		                                                   .orElseThrow());
 		documentFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.MusicFileResponse;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.repository.files.MusicFileRepository;
+import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,13 +24,15 @@ public class MusicFileService {
 
 	private final MusicFileRepository musicFileRepository;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final FileAclService fileAclService;
 
 	@Transactional(readOnly = true)
 	public PagedResponse<MusicFileResponse> findAll(PagedRequest pagedRequest) {
 		var                            safePage   = Math.max(0, pagedRequest.getPage());
 		var                            safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
 		var                            sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<MusicFileEntity> spec       = FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()));
+		Specification<MusicFileEntity> spec = fileAclService.readableFiles(
+				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
 		var                            pageable   = PageRequest.of(safePage, safeSize, sort);
 		var                            pageResult = musicFileRepository.findAll(spec, pageable);
 		var content = fileResponseEnricher.<MusicFileResponse>toResponses(pageResult.getContent());
@@ -47,7 +50,10 @@ public class MusicFileService {
 	@Transactional(readOnly = true)
 	public MusicFileResponse findById(long id) {
 		var entityOpt = musicFileRepository.findById(id);
-		return entityOpt.map(entity -> fileResponseEnricher.<MusicFileResponse>toResponse(entity))
+		return entityOpt.map(entity -> {
+							fileAclService.requireRead(entity);
+							return fileResponseEnricher.<MusicFileResponse>toResponse(entity);
+						})
 		                .orElse(null);
 	}
 
@@ -56,6 +62,8 @@ public class MusicFileService {
 			log.warn("Music file with id {} not found", id);
 			return HttpStatus.NOT_FOUND;
 		}
+		fileAclService.requireDelete(musicFileRepository.findById(id)
+		                                                .orElseThrow());
 		musicFileRepository.deleteById(id);
 		return HttpStatus.OK;
 	}

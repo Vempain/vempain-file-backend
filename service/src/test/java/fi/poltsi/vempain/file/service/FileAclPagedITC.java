@@ -91,7 +91,8 @@ class FileAclPagedITC {
 
 	@Test
 	void pagedQuery_handlesMoreAclRowsThanPostgresParameterLimit() {
-		var response = imageFileService.findAll(new fi.poltsi.vempain.auth.api.request.PagedRequest(0, 10, "filename", null, null, false));
+		var request  = new fi.poltsi.vempain.auth.api.request.PagedRequest(0, 10, "filename", null, "acl-scale.jpg", false);
+		var response = imageFileService.findAll(request);
 
 		assertThat(response.getTotalElements()).isEqualTo(1);
 		assertThat(response.getContent()).hasSize(1);

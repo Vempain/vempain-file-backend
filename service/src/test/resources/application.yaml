@@ -19,6 +19,8 @@ vempain:
   export-file-type: jpeg
   refresh-updated-files:
     enabled: false
+  acl-repair:
+    enabled: false
   generate-missing-thumbnails:
     enabled: false
     video-capture-percentage: 0.3

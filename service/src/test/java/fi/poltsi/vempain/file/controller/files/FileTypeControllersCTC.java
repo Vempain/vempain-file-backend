@@ -185,7 +185,7 @@ class FileTypeControllersCTC extends AbstractControllerCTC {
 					.andExpect(status().isOk());
 		} finally {
 			// cleanup in case delete did not succeed
-			jdbcTemplate.update("DELETE FROM files WHERE id = 9001");
+			deleteFileRow(9001L);
 		}
 	}
 

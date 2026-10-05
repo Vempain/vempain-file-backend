@@ -117,6 +117,9 @@ vempain:
   refresh-updated-files:
     enabled: true
     cron: "0 0 * * * *"
+  acl-repair:
+    enabled: true
+    cron: "0 30 3 * * *"
   generate-missing-thumbnails:
     batch-size: 1000
     worker-count: ${VEMPAIN_THUMBNAIL_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}

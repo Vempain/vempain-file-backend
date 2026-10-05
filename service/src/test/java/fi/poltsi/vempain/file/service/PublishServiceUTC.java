@@ -5,6 +5,7 @@ import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
@@ -58,6 +59,8 @@ class PublishServiceUTC {
 	private TagService                tagService;
 	@Mock
 	private LocationService           locationService;
+	@Mock
+	private FileAclService fileAclService;
 	@Mock
 	private VempainAdminTokenProvider vempainAdminTokenProvider;
 	@Mock
@@ -249,7 +252,16 @@ class PublishServiceUTC {
 		@Test
 		void publishAllFileGroupsSchedulesEveryPage() {
 			var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+			var group = FileGroupEntity.builder()
+									   .id(7L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(70L)
+																				 .aclId(70L)
+																				 .build()))
+									   .build();
 			when(fileGroupRepository.count()).thenReturn(1L);
+			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
+			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
 			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
 					.thenReturn(new PageImpl<>(List.of(projection)));
 			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
@@ -261,6 +273,56 @@ class PublishServiceUTC {
 			                   .markScheduled(7L);
 			org.mockito.Mockito.verify(progressStore)
 			                   .markStarted(7L);
+		}
+
+		@Test
+		void publishAllFileGroupsSkipsGroupsTheUserCannotModify() {
+			var projection = new FileGroupSummaryRow(8L, "/private", "Private", "Not mine", 1, null);
+			var group = FileGroupEntity.builder()
+									   .id(8L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(80L)
+																				 .aclId(80L)
+																				 .build()))
+									   .build();
+			when(fileGroupRepository.count()).thenReturn(1L);
+			when(fileGroupRepository.findById(8L)).thenReturn(Optional.of(group));
+			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(false);
+			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
+					.thenReturn(new PageImpl<>(List.of(projection)));
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			assertThat(publishService.publishAllFileGroups()).isZero();
+			org.mockito.Mockito.verify(progressStore, org.mockito.Mockito.never())
+							   .markScheduled(8L);
+		}
+
+		@Test
+		void authorizeFileGroupPublishRequiresModifyOnEveryFile() {
+			var files = List.<fi.poltsi.vempain.file.entity.FileEntity>of(ImageFileEntity.builder()
+																						 .id(90L)
+																						 .aclId(90L)
+																						 .build());
+			var group = FileGroupEntity.builder()
+									   .id(9L)
+									   .files(files)
+									   .build();
+			when(fileGroupRepository.findById(9L)).thenReturn(Optional.of(group));
+			org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("denied"))
+							   .when(fileAclService)
+							   .requireModify(files);
+
+			org.junit.jupiter.api.Assertions.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+														  () -> publishService.authorizeFileGroupPublish(9L));
+		}
+
+		@Test
+		void authorizeFileGroupPublishIgnoresMissingGroups() {
+			when(fileGroupRepository.findById(404L)).thenReturn(Optional.empty());
+
+			publishService.authorizeFileGroupPublish(404L);
+
+			org.mockito.Mockito.verifyNoInteractions(fileAclService);
 		}
 	}
 }

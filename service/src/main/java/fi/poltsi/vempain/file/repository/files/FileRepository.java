@@ -15,6 +15,13 @@ import java.util.Optional;
 public interface FileRepository extends JpaRepository<FileEntity, Long>, JpaSpecificationExecutor<FileEntity> {
 	Optional<FileEntity> findByFilePathAndFilename(String filePath, String filename);
 
+	/**
+	 * Files whose ACL link is unusable: either no acl_id has been assigned (0 or negative) or the acl table has no rows for the id.
+	 * Such files are denied for everyone until {@code FileAclRepairSchedule} re-creates an ACL for the creator.
+	 */
+	@Query("SELECT f FROM FileEntity f WHERE f.aclId <= 0 OR NOT EXISTS (SELECT a.id FROM Acl a WHERE a.aclId = f.aclId)")
+	List<FileEntity> findFilesWithoutAcl();
+
 	FileEntity findByOriginalDocumentId(String originalDocumentId);
 
 	@Query("""

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.UUID;
@@ -45,6 +46,11 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
 	public ProblemDetail handleInvalidRequest(Exception ex) {
 		return problem(HttpStatus.BAD_REQUEST, "The request was invalid", ex);
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
+		return problem(HttpStatus.NOT_FOUND, "The requested resource was not found", ex);
 	}
 
 	@ExceptionHandler(Exception.class)

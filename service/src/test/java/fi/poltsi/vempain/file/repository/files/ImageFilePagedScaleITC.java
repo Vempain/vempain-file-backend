@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.repository.files;
 
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.auth.service.UserDetailsImpl;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.service.files.ImageFileService;
 import jakarta.persistence.EntityManagerFactory;
@@ -16,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -132,10 +135,20 @@ class ImageFilePagedScaleITC {
 						return IMAGE_COUNT * 2;
 					}
 				});
+		// Files are ACL protected (fail closed): grant user 1 read access to every seeded file and run as that user
+		jdbcTemplate.update(
+				"INSERT INTO acl (acl_id, user_id, unit_id, create_privilege, read_privilege, modify_privilege, delete_privilege) " +
+				"SELECT acl_id, 1, NULL, true, true, true, true FROM files WHERE id BETWEEN ? AND ?",
+				FIRST_ID, FIRST_ID + IMAGE_COUNT - 1);
+		var principal = new UserDetailsImpl(1L, "admin", "Admin", "admin@nohost.nodomain", "password", java.util.Set.of(), java.util.List.of());
+		SecurityContextHolder.getContext()
+							 .setAuthentication(new UsernamePasswordAuthenticationToken(principal, principal.getPassword(), principal.getAuthorities()));
 	}
 
 	@AfterEach
 	void cleanup() {
+		SecurityContextHolder.clearContext();
+		jdbcTemplate.update("DELETE FROM acl WHERE acl_id BETWEEN ? AND ?", FIRST_ID, FIRST_ID + IMAGE_COUNT - 1);
 		jdbcTemplate.update("DELETE FROM files WHERE id BETWEEN ? AND ?", FIRST_ID, FIRST_ID + IMAGE_COUNT - 1);
 		jdbcTemplate.update("DELETE FROM tags WHERE tag_name IN (?, ?)", TAG_A, TAG_B);
 	}

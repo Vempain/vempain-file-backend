@@ -2,7 +2,8 @@
 
 ## Architecture
 
-Two-module Gradle project (Java 25, Spring Boot 4.0.5):
+Two-module Gradle project. Java and Spring Boot versions are pinned in `gradle/libs.versions.toml` (`java`, `spring-boot`) and must stay aligned with the other
+Vempain backends:
 
 | Module     | Purpose                                                                             |
 |------------|-------------------------------------------------------------------------------------|
@@ -60,17 +61,34 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 ## Key Conventions
 
-- JSON field names use snake_case (`@JsonNaming(SnakeCaseStrategy.class)` in DTOs)
+- JSON field names use snake_case (`@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)` from `tools.jackson.databind` on DTOs)
 - Snake_case is mandatory for all API JSON contracts; never add camelCase JSON field names in DTO annotations, request/response payloads, or docs/examples.
 - Prefer Lombok annotations for applicable Java boilerplate such as constructors, accessors, builders, and logging, unless they obscure behavior or conflict
   with framework requirements.
-- Vempain authorization is resource-based ACL authorization, not role-based access control. Resources extending `AbstractVempainEntity` carry an `acl_id`;
-  use `AclAuthorizationService` to require the matching user/unit ACL privilege for read, create, modify, or delete operations. Keep only endpoint
-  authentication in the local `WebSecurityConfig`, and enforce resource permissions at the controller/service boundary. Do not use `hasRole`,
-  `ROLE_*`, or administrator-only route matchers.
+- Vempain authorization is resource-based ACL authorization, not role-based access control. `FileEntity` (all 14 typed files) is the only
+  ACL-linked resource here: it extends `AbstractVempainEntity` and carries an `acl_id`. Tags, file groups, locations, location guards,
+  metadata, export files, queues and checkpoints have no ACL and must never be ACL-checked; checks on tag operations apply to the *files*
+  being tagged, not to the tag.
+- All file authorization goes through `FileAclService` (built on `AclAuthorizationService` from `vempain-auth`): `readableFiles()` is the
+  JPA Specification every paged listing must include, `requireRead/Modify/Delete` guard single-file endpoints and content download, and
+  `requireModify(files)`/`canModifyAll(files)` guard file-group publishing. Keep only endpoint authentication in `WebSecurityConfig`; do not
+  use `hasRole`, `ROLE_*` or administrator-only route matchers.
+- Authorization fails closed: a file whose `acl_id` is not positive or whose ACL rows are missing is denied for everyone. Never add a
+  "no ACL means public" shortcut or a test-mode bypass. `FileAclRepairSchedule` (`vempain.acl-repair.*`, daily) creates a new ACL with all
+  privileges for the file's `creator` and links it to such files.
+- Deliberately **not** ACL-filtered, because they are system-wide operations rather than per-resource reads: directory scanning (`DirectoryProcessorService`),
+  data-set generation for the site (`DataService` music and GPS time series, `MusicFileService.findAllOrdered`),
+  `StatisticsService` counts, the refresh/thumbnail/video schedules, and the admin-side republish of already published files. Do not add
+  per-file ACL checks to these paths; they do require an authenticated caller like every other endpoint.
+- Publishing a file group (`POST /api/publish/file-group`) requires the modify privilege on every file of the group, checked synchronously
+  in `PublishService.authorizeFileGroupPublish` before the asynchronous publish starts (the async thread has no security context);
+  `publishAllFileGroups` skips groups the caller cannot fully modify.
+- ACL behaviour is covered by `FileAclServiceITC`, `FileAclControllerCTC`, `FileAclPagedITC` and `FileAclRepairScheduleUTC`; keep positive and
+  negative cases for every new ACL-dependent path and keep `FileAclService` at 95%+ line coverage.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
   `tools.jackson` replacement available in current dependencies.
-- Test class suffix `ITC` = integration test, `UTC` = unit test
+- Test suffixes are meaningful and shared across the Vempain Java repos: `UTC` = unit test (Mockito), `CTC` = controller test (`AbstractControllerCTC`
+    + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`)
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts

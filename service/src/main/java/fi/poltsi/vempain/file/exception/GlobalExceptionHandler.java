@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -21,6 +22,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@link EntityNotFoundException} → 404 Not Found</li>
  *   <li>{@link IllegalArgumentException} → 400 Bad Request</li>
+ *   <li>{@link AccessDeniedException} → 403 Forbidden (ACL check failed)</li>
  * </ul>
  */
 @Slf4j
@@ -51,6 +53,11 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(NoResourceFoundException.class)
 	public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
 		return problem(HttpStatus.NOT_FOUND, "The requested resource was not found", ex);
+	}
+
+	@ExceptionHandler(AccessDeniedException.class)
+	public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
+		return problem(HttpStatus.FORBIDDEN, "Access to the resource was denied", ex);
 	}
 
 	@ExceptionHandler(Exception.class)

@@ -23,6 +23,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,7 @@ public class PublishService {
 	private final VempainAdminService vempainAdminService;
 	private final TagService          tagService;
 	private final LocationService     locationService;
+	private final FileAclService fileAclService;
 
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
 	private final ImageTool            imageTool;
@@ -60,6 +62,25 @@ public class PublishService {
 
 	@Value("${vempain.export-file-type}")
 	private String exportFileType;
+
+	/**
+	 * Publishing a file group sends every file of the group to the admin backend, so the caller must hold the modify privilege on
+	 * every file in the group. This runs synchronously in the caller's security context because {@link #publishFileGroup} is
+	 * asynchronous and has no authenticated principal.
+	 *
+	 * @throws AccessDeniedException when at least one file of the group is not modifiable by the current user
+	 */
+	@Transactional(readOnly = true)
+	public void authorizeFileGroupPublish(long fileGroupId) {
+		var optionalGroup = fileGroupRepository.findById(fileGroupId);
+
+		if (optionalGroup.isEmpty()) {
+			return;
+		}
+
+		fileAclService.requireModify(optionalGroup.get()
+												  .getFiles());
+	}
 
 	@Async
 	@Transactional
@@ -357,6 +378,8 @@ public class PublishService {
 	 * Triggers asynchronous publishing for all file groups. Returns the number of groups scheduled.
 	 * Uses pagination to avoid loading all groups into memory at once.
 	 */
+	// Read-only transaction so that the lazily loaded file collections can be checked against the caller's ACL privileges
+	@Transactional(readOnly = true)
 	public long publishAllFileGroups() {
 		int  page           = 0;
 		int  size           = 50; // page size
@@ -377,6 +400,14 @@ public class PublishService {
 
 			for (var projection : pg.getContent()) {
 				var groupId = projection.id();
+				var group   = fileGroupRepository.findById(groupId);
+
+				if (group.isEmpty() || !fileAclService.canModifyAll(group.get()
+																		 .getFiles())) {
+					log.warn("Skipping publish for file group {} because the user lacks modify permission on all of its files", groupId);
+					continue;
+				}
+
 				var req = PublishFileGroupRequest.builder()
 				                                 .fileGroupId(groupId)
 				                                 .galleryName(projection.groupName())

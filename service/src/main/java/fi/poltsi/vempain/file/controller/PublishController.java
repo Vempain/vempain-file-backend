@@ -27,6 +27,7 @@ public class PublishController implements PublishAPI {
 			                     .build();
 		}
 
+		publishService.authorizeFileGroupPublish(request.getFileGroupId());
 		publishService.publishFileGroup(request);
 		return ResponseEntity.accepted()
 		                     .body(new PublishFileGroupResponse(count));

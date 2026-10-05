@@ -83,6 +83,8 @@ dependencies {
 	testImplementation "org.testcontainers:testcontainers-junit-jupiter:${libs.versions.testcontainers.get()}"
 	testImplementation "org.testcontainers:testcontainers-postgresql:${libs.versions.testcontainers.get()}"
 	testImplementation "org.mockito:mockito-junit-jupiter:${libs.versions.mockito.get()}"
+	// Gradle 9 no longer injects the JUnit Platform launcher; it must be on the test runtime classpath explicitly
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher:${libs.versions.junit.get()}"
 }
 
 dependencyManagement {

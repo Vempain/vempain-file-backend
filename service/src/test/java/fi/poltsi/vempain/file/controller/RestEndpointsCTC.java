@@ -41,6 +41,7 @@ class RestEndpointsCTC {
 				new EndpointCase("POST", "/api/file-groups", "{\"path\":\"/p\",\"group_name\":\"g\",\"file_ids\":[]}", true),
 				new EndpointCase("PUT", "/api/file-groups", "{\"id\":1,\"path\":\"/p\",\"group_name\":\"g\",\"file_ids\":[]}", true),
 				new EndpointCase("POST", "/api/scan-files", "{\"original_directory\":\"does-not-exist\"}", true),
+				new EndpointCase("GET", "/api/files/1/content", null, false),
 				new EndpointCase("GET", "/api/location/1", null, false),
 				new EndpointCase("GET", "/api/location/guards", null, false),
 				new EndpointCase("GET", "/api/location/guards/1", null, false),
@@ -51,11 +52,23 @@ class RestEndpointsCTC {
 				new EndpointCase("POST", "/api/publish/file-group", "{\"file_group_id\":1,\"gallery_name\":\"g\",\"gallery_description\":\"d\"}", true),
 				new EndpointCase("GET", "/api/publish/all-file-groups", null, false),
 				new EndpointCase("GET", "/api/publish/progress", null, false),
+				new EndpointCase("GET", "/api/statistics", null, false),
+				new EndpointCase("POST", "/api/data-publish/music", null, true),
+				new EndpointCase("POST", "/api/data-publish/gps-timeseries", "{\"file_group_id\":1,\"time_series_name\":\"test\"}", true),
 				new EndpointCase("GET", "/api/tags", null, false),
 				new EndpointCase("GET", "/api/tags/1", null, false),
+				new EndpointCase("POST", "/api/tags/paged", "{\"page\":0,\"size\":10}", true),
+				new EndpointCase("POST", "/api/tags/1/files/paged", "{\"page\":0,\"size\":10}", true),
 				new EndpointCase("POST", "/api/tags", "{\"tag_name\":\"nature\"}", true),
 				new EndpointCase("PUT", "/api/tags", "{\"id\":1,\"tag_name\":\"nature\"}", true),
 				new EndpointCase("DELETE", "/api/tags/1", null, true),
+				new EndpointCase("POST", "/api/tags/files/add", "{\"tag_id\":1,\"file_ids\":[]}", true),
+				new EndpointCase("POST", "/api/tags/files/remove", "{\"tag_id\":1,\"file_ids\":[]}", true),
+				new EndpointCase("POST", "/api/tags/files/replace", "{\"tag_id\":1,\"file_ids\":[]}", true),
+				new EndpointCase("POST", "/api/tags/files/rename", "{\"tag_id\":1,\"tag_name\":\"nature\"}", true),
+				new EndpointCase("POST", "/api/tags/all/remove", "{\"tag_id\":1}", true),
+				new EndpointCase("POST", "/api/tags/all/replace", "{\"tag_id\":1,\"file_ids\":[]}", true),
+				new EndpointCase("POST", "/api/tags/all/rename", "{\"tag_id\":1,\"tag_name\":\"nature\"}", true),
 				new EndpointCase("POST", "/api/files/archive/paged", "{\"page\":0,\"size\":10}", true),
 				new EndpointCase("GET", "/api/files/archive/1", null, false),
 				new EndpointCase("DELETE", "/api/files/archive/1", null, true),
@@ -86,6 +99,9 @@ class RestEndpointsCTC {
 				new EndpointCase("POST", "/api/files/interactive/paged", "{\"page\":0,\"size\":10}", true),
 				new EndpointCase("GET", "/api/files/interactive/1", null, false),
 				new EndpointCase("DELETE", "/api/files/interactive/1", null, true),
+				new EndpointCase("POST", "/api/files/music/paged", "{\"page\":0,\"size\":10}", true),
+				new EndpointCase("GET", "/api/files/music/1", null, false),
+				new EndpointCase("DELETE", "/api/files/music/1", null, true),
 				new EndpointCase("POST", "/api/files/thumb/paged", "{\"page\":0,\"size\":10}", true),
 				new EndpointCase("GET", "/api/files/thumb/1", null, false),
 				new EndpointCase("DELETE", "/api/files/thumb/1", null, true),
@@ -104,8 +120,16 @@ class RestEndpointsCTC {
 		for (var endpoint : cases) {
 			var result = perform(endpoint, true).andReturn()
 			                                    .getResponse();
-			assertThat(result.getStatus()).isNotEqualTo(401);
+			assertThat(result.getStatus())
+					.as("%s %s must not fail with a server error", endpoint.method(), endpoint.path())
+					.isLessThan(500);
 		}
+	}
+
+	@Test
+	void unknownAuthenticatedRoute_returnsNotFound_insteadOfServerError() throws Exception {
+		perform(new EndpointCase("GET", "/api/schedule-management/system-schedules", null, false), true)
+				.andExpect(status().isNotFound());
 	}
 
 	private ResultActions perform(EndpointCase endpoint, boolean authenticated) throws Exception {

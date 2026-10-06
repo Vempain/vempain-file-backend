@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.TaskStatusEnum;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
@@ -11,6 +12,8 @@ import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
+import fi.poltsi.vempain.file.task.TaskProgressStore;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageImpl;
@@ -67,8 +71,11 @@ class PublishServiceUTC {
 	private ImageTool                 imageTool;
 	@Mock
 	private ApplicationContext        applicationContext;
-	@Mock
-	private PublishProgressStore      progressStore;
+	/**
+	 * Real runner on a synchronous executor so that submitted tasks complete before the test continues.
+	 */
+	@Spy
+	private TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
 	@InjectMocks
 	private PublishService            publishService;
 
@@ -223,15 +230,16 @@ class PublishServiceUTC {
 		@Test
 		void publishFileGroupMarksMissingGroupAsFailed() {
 			when(fileGroupRepository.findById(404L)).thenReturn(Optional.empty());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
-			publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
-																									  .fileGroupId(404L)
-																									  .build());
+			var task = publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+																												 .fileGroupId(404L)
+																												 .build());
 
-			org.mockito.Mockito.verify(progressStore)
-			                   .markStarted(404L);
-			org.mockito.Mockito.verify(progressStore)
-			                   .markFailed(404L);
+			assertThat(task.getType()).isEqualTo("PUBLISH_FILE_GROUP");
+			assertThat(task.getTitle()).isEqualTo("Publish file group #404");
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.FAILED);
+			assertThat(task.getErrorMessage()).isEqualTo("File group 404 not found");
 		}
 
 		@Test
@@ -240,13 +248,41 @@ class PublishServiceUTC {
 			                           .files(List.of())
 			                           .build();
 			when(fileGroupRepository.findById(405L)).thenReturn(Optional.of(group));
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
-			publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
-																									  .fileGroupId(405L)
-																									  .build());
+			var task = publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+																												 .fileGroupId(405L)
+																												 .galleryName("Empty")
+																												 .build());
 
-			org.mockito.Mockito.verify(progressStore)
-			                   .markCompleted(405L);
+			assertThat(task.getTitle()).isEqualTo("Publish file group Empty");
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			assertThat(task.getMessage()).isEqualTo("File group has no files to publish");
+		}
+
+		@Test
+		void publishFileGroupReportsFilesWithoutExportAsFailedSteps() {
+			var group = FileGroupEntity.builder()
+									   .id(406L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(60L)
+																				 .filename("a.jpg")
+																				 .build()))
+									   .build();
+			when(fileGroupRepository.findById(406L)).thenReturn(Optional.of(group));
+			when(exportFileRepository.findByFileId(60L)).thenReturn(Optional.empty());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+																												 .fileGroupId(406L)
+																												 .build());
+
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			assertThat(task.getTotalSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getFailedSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getMessage()).isEqualTo("No export file for a.jpg");
 		}
 
 		@Test
@@ -259,20 +295,21 @@ class PublishServiceUTC {
 																				 .aclId(70L)
 																				 .build()))
 									   .build();
-			when(fileGroupRepository.count()).thenReturn(1L);
 			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
 			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
 			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
 					.thenReturn(new PageImpl<>(List.of(projection)));
 			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
-			assertThat(publishService.publishAllFileGroups()).isEqualTo(1L);
-			org.mockito.Mockito.verify(progressStore)
-			                   .init(1L);
-			org.mockito.Mockito.verify(progressStore)
-			                   .markScheduled(7L);
-			org.mockito.Mockito.verify(progressStore)
-			                   .markStarted(7L);
+			var task = publishService.publishAllFileGroups();
+
+			assertThat(task.getType()).isEqualTo("PUBLISH_ALL_FILE_GROUPS");
+			assertThat(task.getTotalSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			assertThat(task.getCompletedSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getMessage()).isEqualTo("Published Photos");
 		}
 
 		@Test
@@ -285,16 +322,19 @@ class PublishServiceUTC {
 																				 .aclId(80L)
 																				 .build()))
 									   .build();
-			when(fileGroupRepository.count()).thenReturn(1L);
 			when(fileGroupRepository.findById(8L)).thenReturn(Optional.of(group));
 			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(false);
 			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
 					.thenReturn(new PageImpl<>(List.of(projection)));
 			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
-			assertThat(publishService.publishAllFileGroups()).isZero();
-			org.mockito.Mockito.verify(progressStore, org.mockito.Mockito.never())
-							   .markScheduled(8L);
+			var task = publishService.publishAllFileGroups();
+
+			assertThat(task.getTotalSteps()
+						   .get()).isZero();
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			org.mockito.Mockito.verify(fileGroupRepository, org.mockito.Mockito.never())
+							   .save(any());
 		}
 
 		@Test

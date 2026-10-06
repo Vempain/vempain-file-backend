@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.rest;
 
-import fi.poltsi.vempain.admin.api.response.DataResponse;
 import fi.poltsi.vempain.file.api.request.CreateGpsTimeSeriesRequest;
+import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,30 +21,30 @@ public interface DataPublishAPI {
 
 	@Operation(
 			summary = "Generate and publish music dataset",
-			description = "Generates a CSV dataset from all music files in the database and publishes it to the Vempain Admin data store",
+			description = "Starts a background task that generates a CSV dataset from all music files and publishes it to the Vempain Admin data store; "
+						  + "the finished task carries the admin DataResponse as result",
 			tags = "Data publish API"
 	)
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Music dataset published successfully",
-			             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-			                                schema = @Schema(implementation = DataResponse.class))),
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task; follow it through GET /tasks/{task_id}",
+						 content = {@Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "404", description = "No music files found", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content),
 			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content)
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(path = BASE_PATH + "/music", produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<DataResponse> publishMusicDataset();
+	ResponseEntity<TaskAcceptedResponse> publishMusicDataset();
 
 	@Operation(
 			summary = "Generate and publish GPS time-series dataset from a file group",
-			description = "Generates a CSV time-series dataset from images with GPS metadata in the specified file group and publishes it to Vempain Admin",
+			description = "Starts a background task that generates a CSV time-series dataset from the GPS-tagged images of the file group and publishes it "
+						  + "to Vempain Admin; the finished task carries the admin DataResponse as result",
 			tags = "Data publish API"
 	)
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "GPS time-series dataset published successfully",
-			             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-			                                schema = @Schema(implementation = DataResponse.class))),
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task; follow it through GET /tasks/{task_id}",
+						 content = {@Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
 			@ApiResponse(responseCode = "400", description = "Invalid request parameters", content = @Content),
 			@ApiResponse(responseCode = "404", description = "No GPS-tagged images found in file group", content = @Content),
 			@ApiResponse(responseCode = "500", description = "Internal server error", content = @Content),
@@ -52,5 +52,5 @@ public interface DataPublishAPI {
 	})
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(path = BASE_PATH + "/gps-timeseries", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<DataResponse> publishGpsTimeSeries(@Valid @RequestBody CreateGpsTimeSeriesRequest request);
+	ResponseEntity<TaskAcceptedResponse> publishGpsTimeSeries(@Valid @RequestBody CreateGpsTimeSeriesRequest request);
 }

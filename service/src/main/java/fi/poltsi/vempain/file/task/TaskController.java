@@ -1,0 +1,49 @@
+package fi.poltsi.vempain.file.task;
+
+import fi.poltsi.vempain.file.api.response.TaskProgressResponse;
+import fi.poltsi.vempain.file.rest.TaskAPI;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+public class TaskController implements TaskAPI {
+
+	private final TaskProgressStore store;
+
+	@Override
+	public ResponseEntity<List<TaskProgressResponse>> getTasks() {
+		return ResponseEntity.ok(store.findByOwner(TaskRunner.currentUserId())
+									  .stream()
+									  .map(TaskProgress::toResponse)
+									  .toList());
+	}
+
+	@Override
+	public ResponseEntity<TaskProgressResponse> getTask(String taskId) {
+		return ResponseEntity.ok(ownTask(taskId).toResponse());
+	}
+
+	@Override
+	public ResponseEntity<Void> dismissTask(String taskId) {
+		var task = ownTask(taskId);
+		if (!task.isFinished()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Task is still running");
+		}
+		store.remove(taskId);
+		return ResponseEntity.noContent()
+							 .build();
+	}
+
+	private TaskProgress ownTask(String taskId) {
+		var ownerId = TaskRunner.currentUserId();
+		return store.find(taskId)
+					.filter(task -> ownerId != null && ownerId.equals(task.getOwnerId()))
+					.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
+	}
+}

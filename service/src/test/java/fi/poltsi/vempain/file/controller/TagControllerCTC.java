@@ -33,6 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class TagControllerCTC extends AbstractControllerCTC {
 
+	@org.springframework.beans.factory.annotation.Autowired
+	private fi.poltsi.vempain.file.task.TaskProgressStore taskProgressStore;
+
 	private static final String VALID_TAG_BODY = """
 			{
 			  "tag_name": "nature",
@@ -272,14 +275,18 @@ class TagControllerCTC extends AbstractControllerCTC {
 			var principal = new UserDetailsImpl(
 					1L, "admin", "Admin", "admin@nohost.nodomain", "Disabled",
 					java.util.Set.of(), java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")));
-			mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/tags/all/rename")
+			var result = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/tags/all/rename")
 			                                                                                   .with(SecurityMockMvcRequestPostProcessors.user(principal))
 			                                                                                   .with(SecurityMockMvcRequestPostProcessors.csrf())
 			                                                                                   .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
 			                                                                                   .content("""
 																												{"tag_name":"I maailmansota","replacement_tag_name":"ensimmäinen maailmansota","file_ids":[]}
 																												"""))
-			       .andExpect(status().isNoContent());
+								.andExpect(status().isAccepted())
+								.andExpect(jsonPath("$.type").value("TAG_RENAME_ACROSS_ALL"))
+								.andExpect(jsonPath("$.total_steps").value(1))
+								.andReturn();
+			awaitTaskCompletion(result);
 
 			assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tags", Integer.class)).isEqualTo(1);
 			assertThat(jdbcTemplate.queryForObject(
@@ -291,5 +298,26 @@ class TagControllerCTC extends AbstractControllerCTC {
 		} finally {
 			deleteFileRow(9001L);
 		}
+	}
+
+	/**
+	 * Waits until the background task acknowledged by {@code result} has finished and asserts that it completed.
+	 */
+	private void awaitTaskCompletion(org.springframework.test.web.servlet.MvcResult result) throws Exception {
+		var taskId = tools.jackson.databind.json.JsonMapper.shared()
+														   .readTree(result.getResponse()
+																		   .getContentAsString())
+														   .get("task_id")
+														   .asString();
+		var task = taskProgressStore.find(taskId)
+									.orElseThrow();
+		var deadline = java.time.Instant.now()
+										.plusSeconds(15);
+		while (!task.isFinished() && java.time.Instant.now()
+													  .isBefore(deadline)) {
+			Thread.sleep(50);
+		}
+		assertThat(task.getStatus()).as(task.getErrorMessage())
+									.isEqualTo(fi.poltsi.vempain.file.api.TaskStatusEnum.COMPLETED);
 	}
 }

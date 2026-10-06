@@ -18,8 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </ul>
  *
  * <p>The scan root is configured as {@code /tmp} in test properties.
- * The scan endpoint returns 200 even when no new files are found; it only
- * returns 400 when the request fails Bean Validation.
+ * The scan endpoint accepts the request with 202 and a task acknowledgement; it
+ * returns 400 when the request fails Bean Validation or the directory is invalid.
  */
 class FileScannerControllerCTC extends AbstractControllerCTC {
 
@@ -35,17 +35,25 @@ class FileScannerControllerCTC extends AbstractControllerCTC {
 	// -----------------------------------------------------------------------
 
 	@Test
-	void scan_returns200_withValidOriginalDirectory() throws Exception {
+	void scan_returns202_withValidOriginalDirectory() throws Exception {
 		doPost("/scan-files", "{\"original_directory\":\"%s\"}".formatted(TEST_SCAN_DIR))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.scan_original_response").exists());
+				.andExpect(status().isAccepted())
+				.andExpect(jsonPath("$.task_id").exists())
+				.andExpect(jsonPath("$.type").value("SCAN_DIRECTORIES"))
+				.andExpect(jsonPath("$.title").value("Scan " + TEST_SCAN_DIR));
 	}
 
 	@Test
-	void scan_returns200_withValidExportDirectory() throws Exception {
+	void scan_returns202_withValidExportDirectory() throws Exception {
 		doPost("/scan-files", "{\"export_directory\":\"%s\"}".formatted(TEST_SCAN_DIR))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.scan_export_response").exists());
+				.andExpect(status().isAccepted())
+				.andExpect(jsonPath("$.task_id").exists());
+	}
+
+	@Test
+	void scan_returns400_whenDirectoryDoesNotExist() throws Exception {
+		doPost("/scan-files", "{\"original_directory\":\"/ctc-scan-does-not-exist\"}")
+				.andExpect(status().isBadRequest());
 	}
 
 	@Test

@@ -5,8 +5,13 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
+import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -74,12 +79,42 @@ public interface TagAPI {
 	@PostMapping(path = BASE_PATH + "/files/rename", consumes = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<Void> renameTag(@Valid @RequestBody TagOperationRequest request);
 
-	@PostMapping(path = BASE_PATH + "/all/remove", consumes = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<Void> removeTagFromAll(@Valid @RequestBody TagOperationRequest request);
+	@Operation(summary = "Remove a tag from all files", description = "Rewrites the metadata of every file carrying the tag as a background task; "
+																	  + "the caller needs the modify privilege on all of those files")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task; follow it through GET /tasks/{task_id}",
+						 content = {@Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+			@ApiResponse(responseCode = "403", description = "The caller may not modify every tagged file", content = @Content)
+	})
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(path = BASE_PATH + "/all/remove", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<TaskAcceptedResponse> removeTagFromAll(@Valid @RequestBody TagOperationRequest request);
 
-	@PostMapping(path = BASE_PATH + "/all/replace", consumes = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<Void> replaceTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
+	@Operation(summary = "Replace a tag across all files", description = "Rewrites the metadata of every file carrying the tag as a background task; "
+																		 + "the caller needs the modify privilege on all of those files")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task; follow it through GET /tasks/{task_id}",
+						 content = {@Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+			@ApiResponse(responseCode = "403", description = "The caller may not modify every tagged file", content = @Content)
+	})
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(path = BASE_PATH + "/all/replace", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<TaskAcceptedResponse> replaceTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
 
-	@PostMapping(path = BASE_PATH + "/all/rename", consumes = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<Void> renameTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
+	@Operation(summary = "Rename a tag across all files", description = "Rewrites the metadata of every file carrying the tag as a background task; "
+																		+ "the caller needs the modify privilege on all of those files")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task; follow it through GET /tasks/{task_id}",
+						 content = {@Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)}),
+			@ApiResponse(responseCode = "400", description = "Invalid request issued", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+			@ApiResponse(responseCode = "403", description = "The caller may not modify every tagged file", content = @Content)
+	})
+	@SecurityRequirement(name = "Bearer Authentication")
+	@PostMapping(path = BASE_PATH + "/all/rename", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	ResponseEntity<TaskAcceptedResponse> renameTagAcrossAll(@Valid @RequestBody TagOperationRequest request);
 }

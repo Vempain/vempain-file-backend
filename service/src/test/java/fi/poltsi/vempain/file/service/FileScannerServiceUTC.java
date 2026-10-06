@@ -1,6 +1,10 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.file.api.TaskStatusEnum;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
+import fi.poltsi.vempain.file.api.response.ScanResponses;
+import fi.poltsi.vempain.file.task.TaskProgressStore;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -11,13 +15,15 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class FileScannerServiceUTC {
 
 	@Test
 	void returnsResponseForEmptyScanRequest() {
-		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class));
+		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class));
 		ReflectionTestUtils.setField(service, "originalRootDirectory", "/tmp");
 		ReflectionTestUtils.setField(service, "exportRootDirectory", "/tmp");
 
@@ -28,7 +34,7 @@ class FileScannerServiceUTC {
 
 	@Test
 	void rejectsScanDirectoryOutsideConfiguredRoot() {
-		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class));
+		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class));
 		ReflectionTestUtils.setField(service, "originalRootDirectory", "/tmp");
 		ReflectionTestUtils.setField(service, "exportRootDirectory", "/tmp");
 		var request = new ScanRequest();
@@ -45,7 +51,7 @@ class FileScannerServiceUTC {
 		} catch (UnsupportedOperationException | java.nio.file.FileSystemException e) {
 			return;
 		}
-		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class));
+		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class));
 		ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
 		ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
 		var request = new ScanRequest();
@@ -53,5 +59,45 @@ class FileScannerServiceUTC {
 		                                 .toString());
 
 		assertThrows(ResponseStatusException.class, () -> service.scanDirectories(request));
+	}
+
+	@Test
+	void scanAsTaskValidatesDirectoriesBeforeSubmitting(@TempDir Path root) {
+		var runner  = mock(TaskRunner.class);
+		var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), runner);
+		ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
+		ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
+		var request = new ScanRequest();
+		request.setOriginalDirectory("/missing");
+
+		assertThrows(ResponseStatusException.class, () -> service.scanDirectoriesAsTask(request));
+		org.mockito.Mockito.verifyNoInteractions(runner);
+	}
+
+	@Test
+	void scanAsTaskReportsALeafDirectoryPerStepAndReturnsTheScanResult(@TempDir Path root) throws Exception {
+		Files.createDirectories(root.resolve("photos/2024"));
+		Files.createDirectories(root.resolve("photos/2025"));
+		var processor = mock(DirectoryProcessorService.class);
+		when(processor.processOriginalDirectory(any(), any(), any(), any())).thenReturn(java.util.List.of(2L, 2L));
+		var service = new FileScannerService(processor, mock(FileResponseEnricher.class), new TaskRunner(new TaskProgressStore(), Runnable::run));
+		ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
+		ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
+		var request = new ScanRequest();
+		request.setOriginalDirectory("/photos");
+
+		var task = service.scanDirectoriesAsTask(request);
+
+		assertThat(task.getType()).isEqualTo("SCAN_DIRECTORIES");
+		assertThat(task.getTitle()).isEqualTo("Scan /photos");
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+		assertThat(task.getTotalSteps()
+					   .get()).isEqualTo(2);
+		assertThat(task.getCompletedSteps()
+					   .get()).isEqualTo(2);
+		assertThat(task.getMessage()).startsWith("Scanned ");
+		assertThat(task.getResult()).isInstanceOf(ScanResponses.class);
+		assertThat(((ScanResponses) task.getResult()).getScanOriginalResponse()
+													 .getScannedFilesCount()).isEqualTo(4);
 	}
 }

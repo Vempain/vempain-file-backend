@@ -81,14 +81,28 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `StatisticsService` counts, the refresh/thumbnail/video schedules, and the admin-side republish of already published files. Do not add
   per-file ACL checks to these paths; they do require an authenticated caller like every other endpoint.
 - Publishing a file group (`POST /api/publish/file-group`) requires the modify privilege on every file of the group, checked synchronously
-  in `PublishService.authorizeFileGroupPublish` before the asynchronous publish starts (the async thread has no security context);
-  `publishAllFileGroups` skips groups the caller cannot fully modify.
+  in `PublishService.authorizeFileGroupPublish` before the background task starts; `publishAllFileGroups` skips groups the caller cannot
+  fully modify. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
+  request itself always runs before `TaskRunner.submit`.
+- Long-running actions never block the HTTP request. They run through the task progress facility in `fi.poltsi.vempain.file.task`
+  (`TaskRunner.submit(type, title, totalSteps, work)` -> `TaskProgress`, `TaskProgressStore`, `TaskController` = `TaskAPI` at `/api/tasks`):
+  the endpoint answers `202 TaskAcceptedResponse` and the frontend polls `GET /api/tasks/{task_id}` (`TaskProgressResponse`: status
+  QUEUED/RUNNING/COMPLETED/FAILED, steps, percent, message, type specific `result`) and dismisses finished tasks with `DELETE`. Tasks are
+  private to their owner and kept for `vempain.tasks.retention-minutes`. Current task types (`TaskTypeEnum`): publish file group / all file
+  groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin `DataResponse`), and the tag
+  remove/replace/rename-across-all-files operations. Rules: validate and authorize synchronously before submitting; report one step per
+  unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy (`applicationContext.getBean(...)`)
+  because the task body runs outside the request transaction; a task submitted inside a transaction starts after that transaction commits.
+  Any new action that transfers files or data to another service, walks the filesystem or rewrites many files must use this facility.
+  The facility is intentionally free of file backend types so that it can be extracted into a shared `vempain-auth`/frontend component later.
 - ACL behaviour is covered by `FileAclServiceITC`, `FileAclControllerCTC`, `FileAclPagedITC` and `FileAclRepairScheduleUTC`; keep positive and
   negative cases for every new ACL-dependent path and keep `FileAclService` at 95%+ line coverage.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
   `tools.jackson` replacement available in current dependencies.
 - Test suffixes are meaningful and shared across the Vempain Java repos: `UTC` = unit test (Mockito), `CTC` = controller test (`AbstractControllerCTC`
-    + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`)
+    + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`).
+      The task facility is covered by `TaskProgressStoreUTC`, `TaskRunnerUTC` and `TaskControllerCTC`; services that submit tasks are unit
+      tested with `new TaskRunner(new TaskProgressStore(), Runnable::run)` so the task body runs synchronously.
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
@@ -103,7 +117,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 - Scanning processes leaf directories below the configured original/export roots. `DirectoryProcessorService` owns file, subtype, metadata, tag, GPS,
   and export-file persistence. Export derivatives are linked through `originalDocumentId` and are skipped when their original entity is absent.
-- Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients.
+- Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
+  as a background task with one step per file (publish-all: one step per group, groups processed sequentially).
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.
 - `UpdatedFileRefreshSchedule` persists its checkpoint in `scheduler_checkpoint`, verifies changed files with SHA-256, refreshes metadata and derivatives, and
   republishes only files whose `site_file_published` flag is true.

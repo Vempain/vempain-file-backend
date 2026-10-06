@@ -3,17 +3,21 @@ package fi.poltsi.vempain.file.service;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
+import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
+import fi.poltsi.vempain.file.task.TaskProgress;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +26,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,11 +34,16 @@ import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
 
-
+/**
+ * Publishes file groups to the admin backend. Publishing runs as background tasks ({@link TaskRunner}); the caller gets the task
+ * id back immediately and follows the progress through the task API.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -50,9 +58,9 @@ public class PublishService {
 	private final FileAclService fileAclService;
 
 	private final VempainAdminTokenProvider vempainAdminTokenProvider;
-	private final ImageTool            imageTool;
-	private final ApplicationContext   applicationContext;
-	private final PublishProgressStore progressStore;
+	private final ImageTool          imageTool;
+	private final ApplicationContext applicationContext;
+	private final TaskRunner         taskRunner;
 
 	@Value("${vempain.site-image-size:1200}")
 	private int siteImageSize;
@@ -65,8 +73,8 @@ public class PublishService {
 
 	/**
 	 * Publishing a file group sends every file of the group to the admin backend, so the caller must hold the modify privilege on
-	 * every file in the group. This runs synchronously in the caller's security context because {@link #publishFileGroup} is
-	 * asynchronous and has no authenticated principal.
+	 * every file in the group. This runs synchronously in the caller's request so that a denial fails the request itself instead of
+	 * the background task.
 	 *
 	 * @throws AccessDeniedException when at least one file of the group is not modifiable by the current user
 	 */
@@ -82,190 +90,206 @@ public class PublishService {
 												  .getFiles());
 	}
 
-	@Async
+	/**
+	 * Starts a background task that publishes one file group. One step per file.
+	 */
+	public TaskProgress publishFileGroup(PublishFileGroupRequest request) {
+		var proxy = applicationContext.getBean(PublishService.class);
+		return taskRunner.submit(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request), 0, progress -> {
+			proxy.publishFileGroupNow(request, progress);
+			return null;
+		});
+	}
+
+	/**
+	 * Publishes one file group in the calling thread. When {@code progress} is given, every file of the group is reported as one
+	 * step; the publish-all task passes {@code null} and counts groups instead.
+	 *
+	 * @throws IllegalStateException when the group does not exist
+	 */
 	@Transactional
-	public void publishFileGroup(PublishFileGroupRequest publishFileGroupRequest) {
-		// mark started in progress store (if running under proxy we still mark here)
-		progressStore.markStarted(publishFileGroupRequest.getFileGroupId());
+	public void publishFileGroupNow(PublishFileGroupRequest request, TaskProgress progress) {
+		var fileGroup = fileGroupRepository.findById(request.getFileGroupId())
+										   .orElseThrow(() -> new IllegalStateException("File group " + request.getFileGroupId() + " not found"));
+
+		if (fileGroup.getFiles() == null || fileGroup.getFiles()
+													 .isEmpty()) {
+			log.debug("File group {} has no files to publish", request.getFileGroupId());
+			if (progress != null) {
+				progress.message("File group has no files to publish");
+			}
+			return;
+		}
+
+		if (progress != null) {
+			progress.setTotalSteps(fileGroup.getFiles()
+											.size());
+		}
+
+		var galleryId = publishFiles(fileGroup, request, progress);
+
+		if (galleryId != null) {
+			fileGroup.setGalleryId(galleryId);
+			fileGroupRepository.save(fileGroup);
+			log.debug("File group {} published to gallery ID {}", request.getFileGroupId(), galleryId);
+		} else {
+			log.warn("No files were published for group {}", request.getFileGroupId());
+		}
+	}
+
+	private Long publishFiles(FileGroupEntity fileGroup, PublishFileGroupRequest request, TaskProgress progress) {
+		Long galleryId = null;
+		// The order of the file group files should be by file name ascending so we use a simple counter here
+		long sortOrder = 0L;
+
+		for (var fileEntity : fileGroup.getFiles()) {
+			var exportFilePath = resolveExportedPath(fileEntity.getId());
+
+			if (exportFilePath == null || !Files.exists(exportFilePath)) {
+				log.debug("Export file does not exist, skipping: {}", exportFilePath);
+				reportFailure(progress, "No export file for " + fileEntity.getFilename());
+				continue;
+			}
+
+			try {
+				var fileIngestResponse = uploadFile(fileEntity, exportFilePath, buildIngestRequestBase(fileEntity, request, fileGroup, sortOrder),
+													"vempain-");
+				sortOrder++;
+				galleryId = fileIngestResponse == null ? galleryId : fileIngestResponse.getGalleryId();
+				log.debug("Published file {} from group {} as site file to gallery ID {}", fileEntity.getFilename(), request.getFileGroupId(), galleryId);
+				if (progress != null) {
+					progress.advance("Published " + fileEntity.getFilename());
+				}
+			} catch (Exception ex) {
+				log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
+				reportFailure(progress, "Failed to publish " + fileEntity.getFilename() + ": " + ex.getMessage());
+			}
+		}
+
+		return galleryId;
+	}
+
+	private static void reportFailure(TaskProgress progress, String message) {
+		if (progress != null) {
+			progress.advanceFailed(message);
+		}
+	}
+
+	private FileIngestRequest.FileIngestRequestBuilder buildIngestRequestBase(FileEntity fileEntity, PublishFileGroupRequest request,
+																			  FileGroupEntity fileGroup, long sortOrder) {
+		return FileIngestRequest.builder()
+								.sortOrder(sortOrder)
+								.galleryId(fileGroup.getGalleryId())
+								.galleryName(request.getGalleryName())
+								.galleryDescription(request.getGalleryDescription());
+	}
+
+	/**
+	 * Resizes images, fills the ingest request from the file entity and uploads the file to the admin backend, retrying once the
+	 * admin token has been renewed after an authentication failure.
+	 */
+	private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
+																					FileIngestRequest.FileIngestRequestBuilder builder,
+																					String tempPrefix) throws IOException {
+		var  metadataList     = metadataRepository.findByFile(fileEntity);
+		var  metadataJson     = collectStandardMetadataAsJson(metadataList, fileEntity);
+		var  siteFileName     = fileEntity.getFilename();
+		Path uploadPath       = exportFilePath;
+		Path tempPathToDelete = null;
 
 		try {
-			// Load group and files
-			var optionalGroup = fileGroupRepository.findById(publishFileGroupRequest.getFileGroupId());
-			if (optionalGroup.isEmpty()) {
-				log.warn("File group {} not found", publishFileGroupRequest.getFileGroupId());
-				progressStore.markFailed(publishFileGroupRequest.getFileGroupId());
-				return;
-			}
+			Dimension imageVideoDimensions = null;
+			if (fileEntity.getFileType()
+						  .equals(FileTypeEnum.IMAGE)) {
+				// Create temp file with same extension in system temp dir and resize: smaller dimension to siteImageSize, quality 0.7
+				Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), tempPrefix, "." + exportFileType);
+				imageVideoDimensions = imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
+				tempPathToDelete     = tempFile;
+				uploadPath           = tempFile;
 
-			var fileGroup = optionalGroup.get();
-
-			if (fileGroup.getFiles() == null
-			    || fileGroup.getFiles()
-			                .isEmpty()) {
-				log.debug("File group {} has no files to publish", publishFileGroupRequest.getFileGroupId());
-				progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
-				return;
-			}
-			Long galleryId = null;
-			// The order of the file group files should be by file name ascending so we use a simple counter here
-			long sortOrder = 0L;
-
-			for (var fileEntity : fileGroup.getFiles()) {
-				var metadataList = metadataRepository.findByFile(fileEntity);
-				var metadataJson = collectStandardMetadataAsJson(metadataList, fileEntity);
-
-				var exportFilePath = resolveExportedPath(fileEntity.getId());
-				var siteFileName   = fileEntity.getFilename();
-
-				log.debug("Export file path: {} {}", exportFilePath, siteFileName);
-
-				if (exportFilePath == null
-				    || !Files.exists(exportFilePath)) {
-					log.debug("Export file does not exist, skipping: {}", exportFilePath);
-					continue;
+				int suffixIndex = siteFileName.lastIndexOf('.');
+				if (suffixIndex > 0) {
+					siteFileName = siteFileName.substring(0, suffixIndex) + "." + exportFileType;
 				}
+			}
 
-				Path uploadPath       = exportFilePath;
-				Path tempPathToDelete = null;
+			// We need to send the mimetype of the uploaded file, not the original which may have a different type
+			var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(uploadPath.toFile());
+			var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
+			var copyrightResponse = CopyrightResponse.builder()
+													 .creatorName(fileEntity.getCreatorName())
+													 .creatorEmail(fileEntity.getCreatorEmail())
+													 .creatorCountry(fileEntity.getCreatorCountry())
+													 .creatorUrl(fileEntity.getCreatorUrl())
+													 .rightsHolder(fileEntity.getRightsHolder())
+													 .rightsTerms(fileEntity.getRightsTerms())
+													 .rightsUrl(fileEntity.getRightsUrl())
+													 .build();
+			LocationResponse locationResponse = null;
+			if (fileEntity.getGpsLocation() != null) {
+				// Add location only if the location is outside guarded areas
+				if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
+					locationResponse = fileEntity.getGpsLocation()
+												 .toResponse();
+					log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
+				} else {
+					log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
+				}
+			}
 
-				// Fetch the tags belonging to the file
-				var tagRequests = tagService.getTagRequestsByFileId(fileEntity.getId());
+			var fileIngestRequest = builder.fileName(siteFileName)
+										   .filePath(normalizeIngestPath(fileEntity.getFilePath(), fileEntity.getFileType()))
+										   .mimeType(mimetype)
+										   .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
+										   .metadata(metadataJson)
+										   .sha256sum(computeSha256(uploadPath.toFile()))
+										   .originalDateTime(fileEntity.getOriginalDatetime())
+										   .tags(tagService.getTagRequestsByFileId(fileEntity.getId()))
+										   .location(locationResponse)
+										   .copyright(copyrightResponse)
+										   .build();
 
+			if (imageVideoDimensions != null) {
+				fileIngestRequest.setWidth(imageVideoDimensions.width);
+				fileIngestRequest.setHeight(imageVideoDimensions.height);
+			}
+
+			if (fileEntity.getFileType()
+						  .equals(FileTypeEnum.VIDEO)) {
+				fileIngestRequest.setLength(((VideoFileEntity) fileEntity).getDuration());
+			} else if (fileEntity.getFileType()
+								 .equals(FileTypeEnum.AUDIO)) {
+				fileIngestRequest.setLength(((AudioFileEntity) fileEntity).getDuration());
+			} else if (fileEntity.getFileType()
+								 .equals(FileTypeEnum.DOCUMENT)) {
+				fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
+			}
+
+			// Upload with authentication retry
+			final int maxRetries = 3;
+			int       attempt    = 0;
+
+			while (true) {
 				try {
-					Dimension imageVideoDimensions = null;
-					if (fileEntity.getFileType()
-					              .equals(FileTypeEnum.IMAGE)) {
-						// Create temp file with same extension in system temp dir
-						Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-", "." + exportFileType);
-						// Resize: smaller dimension to siteImageSize, keep quality 0.7
-						imageVideoDimensions = imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
-						tempPathToDelete = tempFile;
-						exportFilePath   = tempFile;
-						uploadPath       = tempFile;
-
-						// We need to also update the siteFileName to replace the original extension with
-						int suffixIndex = siteFileName.lastIndexOf('.');
-						if (suffixIndex > 0) {
-							siteFileName = siteFileName.substring(0, suffixIndex) + "." + exportFileType;
-						}
+					return vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+				} catch (VempainAuthenticationException authEx) {
+					attempt++;
+					if (attempt >= maxRetries) {
+						log.error("Authentication failed after {} attempts for file {}", attempt, fileEntity.getFilename());
+						throw authEx;
 					}
-
-					// Build ingest request, we need to send the mimetype of the temp file, not the original which may have a different type
-					var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(exportFilePath.toFile());
-					var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
-					var copyrightResponse = CopyrightResponse.builder()
-					                                         .creatorName(fileEntity.getCreatorName())
-					                                         .creatorEmail(fileEntity.getCreatorEmail())
-					                                         .creatorCountry(fileEntity.getCreatorCountry())
-					                                         .creatorUrl(fileEntity.getCreatorUrl())
-					                                         .rightsHolder(fileEntity.getRightsHolder())
-					                                         .rightsTerms(fileEntity.getRightsTerms())
-					                                         .rightsUrl(fileEntity.getRightsUrl())
-					                                         .build();
-					LocationResponse locationResponse = null;
-					// Use relation from FileEntity instead of repository lookup
-					if (fileEntity.getGpsLocation() != null) {
-						// Add location only if the location is outside guarded areas
-						if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
-							locationResponse = fileEntity.getGpsLocation()
-							                             .toResponse();
-							log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
-						} else {
-							log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
-						}
-					}
-					var normalizedFilePath = normalizeIngestPath(fileEntity.getFilePath(), fileEntity.getFileType());
-
-					log.debug("Ingest file data: {} {}", normalizedFilePath, siteFileName);
-
-					var fileIngestRequest = FileIngestRequest.builder()
-					                                         .fileName(siteFileName)
-					                                         .sortOrder(sortOrder)
-					                                         .filePath(normalizedFilePath)
-					                                         .mimeType(mimetype)
-					                                         .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
-					                                         .metadata(metadataJson)
-					                                         .sha256sum(computeSha256(uploadPath.toFile()))
-					                                         .originalDateTime(fileEntity.getOriginalDatetime())
-					                                         .galleryId(fileGroup.getGalleryId())
-					                                         .galleryName(publishFileGroupRequest.getGalleryName())
-					                                         .galleryDescription(publishFileGroupRequest.getGalleryDescription())
-					                                         .tags(tagRequests)
-					                                         .location(locationResponse)
-					                                         .copyright(copyrightResponse)
-					                                         .build();
-
-					sortOrder++;
-
-					if (imageVideoDimensions != null) {
-						fileIngestRequest.setWidth(imageVideoDimensions.width);
-						fileIngestRequest.setHeight(imageVideoDimensions.height);
-					}
-
-					if (fileEntity.getFileType()
-					              .equals(FileTypeEnum.VIDEO)) {
-						var videoFileEntity = (VideoFileEntity) fileEntity;
-						fileIngestRequest.setLength(videoFileEntity.getDuration());
-					} else if (fileEntity.getFileType()
-					                     .equals(FileTypeEnum.AUDIO)) {
-						var audioFileEntity = (AudioFileEntity) fileEntity;
-						fileIngestRequest.setLength(audioFileEntity.getDuration());
-					} else if (fileEntity.getFileType()
-					                     .equals(FileTypeEnum.DOCUMENT)) {
-						var documentFileEntity = (DocumentFileEntity) fileEntity;
-						fileIngestRequest.setPages(documentFileEntity.getPageCount());
-					}
-
-					log.debug("Publishing file {} from group {}", fileEntity.getFilename(), publishFileGroupRequest.getFileGroupId());
-					// Upload with authentication retry (up to 5 attempts)
-					final int maxRetries = 3;
-					int       attempt    = 0;
-
-					while (true) {
-						try {
-							var fileIngestResponse = vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
-							galleryId = fileIngestResponse.getGalleryId();
-							log.debug("Published file {} from group {} as site file to gallery ID {}", exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId(),
-							          galleryId);
-							break; // success
-						} catch (VempainAuthenticationException authEx) {
-							attempt++;
-							if (attempt >= maxRetries) {
-								log.error("Authentication failed after {} attempts for file {} in group {}", attempt, exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId());
-								throw authEx;
-							}
-							log.warn("Authentication failed (attempt {}/{}). Re-authenticating and retrying...", attempt, maxRetries);
-							// Force re-login and retry
-							vempainAdminTokenProvider.login();
-						}
-					}
-				} catch (Exception ex) {
-					log.error("Failed to publish file {} from group {}", exportFilePath.getFileName(), publishFileGroupRequest.getFileGroupId(), ex);
-				} finally {
-					// Cleanup temp image if created
-					if (tempPathToDelete != null) {
-						try {
-							Files.deleteIfExists(tempPathToDelete);
-						} catch (IOException ioe) {
-							log.warn("Failed to delete temp file {}", tempPathToDelete, ioe);
-						}
-					}
+					log.warn("Authentication failed (attempt {}/{}). Re-authenticating and retrying...", attempt, maxRetries);
+					vempainAdminTokenProvider.login();
 				}
 			}
-
-			if (galleryId != null) {
-				// Update the file group with the published gallery ID
-				fileGroup.setGalleryId(galleryId);
-				fileGroupRepository.save(fileGroup);
-				log.debug("File group {} published to gallery ID {}", publishFileGroupRequest.getFileGroupId(), galleryId);
-			} else {
-				log.warn("No files were published for group {}", publishFileGroupRequest.getFileGroupId());
+		} finally {
+			if (tempPathToDelete != null) {
+				try {
+					Files.deleteIfExists(tempPathToDelete);
+				} catch (IOException ioe) {
+					log.warn("Failed to delete temp file {}", tempPathToDelete, ioe);
+				}
 			}
-
-			progressStore.markCompleted(publishFileGroupRequest.getFileGroupId());
-		} catch (Exception e) {
-			log.error("Publish group {} failed", publishFileGroupRequest.getFileGroupId(), e);
-			progressStore.markFailed(publishFileGroupRequest.getFileGroupId());
 		}
 	}
 
@@ -288,108 +312,44 @@ public class PublishService {
 			return false;
 		}
 
-		Path uploadPath       = exportFilePath;
-		Path tempPathToDelete = null;
-
 		try {
-			var metadataList = metadataRepository.findByFile(fileEntity);
-			var metadataJson = collectStandardMetadataAsJson(metadataList, fileEntity);
-			var siteFileName = fileEntity.getFilename();
-
-			Dimension imageVideoDimensions = null;
-			if (fileEntity.getFileType()
-			              .equals(FileTypeEnum.IMAGE)) {
-				Path tempFile = Files.createTempFile(Path.of(System.getProperty("java.io.tmpdir")), "vempain-refresh-", "." + exportFileType);
-				imageVideoDimensions = imageTool.resizeImage(exportFilePath, tempFile, siteImageSize, 0.7f, metadataJson);
-				tempPathToDelete     = tempFile;
-				uploadPath           = tempFile;
-
-				int suffixIndex = siteFileName.lastIndexOf('.');
-				if (suffixIndex > 0) {
-					siteFileName = siteFileName.substring(0, suffixIndex) + "." + exportFileType;
-				}
-			}
-
-			var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(uploadPath.toFile());
-			var mimetype             = MetadataTool.extractMimetype(exportFileJsonObject);
-
-			var copyrightResponse = CopyrightResponse.builder()
-			                                         .creatorName(fileEntity.getCreatorName())
-			                                         .creatorEmail(fileEntity.getCreatorEmail())
-			                                         .creatorCountry(fileEntity.getCreatorCountry())
-			                                         .creatorUrl(fileEntity.getCreatorUrl())
-			                                         .rightsHolder(fileEntity.getRightsHolder())
-			                                         .rightsTerms(fileEntity.getRightsTerms())
-			                                         .rightsUrl(fileEntity.getRightsUrl())
-			                                         .build();
-
-			LocationResponse locationResponse = null;
-			if (fileEntity.getGpsLocation() != null && !locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
-				locationResponse = fileEntity.getGpsLocation()
-				                             .toResponse();
-			}
-
-			var fileIngestRequest = FileIngestRequest.builder()
-			                                         .sortOrder(0)
-			                                         .fileName(siteFileName)
-			                                         .filePath(normalizeIngestPath(fileEntity.getFilePath(), fileEntity.getFileType()))
-			                                         .mimeType(mimetype)
-			                                         .comment(fileEntity.getDescription() != null ? fileEntity.getDescription() : "")
-			                                         .metadata(metadataJson)
-			                                         .sha256sum(computeSha256(uploadPath.toFile()))
-			                                         .originalDateTime(fileEntity.getOriginalDatetime())
-			                                         .tags(tagService.getTagRequestsByFileId(fileEntity.getId()))
-			                                         .location(locationResponse)
-			                                         .copyright(copyrightResponse)
-			                                         .build();
-
-			if (imageVideoDimensions != null) {
-				fileIngestRequest.setWidth(imageVideoDimensions.width);
-				fileIngestRequest.setHeight(imageVideoDimensions.height);
-			}
-			if (fileEntity.getFileType()
-			              .equals(FileTypeEnum.VIDEO)) {
-				fileIngestRequest.setLength(((VideoFileEntity) fileEntity).getDuration());
-			} else if (fileEntity.getFileType()
-			                     .equals(FileTypeEnum.AUDIO)) {
-				fileIngestRequest.setLength(((AudioFileEntity) fileEntity).getDuration());
-			} else if (fileEntity.getFileType()
-			                     .equals(FileTypeEnum.DOCUMENT)) {
-				fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
-			}
-
-			vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+			uploadFile(fileEntity, exportFilePath, FileIngestRequest.builder()
+																	.sortOrder(0), "vempain-refresh-");
 			return true;
 		} catch (Exception e) {
 			log.warn("Failed to republish site file for file id {}", fileEntity.getId(), e);
 			return false;
-		} finally {
-			if (tempPathToDelete != null) {
-				try {
-					Files.deleteIfExists(tempPathToDelete);
-				} catch (IOException e) {
-					log.warn("Failed to delete temporary refresh file {}", tempPathToDelete, e);
-				}
-			}
 		}
 	}
 
 	/**
-	 * Triggers asynchronous publishing for all file groups. Returns the number of groups scheduled.
-	 * Uses pagination to avoid loading all groups into memory at once.
+	 * Starts one background task that publishes every file group the caller may fully modify, one step per group. Groups with
+	 * files the caller cannot modify are skipped. Returns the task; {@code total_steps} is the number of groups it will publish.
 	 */
 	// Read-only transaction so that the lazily loaded file collections can be checked against the caller's ACL privileges
 	@Transactional(readOnly = true)
-	public long publishAllFileGroups() {
-		int  page           = 0;
-		int  size           = 50; // page size
-		long scheduledCount = 0L;
+	public TaskProgress publishAllFileGroups() {
+		var requests = collectPublishableGroups();
+		var proxy    = applicationContext.getBean(PublishService.class);
 
-		// Count total groups using repository count
-		var totalGroups = fileGroupRepository.count();
-		progressStore.init(totalGroups);
+		return taskRunner.submit(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), progress -> {
+			for (var request : requests) {
+				try {
+					proxy.publishFileGroupNow(request, null);
+					progress.advance("Published " + groupTitle(request));
+				} catch (Exception e) {
+					log.error("Publish group {} failed", request.getFileGroupId(), e);
+					progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
+				}
+			}
+			return null;
+		});
+	}
 
-		var proxy = applicationContext.getBean(PublishService.class);
+	private List<PublishFileGroupRequest> collectPublishableGroups() {
+		var requests = new ArrayList<PublishFileGroupRequest>();
+		int page     = 0;
+		int size     = 50;
 
 		while (true) {
 			var pageable = PageRequest.of(page, size, Sort.by("path"));
@@ -408,17 +368,13 @@ public class PublishService {
 					continue;
 				}
 
-				var req = PublishFileGroupRequest.builder()
-				                                 .fileGroupId(groupId)
-				                                 .galleryName(projection.groupName())
-				                                 .galleryDescription(projection.description() != null && projection.description()
-				                                                                                                   .length() > 2 ?
-				                                                     projection.description() : projection.groupName())
-				                                 .build();
-				// mark scheduled
-				progressStore.markScheduled(groupId);
-				proxy.publishFileGroup(req);
-				scheduledCount++;
+				requests.add(PublishFileGroupRequest.builder()
+													.fileGroupId(groupId)
+													.galleryName(projection.groupName())
+													.galleryDescription(projection.description() != null && projection.description()
+																													  .length() > 2 ?
+																		projection.description() : projection.groupName())
+													.build());
 			}
 
 			page++;
@@ -427,11 +383,15 @@ public class PublishService {
 			}
 		}
 
-		return scheduledCount;
+		return requests;
+	}
+
+	private static String groupTitle(PublishFileGroupRequest request) {
+		return request.getGalleryName() != null && !request.getGalleryName()
+														   .isBlank() ? request.getGalleryName() : "#" + request.getFileGroupId();
 	}
 
 	private Path resolveExportedPath(long fileId) {
-		// Look up the exported file from export repository
 		var optionalExportFileEntity = exportFileRepository.findByFileId(fileId);
 
 		if (optionalExportFileEntity.isEmpty()) {

@@ -1,11 +1,14 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.api.response.ScanExportResponse;
 import fi.poltsi.vempain.file.api.response.ScanOriginalResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
+import fi.poltsi.vempain.file.task.TaskProgress;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +26,7 @@ public class FileScannerService {
 
 	private final DirectoryProcessorService directoryProcessorService;
 	private final FileResponseEnricher fileResponseEnricher;
+	private final TaskRunner           taskRunner;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -30,23 +34,47 @@ public class FileScannerService {
 	@Value("${vempain.export-root-directory}")
 	private String exportRootDirectory;
 
+	/**
+	 * Validates the requested directories and starts a background task that scans them. One step per leaf directory; the finished
+	 * task carries the {@link ScanResponses} as result.
+	 *
+	 * @throws org.springframework.web.server.ResponseStatusException when a directory is missing or outside the configured roots
+	 */
+	public TaskProgress scanDirectoriesAsTask(ScanRequest scanRequest) {
+		if (scanRequest.getOriginalDirectory() != null) {
+			resolveScanDirectory(originalRootDirectory, scanRequest.getOriginalDirectory());
+		}
+		if (scanRequest.getExportDirectory() != null) {
+			resolveScanDirectory(exportRootDirectory, scanRequest.getExportDirectory());
+		}
+
+		var title = "Scan " + String.join(" and ", java.util.stream.Stream.of(scanRequest.getOriginalDirectory(), scanRequest.getExportDirectory())
+																		  .filter(java.util.Objects::nonNull)
+																		  .toList());
+		return taskRunner.submit(TaskTypeEnum.SCAN_DIRECTORIES.name(), title, 0, progress -> scanDirectories(scanRequest, progress));
+	}
+
 	public ScanResponses scanDirectories(ScanRequest scanRequest) {
+		return scanDirectories(scanRequest, null);
+	}
+
+	public ScanResponses scanDirectories(ScanRequest scanRequest, TaskProgress progress) {
 		var scanResponses = new ScanResponses();
 
 		if (scanRequest.getOriginalDirectory() != null) {
-			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory());
+			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory(), progress);
 			scanResponses.setScanOriginalResponse(originalResult);
 		}
 
 		if (scanRequest.getExportDirectory() != null) {
-			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory());
+			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory(), progress);
 			scanResponses.setScanExportResponse(exportedResult);
 		}
 
 		return scanResponses;
 	}
 
-	protected ScanOriginalResponse scanOriginalDirectory(String selectedDirectory) {
+	protected ScanOriginalResponse scanOriginalDirectory(String selectedDirectory, TaskProgress progress) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
@@ -57,10 +85,12 @@ public class FileScannerService {
 		var scanDirectory = resolveScanDirectory(originalRootDirectory, selectedDirectory);
 
 		success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
+		addSteps(progress, leafDirectories.size());
 
 		for (var leafDir : leafDirectories) {
 			// Each processDirectory call will run in its own transaction
 			var results = directoryProcessorService.processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses);
+			step(progress, scanDirectory, leafDir);
 			scannedFilesCount += results.get(0);
 			newFilesCount += results.get(1);
 			success = success && scannedFilesCount == newFilesCount;
@@ -74,10 +104,10 @@ public class FileScannerService {
 		                           .failedFiles(failedFiles)
 		                           .successfulFiles(successfulFileResponses)
 		                           .errorMessage(errorMessage.toString())
-		                           .build();
+								   .build();
 	}
 
-	protected ScanExportResponse scanExportDirectory(String exportedDirectory) {
+	protected ScanExportResponse scanExportDirectory(String exportedDirectory, TaskProgress progress) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
@@ -93,12 +123,14 @@ public class FileScannerService {
 			return ScanExportResponse.builder()
 			                         .success(false)
 			                         .errorMessage(errorMessage.toString())
-			                         .build();
+									 .build();
 		}
 
+		addSteps(progress, leafDirectories.size());
 		for (Path leafDir : leafDirectories) {
-			var foo = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses);
-			log.debug("Processed {} in export directory", foo.size());
+			var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses);
+			log.debug("Processed {} in export directory", processed.size());
+			step(progress, scanDirectory, leafDir);
 		}
 
 		return ScanExportResponse.builder()
@@ -108,8 +140,21 @@ public class FileScannerService {
 		                         .failedFiles(orphanedFiles)
 		                         .successfulFiles(successfulFileResponses)
 		                         .errorMessage(errorMessage.toString())
-		                         .build();
+								 .build();
 
+	}
+
+	private static void addSteps(TaskProgress progress, int steps) {
+		if (progress != null) {
+			progress.setTotalSteps(progress.getTotalSteps()
+										   .get() + steps);
+		}
+	}
+
+	private static void step(TaskProgress progress, Path root, Path leafDirectory) {
+		if (progress != null) {
+			progress.advance("Scanned " + root.relativize(leafDirectory));
+		}
 	}
 
 	private boolean isLeafDirectory(Path path) {

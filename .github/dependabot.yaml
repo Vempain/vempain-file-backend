@@ -1,0 +1,36 @@
+version: 2
+
+registries:
+  # GitHub Packages holds only the fi.poltsi.vempain:* artifacts (vempain-auth-api/-core and the
+  # cross-repository *-api jars). Third-party dependencies keep coming from Maven Central, which
+  # Dependabot consults by default because replaces-base is left at false.
+  # Both secrets are organisation level Dependabot secrets; the token needs the read:packages scope.
+  maven-github:
+    type: maven-repository
+    url: https://maven.pkg.github.com/Vempain/*
+    username: ${{ secrets.VEMPAIN_ACTION_USER }}
+    password: ${{ secrets.VEMPAIN_ACTION_TOKEN }}
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        update-types: [ minor, patch, major ]
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    registries: "*"
+    schedule:
+      interval: "weekly"
+    groups:
+      # One PR per week for every version update, vempain-auth and the other Vempain jars included
+      weekly-dependencies:
+        applies-to: version-updates
+        patterns: [ "*" ]
+        update-types: [ minor, patch, major ]
+      security-dependencies:
+        applies-to: security-updates
+        patterns: [ "*" ]

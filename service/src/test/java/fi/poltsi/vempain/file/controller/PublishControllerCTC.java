@@ -15,11 +15,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <ul>
  *   <li>POST /api/publish/file-group      – publish a single file group</li>
  *   <li>GET  /api/publish/all-file-groups – publish all file groups</li>
- *   <li>GET  /api/publish/progress        – get publish progress</li>
  * </ul>
  *
- * <p>Publish operations are asynchronous; only HTTP response codes and
- * response body shape are verified here, not async completion.
+ * <p>Publish operations run as background tasks and answer 202 with a {@code TaskAcceptedResponse};
+ * the task itself is followed through {@code TaskAPI} (see {@link TaskControllerCTC}).
  */
 class PublishControllerCTC extends AbstractControllerCTC {
 
@@ -50,7 +49,10 @@ class PublishControllerCTC extends AbstractControllerCTC {
 		doPost("/publish/file-group",
 		       "{\"file_group_id\":" + groupId + ",\"gallery_name\":\"My Gallery\",\"gallery_description\":\"Desc\"}")
 				.andExpect(status().isAccepted())
-				.andExpect(jsonPath("$.files_to_publish_count", notNullValue()));
+				.andExpect(jsonPath("$.task_id", notNullValue()))
+				.andExpect(jsonPath("$.type").value("PUBLISH_FILE_GROUP"))
+				.andExpect(jsonPath("$.title").value("Publish file group My Gallery"))
+				.andExpect(jsonPath("$.status", notNullValue()));
 	}
 
 	// -----------------------------------------------------------------------
@@ -61,7 +63,8 @@ class PublishControllerCTC extends AbstractControllerCTC {
 	void publishAllFileGroups_returns202_whenNoGroupsExist() throws Exception {
 		doGet("/publish/all-file-groups")
 				.andExpect(status().isAccepted())
-				.andExpect(jsonPath("$.file_groups_count").value(0));
+				.andExpect(jsonPath("$.type").value("PUBLISH_ALL_FILE_GROUPS"))
+				.andExpect(jsonPath("$.total_steps").value(0));
 	}
 
 	@Test
@@ -75,22 +78,9 @@ class PublishControllerCTC extends AbstractControllerCTC {
 
 		doGet("/publish/all-file-groups")
 				.andExpect(status().isAccepted())
-				.andExpect(jsonPath("$.file_groups_count", greaterThanOrEqualTo(2)));
+				.andExpect(jsonPath("$.task_id", notNullValue()))
+				.andExpect(jsonPath("$.total_steps", greaterThanOrEqualTo(2)));
 	}
 
-	// -----------------------------------------------------------------------
-	// GET /api/publish/progress
-	// -----------------------------------------------------------------------
-
-	@Test
-	void getPublishProgress_returns200_withProgressFields() throws Exception {
-		doGet("/publish/progress")
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.total_groups").exists())
-				.andExpect(jsonPath("$.scheduled").exists())
-				.andExpect(jsonPath("$.started").exists())
-				.andExpect(jsonPath("$.completed").exists())
-				.andExpect(jsonPath("$.failed").exists());
-	}
 }
 

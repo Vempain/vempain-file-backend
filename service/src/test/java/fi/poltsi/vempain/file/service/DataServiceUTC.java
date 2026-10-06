@@ -3,12 +3,15 @@ package fi.poltsi.vempain.file.service;
 import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.DataRequest;
 import fi.poltsi.vempain.admin.api.response.DataResponse;
+import fi.poltsi.vempain.file.api.TaskStatusEnum;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminDataClient;
 import fi.poltsi.vempain.file.repository.files.ImageFileRepository;
 import fi.poltsi.vempain.file.service.files.MusicFileService;
+import fi.poltsi.vempain.file.task.TaskProgressStore;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,11 +46,13 @@ class DataServiceUTC {
 	@Mock
 	private LocationService locationService;
 
+	private final TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
+
 	private DataService dataService;
 
 	@BeforeEach
 	void setUp() {
-		dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient, locationService);
+		dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient, locationService, taskRunner);
 	}
 
 	// -----------------------------------------------------------------------
@@ -447,5 +452,69 @@ class DataServiceUTC {
 	@Test
 	void escapeCsv_quoteDoubled() {
 		assertThat(DataService.escapeCsv("say \"hi\"")).isEqualTo("\"say \"\"hi\"\"\"");
+	}
+
+	// -----------------------------------------------------------------------
+	// background task variants
+	// -----------------------------------------------------------------------
+
+	@Test
+	void publishMusicDatasetAsTask_noMusicFiles_throws404BeforeStartingATask() {
+		when(musicFileService.findAllOrdered()).thenReturn(List.of());
+
+		assertThrows(ResponseStatusException.class, () -> dataService.publishMusicDatasetAsTask());
+		verify(vempainAdminDataClient, never()).createDataSet(any(DataRequest.class));
+	}
+
+	@Test
+	void publishMusicDatasetAsTask_publishesInThreeStepsAndCarriesTheDataResponse() {
+		var music = new MusicFileEntity();
+		music.setArtist("Miles Davis");
+		when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenThrow(mock(FeignException.NotFound.class));
+		var dataResponse = new DataResponse();
+		dataResponse.setIdentifier(DataService.MUSIC_IDENTIFIER);
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(dataResponse));
+
+		var task = dataService.publishMusicDatasetAsTask();
+
+		assertThat(task.getType()).isEqualTo("PUBLISH_MUSIC_DATA");
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+		assertThat(task.getCompletedSteps()
+					   .get()).isEqualTo(3);
+		assertThat(task.getResult()).isSameAs(dataResponse);
+	}
+
+	@Test
+	void publishGpsTimeSeriesByFileGroupAsTask_validatesSynchronously() {
+		assertThrows(ResponseStatusException.class, () -> dataService.publishGpsTimeSeriesByFileGroupAsTask(0L, "name"));
+		assertThrows(ResponseStatusException.class, () -> dataService.publishGpsTimeSeriesByFileGroupAsTask(1L, " "));
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(1L)).thenReturn(List.of());
+		assertThrows(ResponseStatusException.class, () -> dataService.publishGpsTimeSeriesByFileGroupAsTask(1L, "Trip"));
+		verify(vempainAdminDataClient, never()).createDataSet(any(DataRequest.class));
+	}
+
+	@Test
+	void publishGpsTimeSeriesByFileGroupAsTask_failsTheTaskWhenTheAdminBackendRejectsTheDataSet() {
+		var location = new GpsLocationEntity();
+		location.setLatitude(new BigDecimal("60.12345"));
+		location.setLatitudeRef('N');
+		location.setLongitude(new BigDecimal("24.93545"));
+		location.setLongitudeRef('E');
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsLocation(location);
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(5L)).thenReturn(List.of(image));
+		when(locationService.isGuardedLocation(location)).thenReturn(false);
+		when(vempainAdminDataClient.getDataSetByIdentifier("summer_trip")).thenThrow(new IllegalStateException("admin backend down"));
+
+		var task = dataService.publishGpsTimeSeriesByFileGroupAsTask(5L, "Summer Trip");
+
+		assertThat(task.getType()).isEqualTo("PUBLISH_GPS_TIME_SERIES");
+		assertThat(task.getTitle()).isEqualTo("Publish GPS time series summer_trip");
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.FAILED);
+		assertThat(task.getErrorMessage()).isEqualTo("admin backend down");
+		assertThat(task.getCompletedSteps()
+					   .get()).isEqualTo(2);
 	}
 }

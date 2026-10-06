@@ -27,6 +27,7 @@ public class WebSecurityConfig extends fi.poltsi.vempain.auth.security.WebSecuri
 				"/data-publish/**",
 				"/location/**",
 				"/path-completion/**",
-				"/statistics/**");
+				"/statistics/**",
+				"/tasks/**");
 	}
 }

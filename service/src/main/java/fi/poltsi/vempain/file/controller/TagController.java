@@ -5,6 +5,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
+import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.rest.TagAPI;
 import fi.poltsi.vempain.file.service.TagService;
@@ -90,23 +91,23 @@ public class TagController implements TagAPI {
 	}
 
 	@Override
-	public ResponseEntity<Void> removeTagFromAll(TagOperationRequest request) {
-		tagService.removeTag(request, true);
-		return ResponseEntity.noContent()
-		                     .build();
+	public ResponseEntity<TaskAcceptedResponse> removeTagFromAll(TagOperationRequest request) {
+		return ResponseEntity.accepted()
+							 .body(tagService.removeTagFromAllAsTask(request)
+											 .toAcceptedResponse());
 	}
 
 	@Override
-	public ResponseEntity<Void> replaceTagAcrossAll(TagOperationRequest request) {
-		tagService.replaceTag(request, true);
-		return ResponseEntity.noContent()
-		                     .build();
+	public ResponseEntity<TaskAcceptedResponse> replaceTagAcrossAll(TagOperationRequest request) {
+		return ResponseEntity.accepted()
+							 .body(tagService.replaceTagAcrossAllAsTask(request)
+											 .toAcceptedResponse());
 	}
 
 	@Override
-	public ResponseEntity<Void> renameTagAcrossAll(TagOperationRequest request) {
-		tagService.renameTag(request, true);
-		return ResponseEntity.noContent()
-		                     .build();
+	public ResponseEntity<TaskAcceptedResponse> renameTagAcrossAll(TagOperationRequest request) {
+		return ResponseEntity.accepted()
+							 .body(tagService.renameTagAcrossAllAsTask(request)
+											 .toAcceptedResponse());
 	}
 }

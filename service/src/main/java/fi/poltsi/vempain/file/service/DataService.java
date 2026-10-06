@@ -3,11 +3,14 @@ package fi.poltsi.vempain.file.service;
 import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.DataRequest;
 import fi.poltsi.vempain.admin.api.response.DataResponse;
+import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminDataClient;
 import fi.poltsi.vempain.file.repository.files.ImageFileRepository;
 import fi.poltsi.vempain.file.service.files.MusicFileService;
+import fi.poltsi.vempain.file.task.TaskProgress;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -50,6 +53,7 @@ public class DataService {
 	private final ImageFileRepository imageFileRepository;
 	private final VempainAdminDataClient vempainAdminDataClient;
 	private final LocationService locationService;
+	private final TaskRunner taskRunner;
 
 	// -----------------------------------------------------------------------
 	// Music dataset
@@ -76,17 +80,43 @@ public class DataService {
 	 * @return the {@link DataResponse} returned by the Admin service after publishing
 	 */
 	public DataResponse generateAndPublishMusicDataset() {
-		log.info("Generating music dataset CSV");
+		return publishMusic(loadMusicFilesOrThrow(), null);
+	}
+
+	/**
+	 * Validates that music files exist and starts a background task that generates and publishes the music data set. The finished
+	 * task carries the admin {@link DataResponse} as result.
+	 */
+	public TaskProgress publishMusicDatasetAsTask() {
+		var musicFiles = loadMusicFilesOrThrow();
+		return taskRunner.submit(TaskTypeEnum.PUBLISH_MUSIC_DATA.name(), "Publish music data set", 3, progress -> publishMusic(musicFiles, progress));
+	}
+
+	private List<MusicFileEntity> loadMusicFilesOrThrow() {
+		log.info("Collecting music files for the music dataset");
 		var musicFiles = musicFileService.findAllOrdered();
 
 		if (musicFiles.isEmpty()) {
 			log.warn("No music files found in the database; skipping music dataset publication");
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No music files found in the database");
 		}
+		return musicFiles;
+	}
 
+	private DataResponse publishMusic(List<MusicFileEntity> musicFiles, TaskProgress progress) {
 		var csvData = buildMusicCsv(musicFiles);
+		step(progress, "Generated CSV for " + musicFiles.size() + " music files");
 		var request = buildMusicDataRequest(csvData);
-		return createOrUpdate(request);
+		step(progress, "Prepared data set " + MUSIC_IDENTIFIER);
+		var response = createOrUpdate(request);
+		step(progress, "Published data set " + MUSIC_IDENTIFIER + " to the admin backend");
+		return response;
+	}
+
+	private static void step(TaskProgress progress, String message) {
+		if (progress != null) {
+			progress.advance(message);
+		}
 	}
 
 	/**
@@ -225,6 +255,22 @@ public class DataService {
 	 * @return the {@link DataResponse} returned by the Admin service after publishing
 	 */
 	public DataResponse generateAndPublishGpsTimeSeriesByFileGroup(Long fileGroupId, String timeSeriesName) {
+		var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
+		return publishGpsTimeSeries(identifier, fileGroupId, loadGpsImagesOrThrow(fileGroupId), null);
+	}
+
+	/**
+	 * Validates the request and the presence of publishable GPS images, then starts a background task that generates and publishes
+	 * the GPS time-series data set. The finished task carries the admin {@link DataResponse} as result.
+	 */
+	public TaskProgress publishGpsTimeSeriesByFileGroupAsTask(Long fileGroupId, String timeSeriesName) {
+		var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
+		var images     = loadGpsImagesOrThrow(fileGroupId);
+		return taskRunner.submit(TaskTypeEnum.PUBLISH_GPS_TIME_SERIES.name(), "Publish GPS time series " + identifier, 3,
+								 progress -> publishGpsTimeSeries(identifier, fileGroupId, images, progress));
+	}
+
+	private String validateGpsIdentifier(Long fileGroupId, String timeSeriesName) {
 		if (fileGroupId == null || fileGroupId <= 0) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File group ID must be a positive number");
 		}
@@ -237,9 +283,10 @@ public class DataService {
 		if (!normalizedIdentifier.equals(timeSeriesName)) {
 			log.info("Normalized requested time-series name '{}' to Admin identifier '{}'", timeSeriesName, normalizedIdentifier);
 		}
+		return normalizedIdentifier;
+	}
 
-		log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, normalizedIdentifier);
-
+	private List<ImageFileEntity> loadGpsImagesOrThrow(Long fileGroupId) {
 		var images = imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(fileGroupId)
 		                                .stream()
 		                                .filter(image -> !locationService.isGuardedLocation(image.getGpsLocation()))
@@ -247,16 +294,20 @@ public class DataService {
 
 		if (images.isEmpty()) {
 			log.warn("No publishable GPS-tagged images found in file group: {}", fileGroupId);
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-			                                  """
-													  No publishable GPS-tagged images found in file group
-													  """.formatted(fileGroupId)
-			                                             .strip());
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No publishable GPS-tagged images found in file group");
 		}
+		return images;
+	}
 
+	private DataResponse publishGpsTimeSeries(String identifier, Long fileGroupId, List<ImageFileEntity> images, TaskProgress progress) {
+		log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, identifier);
 		var csvData = buildGpsCsv(images);
-		var request = buildGpsDataRequest(normalizedIdentifier, "file group: " + fileGroupId, csvData);
-		return createOrUpdate(request);
+		step(progress, "Generated CSV for " + images.size() + " GPS-tagged images");
+		var request = buildGpsDataRequest(identifier, "file group: " + fileGroupId, csvData);
+		step(progress, "Prepared data set " + identifier);
+		var response = createOrUpdate(request);
+		step(progress, "Published data set " + identifier + " to the admin backend");
+		return response;
 	}
 
 	/**

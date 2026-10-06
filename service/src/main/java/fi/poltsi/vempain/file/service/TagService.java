@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.service;
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
+import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
@@ -16,9 +17,12 @@ import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.service.files.FileSearchHelper;
+import fi.poltsi.vempain.file.task.TaskProgress;
+import fi.poltsi.vempain.file.task.TaskRunner;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -47,7 +51,9 @@ public class TagService {
 	private final ThumbFileRepository        thumbFileRepository;
 	private final DirectoryProcessorService  directoryProcessorService;
 	private final ThumbnailGenerationService thumbnailGenerationService;
-	private final FileAclService fileAclService;
+	private final FileAclService     fileAclService;
+	private final TaskRunner         taskRunner;
+	private final ApplicationContext applicationContext;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -160,15 +166,25 @@ public class TagService {
 		tag.setTagNameFi(request.getTagNameFi());
 		tag.setTagNameSv(request.getTagNameSv());
 		tagRepository.save(tag);
-		mutate(request, request.getFileIds(), Operation.ADD);
+		mutate(request, request.getFileIds(), Operation.ADD, null);
 	}
 
 	@Transactional
 	public void removeTag(TagOperationRequest request, boolean all) {
 		var files = all ? filesForTag(request.getTagName()) : request.getFileIds();
 		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
-		mutate(request, files, Operation.REMOVE);
+		mutate(request, files, Operation.REMOVE, null);
 		deleteTagIfUnused(request.getTagName());
+	}
+
+	/**
+	 * Removes the tag from every tagged file as a background task (one step per file). ACL checks run synchronously.
+	 */
+	public TaskProgress removeTagFromAllAsTask(TagOperationRequest request) {
+		var files = filesForTag(request.getTagName());
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
+		return submitTagTask(TaskTypeEnum.TAG_REMOVE_FROM_ALL, "Remove tag '" + request.getTagName() + "' from " + files.size() + " files", request, files,
+							 Operation.REMOVE, true);
 	}
 
 	@Transactional
@@ -177,12 +193,30 @@ public class TagService {
 		requireExistingTag(request.getReplacementTagName());
 		var files = all ? filesForTag(request.getTagName()) : request.getFileIds();
 		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
-		mutate(request, files, Operation.REPLACE);
+		mutate(request, files, Operation.REPLACE, null);
 		deleteTagIfUnused(request.getTagName());
+	}
+
+	/**
+	 * Replaces the tag on every tagged file as a background task (one step per file). Validation and ACL checks run synchronously.
+	 */
+	public TaskProgress replaceTagAcrossAllAsTask(TagOperationRequest request) {
+		requireReplacement(request);
+		requireExistingTag(request.getReplacementTagName());
+		var files = filesForTag(request.getTagName());
+		requireModify(fileRepository.findAllById(new LinkedHashSet<>(files)));
+		return submitTagTask(TaskTypeEnum.TAG_REPLACE_ACROSS_ALL,
+							 "Replace tag '" + request.getTagName() + "' with '" + request.getReplacementTagName() + "' on " + files.size() + " files",
+							 request, files, Operation.REPLACE, true);
 	}
 
 	@Transactional
 	public void renameTag(TagOperationRequest request, boolean all) {
+		var files = prepareRename(request, all);
+		mutate(request, files, Operation.REPLACE, null);
+	}
+
+	private List<Long> prepareRename(TagOperationRequest request, boolean all) {
 		requireReplacement(request);
 		tagRepository.lockTagMutations();
 		var tag = tagRepository.findByTagName(request.getTagName())
@@ -208,10 +242,42 @@ public class TagService {
 		tag.setTagNameFi(request.getTagNameFi());
 		tag.setTagNameSv(request.getTagNameSv());
 		tagRepository.save(tag);
-		mutate(request, files, Operation.REPLACE);
+		return files;
 	}
 
-	private void mutate(TagOperationRequest request, List<Long> fileIds, Operation operation) {
+	/**
+	 * Renames the tag and rewrites the metadata of every tagged file as a background task (one step per file). The rename itself,
+	 * the validation and the ACL checks run synchronously in this transaction; the task starts after it has committed.
+	 */
+	@Transactional
+	public TaskProgress renameTagAcrossAllAsTask(TagOperationRequest request) {
+		var files = prepareRename(request, true);
+		return submitTagTask(TaskTypeEnum.TAG_RENAME_ACROSS_ALL,
+							 "Rename tag '" + request.getTagName() + "' to '" + request.getReplacementTagName() + "' on " + files.size() + " files",
+							 request, files, Operation.REPLACE, false);
+	}
+
+	private TaskProgress submitTagTask(TaskTypeEnum type, String title, TagOperationRequest request, List<Long> files, Operation operation,
+									   boolean deleteUnusedTag) {
+		var proxy = applicationContext.getBean(TagService.class);
+		return taskRunner.submit(type.name(), title, files.size(), progress -> {
+			proxy.applyTagOperation(request, files, operation, deleteUnusedTag, progress);
+			return null;
+		});
+	}
+
+	/**
+	 * Transactional body of the tag background tasks.
+	 */
+	@Transactional
+	public void applyTagOperation(TagOperationRequest request, List<Long> fileIds, Operation operation, boolean deleteUnusedTag, TaskProgress progress) {
+		mutate(request, fileIds, operation, progress);
+		if (deleteUnusedTag) {
+			deleteTagIfUnused(request.getTagName());
+		}
+	}
+
+	private void mutate(TagOperationRequest request, List<Long> fileIds, Operation operation, TaskProgress progress) {
 		var oldTag = request.getTagName();
 		var newTag = request.getReplacementTagName();
 		for (var file : fileRepository.findAllById(new LinkedHashSet<>(fileIds))) {
@@ -251,6 +317,9 @@ public class TagService {
 				file.setModifier(fi.poltsi.vempain.auth.tools.AuthTools.getCurrentUserId());
 				file.setModified(Instant.now());
 				fileRepository.save(file);
+				if (progress != null) {
+					progress.advance("Updated " + file.getFilename());
+				}
 			} catch (IOException | VempainAuthenticationException e) {
 				throw new IllegalStateException("Failed to update tags for file " + file.getId(), e);
 			}
@@ -388,5 +457,5 @@ public class TagService {
 		                                                   .toArray(jakarta.persistence.criteria.Predicate[]::new));
 	}
 
-	private enum Operation {ADD, REMOVE, REPLACE}
+	enum Operation {ADD, REMOVE, REPLACE}
 }

@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file;
 
-import fi.poltsi.vempain.file.api.PublishProgressStatusEnum;
-import fi.poltsi.vempain.file.service.PublishProgressStore;
+import fi.poltsi.vempain.file.api.TaskStatusEnum;
 import fi.poltsi.vempain.file.service.PublishService;
+import fi.poltsi.vempain.file.task.TaskProgressStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +44,7 @@ public class PublishServiceITC {
 	private PublishService publishService;
 
 	@Autowired
-	private PublishProgressStore progressStore;
+	private TaskProgressStore taskProgressStore;
 
 	@BeforeEach
 	void setup() {
@@ -55,40 +55,33 @@ public class PublishServiceITC {
 	}
 
 	@Test
-	void publishAllSchedulesAllGroups_andCompletes() throws InterruptedException {
-		// Insert 3 file_group rows (only columns that are commonly present)
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-		                    "/g1", "group1");
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-		                    "/g2", "group2");
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)",
-		                    "/g3", "group3");
+	void publishAllRunsAsOneTaskWithAStepPerGroup_andCompletes() throws InterruptedException {
+		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g1", "group1");
+		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g2", "group2");
+		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g3", "group3");
 
-		long scheduled = publishService.publishAllFileGroups();
+		var task = publishService.publishAllFileGroups();
 
-		assertEquals(3L, scheduled, "publishAllFileGroups should schedule three groups");
-		// progress store should reflect scheduled and total count immediately
-		assertEquals(3L, progressStore.getScheduled());
-		assertEquals(3L, progressStore.getTotal());
+		assertEquals(3L, task.getTotalSteps()
+							 .get(), "publishAllFileGroups should schedule three groups");
+		assertTrue(taskProgressStore.find(task.getId())
+									.isPresent(), "the task must be registered for polling");
 
-		// Wait for async processing to mark them started/completed
+		// Wait for the background task to finish
 		Instant deadline = Instant.now()
-		                          .plus(Duration.ofSeconds(5));
-		while (Instant.now()
-		              .isBefore(deadline)) {
-			if (progressStore.getCompleted() >= 3L && progressStore.getStarted() >= 3L) {
-				break;
-			}
+								  .plus(Duration.ofSeconds(10));
+		while (!task.isFinished() && Instant.now()
+											.isBefore(deadline)) {
 			Thread.sleep(100);
 		}
 
-		assertEquals(3L, progressStore.getStarted(), "All groups should have been started");
-		assertEquals(3L, progressStore.getCompleted(), "All groups should have completed");
-
-		// Ensure per-group statuses are set to COMPLETED
-		assertTrue(progressStore.getPerGroupStatus()
-		                        .values()
-		                        .stream()
-		                        .allMatch(s -> s == PublishProgressStatusEnum.COMPLETED));
+		assertEquals(TaskStatusEnum.COMPLETED, task.getStatus(), "The publish-all task should complete");
+		assertEquals(3L, task.getCompletedSteps()
+							 .get(), "All groups should have been processed");
+		assertEquals(0L, task.getFailedSteps()
+							 .get(), "Empty groups publish without failures");
+		assertEquals(100, task.toResponse()
+							  .getPercent());
+		taskProgressStore.remove(task.getId());
 	}
 }

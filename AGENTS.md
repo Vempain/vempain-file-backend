@@ -87,12 +87,20 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Long-running actions never block the HTTP request. They run through the task progress facility in `fi.poltsi.vempain.file.task`
   (`TaskRunner.submit(type, title, totalSteps, work)` -> `TaskProgress`, `TaskProgressStore`, `TaskController` = `TaskAPI` at `/api/tasks`):
   the endpoint answers `202 TaskAcceptedResponse` and the frontend polls `GET /api/tasks/{task_id}` (`TaskProgressResponse`: status
-  QUEUED/RUNNING/COMPLETED/FAILED, steps, percent, message, type specific `result`) and dismisses finished tasks with `DELETE`. Tasks are
-  private to their owner and kept for `vempain.tasks.retention-minutes`. Current task types (`TaskTypeEnum`): publish file group / all file
+  QUEUED/RUNNING/CANCELLING/CANCELLED/COMPLETED/FAILED, steps, percent, message, `cancel_requested`, `reverted_steps`, type specific `result`),
+  cancels a running task with `POST /api/tasks/{task_id}/cancel` and dismisses a finished one with `DELETE`. Tasks are private to their owner
+  and kept for `vempain.tasks.retention-minutes`. Current task types (`TaskTypeEnum`): publish file group / all file
   groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin `DataResponse`), and the tag
   remove/replace/rename-across-all-files operations. Rules: validate and authorize synchronously before submitting; report one step per
   unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy (`applicationContext.getBean(...)`)
   because the task body runs outside the request transaction; a task submitted inside a transaction starts after that transaction commits.
+  Cancellation is cooperative and reverting (saga style): call `progress.checkpoint()` before every unit of work and register the undo of
+  every change with `progress.registerCompensation(description, () -> ...)` right after making it; on cancel or failure the runner runs
+  the compensations most recent first. Current undo paths: publish removes the site files it created in the admin backend (`FileIngestAPI.deleteSiteFile`) and
+  restores the file group's gallery link; a replaced site file cannot be restored. Scans remove the
+  files, export files and file groups they created (`ScanRecorder`); refreshed files keep their refreshed state. Data set publishing deletes
+  a created data set (`DataAPI.deleteDataSet`) or re-sends the previous content of a replaced one. Tag tasks apply the inverse metadata
+  operation to every rewritten file and rename the tag back.
   Any new action that transfers files or data to another service, walks the filesystem or rewrites many files must use this facility.
   The facility is intentionally free of file backend types so that it can be extracted into a shared `vempain-auth`/frontend component later.
 - ACL behaviour is covered by `FileAclServiceITC`, `FileAclControllerCTC`, `FileAclPagedITC` and `FileAclRepairScheduleUTC`; keep positive and
@@ -102,7 +110,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Test suffixes are meaningful and shared across the Vempain Java repos: `UTC` = unit test (Mockito), `CTC` = controller test (`AbstractControllerCTC`
     + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`).
       The task facility is covered by `TaskProgressStoreUTC`, `TaskRunnerUTC` and `TaskControllerCTC`; services that submit tasks are unit
-      tested with `new TaskRunner(new TaskProgressStore(), Runnable::run)` so the task body runs synchronously.
+      tested with `new TaskRunner(new TaskProgressStore(), Runnable::run)` so the task body runs synchronously, or with a runner on a
+      capturing executor (`queued::add`) when the test needs to cancel before the work runs.
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
@@ -126,6 +135,11 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `file_group_id` plus `time_series_name`, with identifiers normalized to Admin-safe snake_case.
 - Runtime API traffic uses `/api` on port 8080; actuator and Swagger are exposed on port 8081. Local runs require PostgreSQL, valid `vempain.*`
   settings, existing source/export roots, and `exiftool`.
+
+- Every `LIKE` pattern built from request text goes through `fi.poltsi.vempain.file.tools.LikePatterns` (`contains`/`containsIgnoreCase`/`prefix`: escapes
+  `%`, `_` and `\\`, truncates to 200 characters; `limitTokens` caps a search at 10 tokens) and declares the escape character,
+  as in `FileGroupRepositoryImpl` (native SQL, `ESCAPE_CLAUSE`), `FileSearchHelper` and `TagService` tag search (Criteria API, `ESCAPE_CHAR`). Request text
+  never acts as wildcard syntax (OWASP A05).
 
 ## Tag ACL rule
 

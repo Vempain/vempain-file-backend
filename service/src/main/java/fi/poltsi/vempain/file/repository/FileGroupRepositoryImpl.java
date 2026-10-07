@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.repository;
 
+import fi.poltsi.vempain.file.tools.LikePatterns;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
@@ -74,7 +75,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 		for (int i = 0; i < tokens.size(); i++) {
 			String value = caseSensitive ? tokens.get(i) : tokens.get(i)
 			                                                     .toLowerCase();
-			query.setParameter("term" + i, "%" + value + "%");
+			query.setParameter("term" + i, LikePatterns.contains(value));
 		}
 	}
 
@@ -105,7 +106,8 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
 	}
 
 	private String like(String column, int index, boolean caseSensitive) {
-		return (caseSensitive ? column : "LOWER(" + column + ")") + " LIKE :term" + index;
+		// Request text is escaped by LikePatterns; the escape character is declared explicitly so the pattern is literal text
+		return (caseSensitive ? column : "LOWER(" + column + ")") + " LIKE :term" + index + LikePatterns.ESCAPE_CLAUSE;
 	}
 
 	private String buildOrderClause(Pageable pageable) {

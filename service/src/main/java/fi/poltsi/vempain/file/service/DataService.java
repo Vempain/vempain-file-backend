@@ -104,11 +104,13 @@ public class DataService {
 	}
 
 	private DataResponse publishMusic(List<MusicFileEntity> musicFiles, TaskProgress progress) {
+		checkpoint(progress);
 		var csvData = buildMusicCsv(musicFiles);
 		step(progress, "Generated CSV for " + musicFiles.size() + " music files");
 		var request = buildMusicDataRequest(csvData);
 		step(progress, "Prepared data set " + MUSIC_IDENTIFIER);
-		var response = createOrUpdate(request);
+		checkpoint(progress);
+		var response = createOrUpdate(request, progress);
 		step(progress, "Published data set " + MUSIC_IDENTIFIER + " to the admin backend");
 		return response;
 	}
@@ -116,6 +118,12 @@ public class DataService {
 	private static void step(TaskProgress progress, String message) {
 		if (progress != null) {
 			progress.advance(message);
+		}
+	}
+
+	private static void checkpoint(TaskProgress progress) {
+		if (progress != null) {
+			progress.checkpoint();
 		}
 	}
 
@@ -243,7 +251,7 @@ public class DataService {
 		var identifier = buildGpsIdentifier(normPath);
 		var csvData    = buildGpsCsv(images);
 		var request    = buildGpsDataRequest(identifier, normPath, csvData);
-		return createOrUpdate(request);
+		return createOrUpdate(request, null);
 	}
 
 	/**
@@ -301,11 +309,13 @@ public class DataService {
 
 	private DataResponse publishGpsTimeSeries(String identifier, Long fileGroupId, List<ImageFileEntity> images, TaskProgress progress) {
 		log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, identifier);
+		checkpoint(progress);
 		var csvData = buildGpsCsv(images);
 		step(progress, "Generated CSV for " + images.size() + " GPS-tagged images");
 		var request = buildGpsDataRequest(identifier, "file group: " + fileGroupId, csvData);
 		step(progress, "Prepared data set " + identifier);
-		var response = createOrUpdate(request);
+		checkpoint(progress);
+		var response = createOrUpdate(request, progress);
 		step(progress, "Published data set " + identifier + " to the admin backend");
 		return response;
 	}
@@ -447,11 +457,11 @@ public class DataService {
 	}
 
 	/**
-	 * Attempts to update an existing dataset; if not found (404), creates a new one.
-	 * After creation/update, publishes the dataset to the site database.
+	 * Creates or replaces the data set in the admin backend. When running as a task, the undo is registered first: a created
+	 * data set is deleted again, a replaced one gets its previous content back.
 	 */
-	private DataResponse createOrUpdate(DataRequest request) {
-		var alreadyExists = true;
+	private DataResponse createOrUpdate(DataRequest request, TaskProgress progress) {
+		DataResponse existing;
 
 		log.debug("Prepared Admin DataRequest identifier='{}', type='{}', csv_header='{}', csv_length={} chars",
 		          request.getIdentifier(), request.getType(), csvHeaderPreview(request.getCsvData()),
@@ -459,13 +469,23 @@ public class DataService {
 		                                                .length() : 0);
 
 		try {
-			log.debug("Checking if the identifier {} already exists on Venpain Admin", request.getIdentifier());
-			vempainAdminDataClient.getDataSetByIdentifier(request.getIdentifier());
+			log.debug("Checking if the identifier {} already exists on Vempain Admin", request.getIdentifier());
+			var existingResponse = vempainAdminDataClient.getDataSetByIdentifier(request.getIdentifier());
+			existing = existingResponse == null ? null : existingResponse.getBody();
+			if (existing == null) {
+				existing = new DataResponse();
+				existing.setIdentifier(request.getIdentifier());
+			}
 		} catch (FeignException.NotFound e) {
-			alreadyExists = false;
+			existing = null;
 		}
 
-		if (alreadyExists) {
+		if (existing != null) {
+			var previous = toRequest(existing);
+			if (progress != null) {
+				progress.registerCompensation("Restore the previous content of data set " + request.getIdentifier(),
+											  () -> vempainAdminDataClient.updateDataSet(previous));
+			}
 			try {
 				log.debug("Updating existing dataset: {}", request.getIdentifier());
 				return vempainAdminDataClient.updateDataSet(request)
@@ -475,10 +495,30 @@ public class DataService {
 				          request.getIdentifier(), e.status(), e.getMessage(), e.contentUTF8(), e);
 				throw mapAdminException(e, "create/update", request.getIdentifier());
 			}
-		} else {
-			log.debug("identifier {} did not exist on Vempain Admin, creating it", request.getIdentifier());
-			return create(request);
 		}
+
+		log.debug("identifier {} did not exist on Vempain Admin, creating it", request.getIdentifier());
+		var created = create(request);
+		if (progress != null) {
+			var identifier = request.getIdentifier();
+			progress.registerCompensation("Delete data set " + identifier + " from the admin backend",
+										  () -> vempainAdminDataClient.deleteDataSet(identifier));
+		}
+		return created;
+	}
+
+	private static DataRequest toRequest(DataResponse response) {
+		var request = new DataRequest();
+		request.setIdentifier(response.getIdentifier());
+		request.setType(response.getType());
+		request.setDescription(response.getDescription());
+		request.setColumnDefinitions(response.getColumnDefinitions());
+		request.setCreateSql(response.getCreateSql());
+		request.setFetchAllSql(response.getFetchAllSql());
+		request.setFetchSubsetSql(response.getFetchSubsetSql());
+		request.setGenerated(response.getGenerated());
+		request.setCsvData(response.getCsvData());
+		return request;
 	}
 
 	private DataResponse create(DataRequest request) {

@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,6 +78,35 @@ class TaskControllerCTC extends AbstractControllerCTC {
 					.andExpect(status().isNotFound());
 		} finally {
 			store.remove(running.getId());
+			store.remove(other.getId());
+		}
+	}
+
+	@Test
+	void cancelMarksOwnActiveTasksAndRejectsOthers() throws Exception {
+		var queued   = store.create("SCAN_DIRECTORIES", "Scan", 1L, 3);
+		var finished = store.create("SCAN_DIRECTORIES", "Scan", 1L, 0);
+		var other    = store.create("SCAN_DIRECTORIES", "Scan", 2L, 0);
+		ReflectionTestUtils.invokeMethod(finished, "complete", (Object) null);
+
+		try {
+			mockMvc.perform(post("/tasks/" + queued.getId() + "/cancel").with(user(CTC_PRINCIPAL))
+																		.with(csrf()))
+				   .andExpect(status().isAccepted())
+				   .andExpect(jsonPath("$.task_id").value(queued.getId()))
+				   .andExpect(jsonPath("$.cancel_requested").value(true))
+				   .andExpect(jsonPath("$.reverted_steps").value(0));
+			assertThat(queued.isCancelRequested()).isTrue();
+
+			mockMvc.perform(post("/tasks/" + finished.getId() + "/cancel").with(user(CTC_PRINCIPAL))
+																		  .with(csrf()))
+				   .andExpect(status().isConflict());
+			mockMvc.perform(post("/tasks/" + other.getId() + "/cancel").with(user(CTC_PRINCIPAL))
+																	   .with(csrf()))
+				   .andExpect(status().isNotFound());
+		} finally {
+			store.remove(queued.getId());
+			store.remove(finished.getId());
 			store.remove(other.getId());
 		}
 	}

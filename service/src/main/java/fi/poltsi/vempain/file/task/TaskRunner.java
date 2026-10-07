@@ -23,6 +23,8 @@ import java.util.concurrent.Executor;
  *   Authorization that should fail the request itself must still run synchronously before {@code submit}.</li>
  *   <li>When {@code submit} is called inside a transaction the work starts after that transaction has committed, so the worker
  *   never observes uncommitted state of the request.</li>
+ *   <li>Cancellation is cooperative: the work calls {@link TaskProgress#checkpoint()} between units of work and registers an
+ *   undo action for every change; on cancellation or failure the runner runs those actions in reverse order.</li>
  * </ul>
  */
 @Slf4j
@@ -49,6 +51,20 @@ public class TaskRunner {
 		this.store        = store;
 		this.executor     = executor;
 		this.ownsExecutor = ownsExecutor;
+	}
+
+	/**
+	 * Requests cancellation of a task. The runner cancels a queued task before it starts; a running task stops at its next
+	 * {@link TaskProgress#checkpoint()} and its registered compensations are run.
+	 *
+	 * @return false when the task had already finished
+	 */
+	public boolean cancel(TaskProgress progress) {
+		var accepted = progress.requestCancel();
+		if (accepted) {
+			log.info("Cancellation requested for background task {} ({})", progress.getId(), progress.getType());
+		}
+		return accepted;
 	}
 
 	/**
@@ -86,6 +102,12 @@ public class TaskRunner {
 	}
 
 	private void execute(TaskProgress progress, TaskWork<?> work) {
+		if (progress.isCancelRequested()) {
+			progress.cancelled("Cancelled before it started");
+			log.info("Background task {} ({}) was cancelled before it started", progress.getId(), progress.getType());
+			return;
+		}
+
 		progress.start();
 		log.info("Background task {} ({}) started: {}", progress.getId(), progress.getType(), progress.getTitle());
 		try {
@@ -96,11 +118,51 @@ public class TaskRunner {
 							 .get(), progress.getTotalSteps()
 											 .get(), progress.getFailedSteps()
 															 .get());
+		} catch (TaskCancelledException e) {
+			log.info("Background task {} ({}) is cancelling after {} steps", progress.getId(), progress.getType(), progress.getCompletedSteps()
+																														   .get());
+			var failures = revert(progress);
+			progress.cancelled(cancelMessage(progress, failures));
 		} catch (Exception e) {
 			log.error("Background task {} ({}) failed", progress.getId(), progress.getType(), e);
-			progress.fail(e.getMessage() == null ? e.getClass()
-													.getSimpleName() : e.getMessage());
+			var failures = revert(progress);
+			var error = e.getMessage() == null ? e.getClass()
+												  .getSimpleName() : e.getMessage();
+			progress.fail(failures == 0 ? error : error + " (" + failures + " changes could not be reverted)");
 		}
+	}
+
+	/**
+	 * Runs the registered compensations most recent first. Every compensation is attempted even when an earlier one fails.
+	 *
+	 * @return number of compensations that failed
+	 */
+	private int revert(TaskProgress progress) {
+		progress.reverting();
+		var compensations = progress.drainCompensations();
+		var failures      = 0;
+		for (var registered : compensations) {
+			progress.message("Reverting: " + registered.description());
+			try {
+				registered.compensation()
+						  .revert();
+				progress.countReverted();
+			} catch (Exception e) {
+				failures++;
+				log.error("Background task {} ({}) could not revert '{}'", progress.getId(), progress.getType(), registered.description(), e);
+			}
+		}
+		return failures;
+	}
+
+	private static String cancelMessage(TaskProgress progress, int failures) {
+		var reverted = progress.getRevertedSteps()
+							   .get();
+		if (reverted == 0 && failures == 0) {
+			return "Cancelled, nothing to revert";
+		}
+		var message = "Cancelled, reverted " + reverted + " change" + (reverted == 1 ? "" : "s");
+		return failures == 0 ? message : message + ", " + failures + " could not be reverted";
 	}
 
 	/**

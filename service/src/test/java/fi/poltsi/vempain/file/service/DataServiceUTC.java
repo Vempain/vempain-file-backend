@@ -517,4 +517,57 @@ class DataServiceUTC {
 		assertThat(task.getCompletedSteps()
 					   .get()).isEqualTo(2);
 	}
+
+	@Test
+	void publishMusicDatasetAsTask_restoresThePreviousDataSetWhenTheUpdateFails() {
+		var music = new MusicFileEntity();
+		music.setArtist("Miles Davis");
+		when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+		var previous = new DataResponse();
+		previous.setIdentifier(DataService.MUSIC_IDENTIFIER);
+		previous.setType("tabulated");
+		previous.setCsvData("artist\nOld Artist\n");
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenReturn(ResponseEntity.ok(previous));
+		when(vempainAdminDataClient.updateDataSet(any(DataRequest.class)))
+				.thenThrow(new IllegalStateException("admin backend down"))
+				.thenReturn(ResponseEntity.ok(previous));
+
+		var task = dataService.publishMusicDatasetAsTask();
+
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.FAILED);
+		assertThat(task.getRevertedSteps()
+					   .get()).isEqualTo(1);
+		var captor = ArgumentCaptor.forClass(DataRequest.class);
+		verify(vempainAdminDataClient, org.mockito.Mockito.times(2)).updateDataSet(captor.capture());
+		assertThat(captor.getAllValues()
+						 .get(0)
+						 .getCsvData()).contains("Miles Davis");
+		assertThat(captor.getAllValues()
+						 .get(1)
+						 .getCsvData()).isEqualTo("artist\nOld Artist\n");
+	}
+
+	@Test
+	void publishGpsTimeSeriesByFileGroupAsTask_registersDeletionOfACreatedDataSet() {
+		var location = new GpsLocationEntity();
+		location.setLatitude(new BigDecimal("60.12345"));
+		location.setLatitudeRef('N');
+		location.setLongitude(new BigDecimal("24.93545"));
+		location.setLongitudeRef('E');
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsLocation(location);
+		when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(5L)).thenReturn(List.of(image));
+		when(locationService.isGuardedLocation(location)).thenReturn(false);
+		when(vempainAdminDataClient.getDataSetByIdentifier("trip")).thenThrow(mock(FeignException.NotFound.class));
+		var created = new DataResponse();
+		created.setIdentifier("trip");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(created));
+
+		var task = dataService.publishGpsTimeSeriesByFileGroupAsTask(5L, "trip");
+
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+		assertThat(task.getResult()).isSameAs(created);
+		verify(vempainAdminDataClient, never()).deleteDataSet(any());
+	}
 }

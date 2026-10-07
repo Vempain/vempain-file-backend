@@ -27,8 +27,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,7 +87,9 @@ class DirectoryProcessorServiceUTC {
 
 		var stored = new ImageFileEntity();
 		stored.setFilename("success.jpg");
-		when(fileRepository.findByFilePathAndFilename("/", "success.jpg")).thenReturn(Optional.of(stored));
+		// Every file is looked up once before processing (does it exist already?) and the successful one again afterwards
+		when(fileRepository.findByFilePathAndFilename(eq("/"), any())).thenReturn(Optional.empty());
+		when(fileRepository.findByFilePathAndFilename("/", "success.jpg")).thenReturn(Optional.empty(), Optional.of(stored));
 
 		var service = spy(newService());
 		ReflectionTestUtils.setField(service, "originalRootDirectory", testRoot.toString());
@@ -109,6 +114,39 @@ class DirectoryProcessorServiceUTC {
 		assertThat(responses).hasSize(1);
 		assertThat(errors).contains("broken.jpg");
 		verify(fileGroupRepository).save(any(FileGroupEntity.class));
+	}
+
+	@Test
+	void processOriginalDirectoryReportsCreatedGroupAndNewFilesToTheRecorder() throws Exception {
+		testRoot = Path.of("build", "dps-utc-" + UUID.randomUUID());
+		var leaf = Files.createDirectories(testRoot.resolve("album"));
+		Files.writeString(leaf.resolve("new.jpg"), "new");
+		Files.writeString(leaf.resolve("refreshed.jpg"), "refreshed");
+		var group = FileGroupEntity.builder()
+								   .path("/album")
+								   .groupName("album")
+								   .build();
+		when(fileGroupRepository.findByPathAndGroupName("/", "album")).thenReturn(Optional.empty());
+		when(fileGroupRepository.save(any(FileGroupEntity.class))).thenReturn(group);
+		var created = new ImageFileEntity();
+		created.setFilename("new.jpg");
+		var refreshed = new ImageFileEntity();
+		refreshed.setFilename("refreshed.jpg");
+		when(fileRepository.findByFilePathAndFilename("/", "new.jpg")).thenReturn(Optional.empty(), Optional.of(created));
+		when(fileRepository.findByFilePathAndFilename("/", "refreshed.jpg")).thenReturn(Optional.of(refreshed));
+
+		var service = spy(newService());
+		ReflectionTestUtils.setField(service, "originalRootDirectory", testRoot.toString());
+		doReturn(Boolean.TRUE).when(service)
+							  .processOriginalFile(any(java.io.File.class), any(FileGroupEntity.class));
+		var recorder = mock(ScanRecorder.class);
+
+		service.processOriginalDirectory(leaf, new StringBuilder(), new ArrayList<>(), new ArrayList<>(), recorder);
+
+		verify(recorder).fileGroupCreated(group);
+		verify(recorder).fileCreated(created);
+		verify(recorder, never()).fileCreated(refreshed);
+		verify(recorder, org.mockito.Mockito.times(2)).checkpoint();
 	}
 
 	@Test

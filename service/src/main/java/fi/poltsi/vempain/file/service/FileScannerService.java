@@ -7,6 +7,12 @@ import fi.poltsi.vempain.file.api.response.ScanExportResponse;
 import fi.poltsi.vempain.file.api.response.ScanOriginalResponse;
 import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
+import fi.poltsi.vempain.file.entity.ExportFileEntity;
+import fi.poltsi.vempain.file.entity.FileEntity;
+import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.repository.ExportFileRepository;
+import fi.poltsi.vempain.file.repository.FileGroupRepository;
+import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.task.TaskProgress;
 import fi.poltsi.vempain.file.task.TaskRunner;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +33,9 @@ public class FileScannerService {
 	private final DirectoryProcessorService directoryProcessorService;
 	private final FileResponseEnricher fileResponseEnricher;
 	private final TaskRunner           taskRunner;
+	private final FileRepository       fileRepository;
+	private final ExportFileRepository exportFileRepository;
+	private final FileGroupRepository  fileGroupRepository;
 
 	@Value("${vempain.original-root-directory}")
 	private String originalRootDirectory;
@@ -60,21 +69,56 @@ public class FileScannerService {
 
 	public ScanResponses scanDirectories(ScanRequest scanRequest, TaskProgress progress) {
 		var scanResponses = new ScanResponses();
+		var recorder = recorderFor(progress);
 
 		if (scanRequest.getOriginalDirectory() != null) {
-			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory(), progress);
+			var originalResult = scanOriginalDirectory(scanRequest.getOriginalDirectory(), progress, recorder);
 			scanResponses.setScanOriginalResponse(originalResult);
 		}
 
 		if (scanRequest.getExportDirectory() != null) {
-			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory(), progress);
+			var exportedResult = scanExportDirectory(scanRequest.getExportDirectory(), progress, recorder);
 			scanResponses.setScanExportResponse(exportedResult);
 		}
 
 		return scanResponses;
 	}
 
-	protected ScanOriginalResponse scanOriginalDirectory(String selectedDirectory, TaskProgress progress) {
+	/**
+	 * Recorder that stops the scan at the task's cancellation checkpoints and registers the removal of every created entity as
+	 * the undo of the scan. Without a task the recorder does nothing.
+	 */
+	ScanRecorder recorderFor(TaskProgress progress) {
+		if (progress == null) {
+			return ScanRecorder.NONE;
+		}
+		return new ScanRecorder() {
+			@Override
+			public void checkpoint() {
+				progress.checkpoint();
+			}
+
+			@Override
+			public void fileGroupCreated(FileGroupEntity fileGroup) {
+				var id = fileGroup.getId();
+				progress.registerCompensation("Remove file group " + fileGroup.getGroupName(), () -> fileGroupRepository.deleteById(id));
+			}
+
+			@Override
+			public void fileCreated(FileEntity file) {
+				var id = file.getId();
+				progress.registerCompensation("Remove file " + file.getFilename(), () -> fileRepository.deleteById(id));
+			}
+
+			@Override
+			public void exportFileCreated(ExportFileEntity exportFile) {
+				var id = exportFile.getId();
+				progress.registerCompensation("Remove export file " + exportFile.getFilename(), () -> exportFileRepository.deleteById(id));
+			}
+		};
+	}
+
+	protected ScanOriginalResponse scanOriginalDirectory(String selectedDirectory, TaskProgress progress, ScanRecorder recorder) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
@@ -89,7 +133,7 @@ public class FileScannerService {
 
 		for (var leafDir : leafDirectories) {
 			// Each processDirectory call will run in its own transaction
-			var results = directoryProcessorService.processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses);
+			var results = directoryProcessorService.processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses, recorder);
 			step(progress, scanDirectory, leafDir);
 			scannedFilesCount += results.get(0);
 			newFilesCount += results.get(1);
@@ -107,7 +151,7 @@ public class FileScannerService {
 								   .build();
 	}
 
-	protected ScanExportResponse scanExportDirectory(String exportedDirectory, TaskProgress progress) {
+	protected ScanExportResponse scanExportDirectory(String exportedDirectory, TaskProgress progress, ScanRecorder recorder) {
 		var scannedFilesCount       = 0L;
 		var newFilesCount           = 0L;
 		var success                 = true;
@@ -128,7 +172,7 @@ public class FileScannerService {
 
 		addSteps(progress, leafDirectories.size());
 		for (Path leafDir : leafDirectories) {
-			var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses);
+			var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses, recorder);
 			log.debug("Processed {} in export directory", processed.size());
 			step(progress, scanDirectory, leafDir);
 		}

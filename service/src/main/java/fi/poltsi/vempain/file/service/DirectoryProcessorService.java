@@ -175,6 +175,12 @@ public class DirectoryProcessorService {
 	@Transactional
 	protected List<Long> processOriginalDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> failedFiles,
 	                                              ArrayList<FileResponse> successfulFileResponses) {
+		return processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses, ScanRecorder.NONE);
+	}
+
+	@Transactional
+	protected List<Long> processOriginalDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> failedFiles,
+												  ArrayList<FileResponse> successfulFileResponses, ScanRecorder recorder) {
 		var resultList = new ArrayList<Long>(2);
 		resultList.add(0L); // scannedFilesCount
 		resultList.add(0L); // newFilesCount
@@ -205,10 +211,15 @@ public class DirectoryProcessorService {
 					               .groupName(groupName)
 					               .description("")
 					               .build());
+			recorder.fileGroupCreated(fileGroup);
 		}
 
 		for (var file : files) {
+			recorder.checkpoint();
 			resultList.set(0, resultList.getFirst() + 1); // Increment scannedFilesCount
+			// A file that exists already is refreshed in place and cannot be reverted; only genuinely new files are reported
+			var existedBefore = fileRepository.findByFilePathAndFilename(relativeDirectory, file.getName())
+											  .isPresent();
 
 			try {
 				var processed = processOriginalFile(file, fileGroup);
@@ -219,6 +230,9 @@ public class DirectoryProcessorService {
 					var optionalFileEntity = fileRepository.findByFilePathAndFilename(relativeDirectory, file.getName());
 
 					if (optionalFileEntity.isPresent()) {
+						if (!existedBefore) {
+							recorder.fileCreated(optionalFileEntity.get());
+						}
 						// First we reset the metadataRaw field to null so that it slims down the response size.
 						var fileResponse = optionalFileEntity.get()
 						                                     .toResponse();
@@ -898,6 +912,12 @@ public class DirectoryProcessorService {
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	protected List<Long> processExportDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> orphanedFiles,
 	                                            ArrayList<ExportFileResponse> successfulFileResponses) {
+		return processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses, ScanRecorder.NONE);
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	protected List<Long> processExportDirectory(Path leafDir, StringBuilder errorMessage, ArrayList<String> orphanedFiles,
+												ArrayList<ExportFileResponse> successfulFileResponses, ScanRecorder recorder) {
 		var resultList = new ArrayList<Long>(2);
 		resultList.add(0L); // scannedFilesCount
 		resultList.add(0L); // newFilesCount
@@ -911,12 +931,14 @@ public class DirectoryProcessorService {
 		}
 
 		for (var file : files) {
+			recorder.checkpoint();
 			resultList.set(0, resultList.getFirst() + 1); // Increment scannedFilesCount
 			var relativeFilePath = computeRelativeFilePath(exportRootDirectory, file);
 			var sha256sum        = computeSha256(file);
 
 			// Check first if the file already exists in the database
 			var optionalExportFile = exportFileRepository.findByFilePathAndFilename(relativeFilePath, file.getName());
+			var existedBefore = optionalExportFile.isPresent();
 
 			if (optionalExportFile.isPresent()) {
 				var exportFile = optionalExportFile.get();
@@ -985,6 +1007,9 @@ public class DirectoryProcessorService {
 			// Save the exported file entity onto the database.
 			var storedExportFile = exportedFilesService.save(exportFileEntity);
 			log.debug("Successfully registered exported file: {}", storedExportFile.getFilename());
+			if (!existedBefore) {
+				recorder.exportFileCreated(storedExportFile);
+			}
 			successfulFileResponses.add(storedExportFile.toResponse());
 
 			// If there is no existing file entity, we may not create a new one

@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.service.files;
 
 import fi.poltsi.vempain.file.entity.FileEntity;
+import fi.poltsi.vempain.file.tools.LikePatterns;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -31,7 +32,7 @@ public final class FileSearchHelper {
 	 * @return Specification, or null if search is empty
 	 */
 	public static <T extends FileEntity> Specification<T> buildSpecification(String search, boolean caseSensitive) {
-		List<String> tokens = tokenize(search);
+		List<String> tokens = LikePatterns.limitTokens(tokenize(search));
 		if (tokens.isEmpty()) {
 			return null;
 		}
@@ -39,14 +40,14 @@ public final class FileSearchHelper {
 		return (root, query, cb) -> {
 			List<Predicate> andPredicates = new ArrayList<>();
 			for (String token : tokens) {
-				String          pattern      = "%" + (caseSensitive ? token : token.toLowerCase()) + "%";
+				String pattern = caseSensitive ? LikePatterns.contains(token) : LikePatterns.containsIgnoreCase(token);
 				List<Predicate> orPredicates = new ArrayList<>();
 				for (String field : List.of("filename", "filePath", "description", "mimetype")) {
 					var path = root.<String>get(field);
 					if (caseSensitive) {
-						orPredicates.add(cb.like(path, pattern));
+						orPredicates.add(cb.like(path, pattern, LikePatterns.ESCAPE_CHAR));
 					} else {
-						orPredicates.add(cb.like(cb.lower(path), pattern));
+						orPredicates.add(cb.like(cb.lower(path), pattern, LikePatterns.ESCAPE_CHAR));
 					}
 				}
 				andPredicates.add(cb.or(orPredicates.toArray(new Predicate[0])));

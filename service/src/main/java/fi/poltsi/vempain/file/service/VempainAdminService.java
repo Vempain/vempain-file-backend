@@ -27,6 +27,25 @@ public class VempainAdminService {
 	private final VempainAdminFileClient vempainAdminFileClient;
 	private final ObjectMapper           objectMapper;
 
+	/**
+	 * Removes a site file that an earlier {@link #uploadAsSiteFile} created; used to revert a cancelled publish.
+	 */
+	public void deleteSiteFile(long siteFileId) {
+		log.debug("Deleting site file {} from Vempain Admin service", siteFileId);
+		try {
+			vempainAdminFileIngestClient.deleteSiteFile(siteFileId);
+		} catch (FeignException e) {
+			if (e.status() == 404) {
+				log.warn("Site file {} was already gone from Vempain Admin", siteFileId);
+				return;
+			}
+			if (e.status() == 403) {
+				throw new VempainAuthenticationException();
+			}
+			throw e;
+		}
+	}
+
 	public FileIngestResponse uploadAsSiteFile(File exportedFile, FileIngestRequest fileIngestRequest) {
 		var multiPartFile = VempainMultipartFile.builder()
 		                                        .path(exportedFile.toPath())

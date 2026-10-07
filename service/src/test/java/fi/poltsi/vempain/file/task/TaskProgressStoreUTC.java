@@ -90,6 +90,17 @@ class TaskProgressStoreUTC {
 	}
 
 	@Test
+	void statusHelpersDistinguishActiveAndFinishedStates() {
+		assertThat(TaskStatusEnum.QUEUED.isActive()).isTrue();
+		assertThat(TaskStatusEnum.RUNNING.isActive()).isTrue();
+		assertThat(TaskStatusEnum.CANCELLING.isActive()).isTrue();
+		assertThat(TaskStatusEnum.CANCELLED.isFinished()).isTrue();
+		assertThat(TaskStatusEnum.COMPLETED.isFinished()).isTrue();
+		assertThat(TaskStatusEnum.FAILED.isFinished()).isTrue();
+		assertThat(TaskStatusEnum.CANCELLING.isFinished()).isFalse();
+	}
+
+	@Test
 	void evictionRemovesOnlyFinishedTasksOlderThanTheCutoff() {
 		var running  = store.create("A", "running", 1L, 0);
 		var finished = store.create("A", "finished", 1L, 0);

@@ -14,7 +14,7 @@ import java.time.Instant;
 
 /**
  * Progress snapshot of a background task. The result payload depends on the task type (see {@code TaskTypeEnum}) and is only
- * present once the task has completed.
+ * present once the task has completed. A cancelled task has reverted the changes it made before the cancellation.
  */
 @Data
 @Builder
@@ -39,6 +39,10 @@ public class TaskProgressResponse {
 	private long           failedSteps;
 	@Schema(description = "Completion percentage 0..100; 100 once the task has finished", example = "40")
 	private int            percent;
+	@Schema(description = "Whether the owner asked for the task to be cancelled", example = "false")
+	private boolean cancelRequested;
+	@Schema(description = "Number of changes that were reverted when the task was cancelled or failed", example = "3")
+	private long    revertedSteps;
 	@Schema(description = "Description of the current or last step", example = "Uploading IMG_0017.jpg")
 	private String         message;
 	@Schema(description = "Error description when the task failed", example = "Admin backend rejected the upload")

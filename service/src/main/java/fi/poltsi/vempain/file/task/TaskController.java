@@ -15,6 +15,7 @@ import java.util.List;
 public class TaskController implements TaskAPI {
 
 	private final TaskProgressStore store;
+	private final TaskRunner runner;
 
 	@Override
 	public ResponseEntity<List<TaskProgressResponse>> getTasks() {
@@ -27,6 +28,16 @@ public class TaskController implements TaskAPI {
 	@Override
 	public ResponseEntity<TaskProgressResponse> getTask(String taskId) {
 		return ResponseEntity.ok(ownTask(taskId).toResponse());
+	}
+
+	@Override
+	public ResponseEntity<TaskProgressResponse> cancelTask(String taskId) {
+		var task = ownTask(taskId);
+		if (!runner.cancel(task)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Task has already finished");
+		}
+		return ResponseEntity.accepted()
+							 .body(task.toResponse());
 	}
 
 	@Override

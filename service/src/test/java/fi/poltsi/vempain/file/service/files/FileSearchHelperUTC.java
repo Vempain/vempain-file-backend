@@ -49,5 +49,63 @@ class FileSearchHelperUTC {
 		assertThat(FileSearchHelper.buildSort("unknown", null)
 		                           .toString()).contains("filename: ASC");
 	}
-}
 
+	@Test
+	@SuppressWarnings("unchecked")
+	void buildSpecification_escapesWildcardsAndDeclaresTheEscapeCharacter() {
+		var root      = org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
+		var cb        = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaBuilder.class);
+		var path      = org.mockito.Mockito.mock(jakarta.persistence.criteria.Path.class);
+		var lower     = org.mockito.Mockito.mock(jakarta.persistence.criteria.Expression.class);
+		var predicate = org.mockito.Mockito.mock(jakarta.persistence.criteria.Predicate.class);
+		org.mockito.Mockito.when(root.get(org.mockito.ArgumentMatchers.anyString()))
+		                   .thenReturn(path);
+		org.mockito.Mockito.when(cb.lower(org.mockito.ArgumentMatchers.any()))
+		                   .thenReturn(lower);
+		org.mockito.Mockito.when(cb.like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString(),
+										 org.mockito.ArgumentMatchers.anyChar()))
+		                   .thenReturn(predicate);
+		org.mockito.Mockito.when(cb.or(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
+		                   .thenReturn(predicate);
+		org.mockito.Mockito.when(cb.and(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
+		                   .thenReturn(predicate);
+
+		FileSearchHelper.<fi.poltsi.vempain.file.entity.FileEntity>buildSpecification("50% Trip_", false)
+						.toPredicate(root, null, cb);
+
+		org.mockito.Mockito.verify(cb, org.mockito.Mockito.times(4))
+		                   .like(lower, "%50\\%%", '\\');
+		org.mockito.Mockito.verify(cb, org.mockito.Mockito.times(4))
+		                   .like(lower, "%trip\\_%", '\\');
+		org.mockito.Mockito.verify(cb, org.mockito.Mockito.never())
+		                   .like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class),
+								 org.mockito.ArgumentMatchers.anyString());
+	}
+
+	@Test
+	void buildSpecification_usesOnlyTheFirstTenTokens() {
+		var manyTokens = java.util.stream.IntStream.range(0, 15)
+												   .mapToObj(i -> "t" + i)
+												   .collect(java.util.stream.Collectors.joining(" "));
+		var root      = org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
+		var cb        = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaBuilder.class);
+		var predicate = org.mockito.Mockito.mock(jakarta.persistence.criteria.Predicate.class);
+		org.mockito.Mockito.when(root.get(org.mockito.ArgumentMatchers.anyString()))
+		                   .thenReturn(org.mockito.Mockito.mock(jakarta.persistence.criteria.Path.class));
+		org.mockito.Mockito.when(cb.like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString(),
+										 org.mockito.ArgumentMatchers.anyChar()))
+		                   .thenReturn(predicate);
+		org.mockito.Mockito.when(cb.or(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
+		                   .thenReturn(predicate);
+		org.mockito.Mockito.when(cb.and(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
+		                   .thenReturn(predicate);
+
+		FileSearchHelper.<fi.poltsi.vempain.file.entity.FileEntity>buildSpecification(manyTokens, true)
+						.toPredicate(root, null, cb);
+
+		// 4 fields per token, 10 tokens at most
+		org.mockito.Mockito.verify(cb, org.mockito.Mockito.times(40))
+		                   .like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class),
+								 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyChar());
+	}
+}

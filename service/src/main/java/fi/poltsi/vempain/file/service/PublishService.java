@@ -96,39 +96,47 @@ public class PublishService {
 	public TaskProgress publishFileGroup(PublishFileGroupRequest request) {
 		var proxy = applicationContext.getBean(PublishService.class);
 		return taskRunner.submit(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request), 0, progress -> {
-			proxy.publishFileGroupNow(request, progress);
+			proxy.publishFileGroupNow(request, progress, true);
 			return null;
 		});
 	}
 
 	/**
-	 * Publishes one file group in the calling thread. When {@code progress} is given, every file of the group is reported as one
-	 * step; the publish-all task passes {@code null} and counts groups instead.
+	 * Publishes one file group in the calling thread.
 	 *
+	 * @param progress        task to check for cancellation and to register undo actions with; null when not running as a task
+	 * @param reportFileSteps whether every file is reported as a step of {@code progress} (the publish-all task counts groups instead)
 	 * @throws IllegalStateException when the group does not exist
 	 */
 	@Transactional
-	public void publishFileGroupNow(PublishFileGroupRequest request, TaskProgress progress) {
+	public void publishFileGroupNow(PublishFileGroupRequest request, TaskProgress progress, boolean reportFileSteps) {
 		var fileGroup = fileGroupRepository.findById(request.getFileGroupId())
 										   .orElseThrow(() -> new IllegalStateException("File group " + request.getFileGroupId() + " not found"));
 
 		if (fileGroup.getFiles() == null || fileGroup.getFiles()
 													 .isEmpty()) {
 			log.debug("File group {} has no files to publish", request.getFileGroupId());
-			if (progress != null) {
+			if (progress != null && reportFileSteps) {
 				progress.message("File group has no files to publish");
 			}
 			return;
 		}
 
-		if (progress != null) {
+		if (progress != null && reportFileSteps) {
 			progress.setTotalSteps(fileGroup.getFiles()
 											.size());
 		}
 
-		var galleryId = publishFiles(fileGroup, request, progress);
+		var galleryId = publishFiles(fileGroup, request, progress, reportFileSteps);
 
 		if (galleryId != null) {
+			var previousGalleryId = fileGroup.getGalleryId();
+			if (!galleryId.equals(previousGalleryId) && progress != null) {
+				var proxy   = applicationContext.getBean(PublishService.class);
+				var groupId = fileGroup.getId();
+				progress.registerCompensation("Restore gallery link of file group " + groupTitle(request),
+											  () -> proxy.restoreGalleryId(groupId, previousGalleryId));
+			}
 			fileGroup.setGalleryId(galleryId);
 			fileGroupRepository.save(fileGroup);
 			log.debug("File group {} published to gallery ID {}", request.getFileGroupId(), galleryId);
@@ -137,17 +145,33 @@ public class PublishService {
 		}
 	}
 
-	private Long publishFiles(FileGroupEntity fileGroup, PublishFileGroupRequest request, TaskProgress progress) {
+	/**
+	 * Undo of the gallery link update made by {@link #publishFileGroupNow}.
+	 */
+	@Transactional
+	public void restoreGalleryId(long fileGroupId, Long previousGalleryId) {
+		fileGroupRepository.findById(fileGroupId)
+						   .ifPresent(group -> {
+							   group.setGalleryId(previousGalleryId);
+							   fileGroupRepository.save(group);
+						   });
+	}
+
+	private Long publishFiles(FileGroupEntity fileGroup, PublishFileGroupRequest request, TaskProgress progress, boolean reportFileSteps) {
 		Long galleryId = null;
 		// The order of the file group files should be by file name ascending so we use a simple counter here
 		long sortOrder = 0L;
 
 		for (var fileEntity : fileGroup.getFiles()) {
+			if (progress != null) {
+				// Stop here when the user cancelled; nothing of this file has been sent yet
+				progress.checkpoint();
+			}
 			var exportFilePath = resolveExportedPath(fileEntity.getId());
 
 			if (exportFilePath == null || !Files.exists(exportFilePath)) {
 				log.debug("Export file does not exist, skipping: {}", exportFilePath);
-				reportFailure(progress, "No export file for " + fileEntity.getFilename());
+				reportFailure(reportFileSteps ? progress : null, "No export file for " + fileEntity.getFilename());
 				continue;
 			}
 
@@ -158,15 +182,35 @@ public class PublishService {
 				galleryId = fileIngestResponse == null ? galleryId : fileIngestResponse.getGalleryId();
 				log.debug("Published file {} from group {} as site file to gallery ID {}", fileEntity.getFilename(), request.getFileGroupId(), galleryId);
 				if (progress != null) {
-					progress.advance("Published " + fileEntity.getFilename());
+					registerUploadCompensation(progress, fileEntity.getFilename(), fileIngestResponse);
+					if (reportFileSteps) {
+						progress.advance("Published " + fileEntity.getFilename());
+					}
 				}
 			} catch (Exception ex) {
 				log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
-				reportFailure(progress, "Failed to publish " + fileEntity.getFilename() + ": " + ex.getMessage());
+				reportFailure(reportFileSteps ? progress : null, "Failed to publish " + fileEntity.getFilename() + ": " + ex.getMessage());
 			}
 		}
 
 		return galleryId;
+	}
+
+	/**
+	 * A site file that the upload created is removed again when the task is cancelled. An upload that replaced an existing
+	 * site file cannot be reverted, because the previous content is gone.
+	 */
+	private void registerUploadCompensation(TaskProgress progress, String filename,
+											fi.poltsi.vempain.admin.api.response.file.FileIngestResponse response) {
+		if (response == null || response.getSiteFileId() == null) {
+			return;
+		}
+		if (response.isUpdated()) {
+			log.debug("Site file {} replaced an existing file; the upload cannot be reverted", response.getSiteFileId());
+			return;
+		}
+		var siteFileId = response.getSiteFileId();
+		progress.registerCompensation("Remove " + filename + " from the admin backend", () -> vempainAdminService.deleteSiteFile(siteFileId));
 	}
 
 	private static void reportFailure(TaskProgress progress, String message) {
@@ -334,9 +378,12 @@ public class PublishService {
 
 		return taskRunner.submit(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), progress -> {
 			for (var request : requests) {
+				progress.checkpoint();
 				try {
-					proxy.publishFileGroupNow(request, null);
+					proxy.publishFileGroupNow(request, progress, false);
 					progress.advance("Published " + groupTitle(request));
+				} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
+					throw e;
 				} catch (Exception e) {
 					log.error("Publish group {} failed", request.getFileGroupId(), e);
 					progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());

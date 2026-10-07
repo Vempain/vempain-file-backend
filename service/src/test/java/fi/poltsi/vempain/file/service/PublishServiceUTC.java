@@ -338,6 +338,51 @@ class PublishServiceUTC {
 		}
 
 		@Test
+		void publishAllCancelledBeforeStartPublishesNothing() {
+			var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+			var group = FileGroupEntity.builder()
+									   .id(7L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(70L)
+																				 .aclId(70L)
+																				 .build()))
+									   .build();
+			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
+			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
+			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
+					.thenReturn(new PageImpl<>(List.of(projection)));
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+			var queued = new java.util.ArrayList<Runnable>();
+			var runner = new TaskRunner(new TaskProgressStore(), queued::add);
+			ReflectionTestUtils.setField(publishService, "taskRunner", runner);
+
+			var task = publishService.publishAllFileGroups();
+			runner.cancel(task);
+			queued.get(0)
+				  .run();
+
+			assertThat(task.getStatus()).isEqualTo(fi.poltsi.vempain.file.api.TaskStatusEnum.CANCELLED);
+			org.mockito.Mockito.verify(exportFileRepository, org.mockito.Mockito.never())
+							   .findByFileId(any());
+		}
+
+		@Test
+		void restoreGalleryIdPutsThePreviousLinkBack() {
+			var group = FileGroupEntity.builder()
+									   .id(7L)
+									   .galleryId(99L)
+									   .build();
+			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
+
+			publishService.restoreGalleryId(7L, 5L);
+
+			assertThat(group.getGalleryId()).isEqualTo(5L);
+			org.mockito.Mockito.verify(fileGroupRepository)
+							   .save(group);
+			publishService.restoreGalleryId(404L, null);
+		}
+
+		@Test
 		void authorizeFileGroupPublishRequiresModifyOnEveryFile() {
 			var files = List.<fi.poltsi.vempain.file.entity.FileEntity>of(ImageFileEntity.builder()
 																						 .id(90L)

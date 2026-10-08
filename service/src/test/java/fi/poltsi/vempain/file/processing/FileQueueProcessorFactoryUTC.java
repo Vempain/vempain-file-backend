@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.processing;
 
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -2,10 +2,10 @@ package fi.poltsi.vempain.file.rest;
 
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
+import fi.poltsi.vempain.common.api.request.TagRequest;
+import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
-import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
-import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;

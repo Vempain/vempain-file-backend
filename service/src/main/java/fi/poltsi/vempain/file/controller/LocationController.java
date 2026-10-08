@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file.controller;
 
+import fi.poltsi.vempain.common.api.response.LocationResponse;
 import fi.poltsi.vempain.file.api.request.LocationGuardRequest;
 import fi.poltsi.vempain.file.api.response.LocationGuardResponse;
-import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.rest.LocationAPI;
 import fi.poltsi.vempain.file.service.LocationService;
 import lombok.RequiredArgsConstructor;

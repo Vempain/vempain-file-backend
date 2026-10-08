@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TagControllerCTC extends AbstractControllerCTC {
 
 	@org.springframework.beans.factory.annotation.Autowired
-	private fi.poltsi.vempain.file.task.TaskProgressStore taskProgressStore;
+	private fi.poltsi.vempain.common.task.TaskProgressStore taskProgressStore;
 
 	private static final String VALID_TAG_BODY = """
 			{
@@ -318,6 +318,6 @@ class TagControllerCTC extends AbstractControllerCTC {
 			Thread.sleep(50);
 		}
 		assertThat(task.getStatus()).as(task.getErrorMessage())
-									.isEqualTo(fi.poltsi.vempain.file.api.TaskStatusEnum.COMPLETED);
+									.isEqualTo(fi.poltsi.vempain.common.api.TaskStatusEnum.COMPLETED);
 	}
 }

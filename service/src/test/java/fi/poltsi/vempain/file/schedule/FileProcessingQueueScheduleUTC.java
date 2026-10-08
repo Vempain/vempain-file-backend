@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.schedule;
 
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
 import fi.poltsi.vempain.file.processing.FileQueueProcessor;
 import fi.poltsi.vempain.file.processing.FileQueueProcessorFactory;

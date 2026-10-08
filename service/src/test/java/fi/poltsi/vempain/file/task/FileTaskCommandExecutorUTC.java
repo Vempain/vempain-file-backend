@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.task;
 
+import fi.poltsi.vempain.common.task.TaskProgress;
+import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
-import fi.poltsi.vempain.file.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.service.DataService;
 import fi.poltsi.vempain.file.service.FileScannerService;
 import fi.poltsi.vempain.file.service.PublishService;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class TaskCommandExecutorUTC {
+class FileTaskCommandExecutorUTC {
 
 	@Mock
 	private ApplicationContext applicationContext;
@@ -39,11 +40,11 @@ class TaskCommandExecutorUTC {
 	private TagService         tagService;
 
 	private final ObjectMapper        mapper = new ObjectMapper();
-	private       TaskCommandExecutor executor;
+	private FileTaskCommandExecutor executor;
 
 	@BeforeEach
 	void setUp() {
-		executor = new TaskCommandExecutor(applicationContext, mapper);
+		executor = new FileTaskCommandExecutor(applicationContext, mapper);
 	}
 
 	@Test
@@ -121,8 +122,6 @@ class TaskCommandExecutorUTC {
 	}
 
 	private TaskProgress task(String type, Object payload) {
-		var task = new TaskProgress("task-" + type, type, "title", 1L, 1);
-		task.attach(null, mapper.writeValueAsString(payload), null);
-		return task;
+		return TaskProgress.unmanaged("task-" + type, type, "title", 1L, 1, mapper.writeValueAsString(payload));
 	}
 }

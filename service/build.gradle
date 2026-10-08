@@ -51,7 +51,14 @@ dependencies {
 	// This needs to be built first in vempain-auth
 	implementation "fi.poltsi.vempain:vempain-auth-core:${libs.versions.vempain.auth.get()}"
 	implementation "fi.poltsi.vempain:vempain-auth-api:${libs.versions.vempain.auth.get()}"
-	implementation "fi.poltsi.vempain:vempain-admin-backend-api:${libs.versions.vempain.admin.get()}"
+	implementation "fi.poltsi.vempain:vempain-common-api:${libs.versions.vempain.common.get()}"
+	// Shared durable background task facility (TaskRunner, TaskProgressStore, TaskController)
+	implementation "fi.poltsi.vempain:vempain-common-core:${libs.versions.vempain.common.get()}"
+	// The admin API is consumed for the Feign clients (file ingest, site files, data sets). Admin API releases before 1.0.52 still
+	// declare this project's own API as a dependency; the exclusion keeps such a stale copy off the classpath.
+	implementation("fi.poltsi.vempain:vempain-admin-backend-api:${libs.versions.vempain.admin.get()}") {
+		exclude group: "fi.poltsi.vempain", module: "vempain-file-backend-api"
+	}
 	// Spring
 	implementation "org.springframework.boot:spring-boot-starter-security:${libs.versions.spring.boot.get()}"
 	implementation "org.springframework.boot:spring-boot-starter-webmvc:${libs.versions.spring.boot.get()}"

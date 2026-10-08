@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.controller;
 
-import fi.poltsi.vempain.file.api.request.TagRequest;
+import fi.poltsi.vempain.common.api.request.TagRequest;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 

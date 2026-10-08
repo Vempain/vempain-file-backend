@@ -1,7 +1,9 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.file.api.FileTypeEnum;
-import fi.poltsi.vempain.file.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.task.TaskProgressStore;
+import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
@@ -12,8 +14,6 @@ import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
-import fi.poltsi.vempain.file.task.TaskProgressStore;
-import fi.poltsi.vempain.file.task.TaskRunner;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -361,7 +361,7 @@ class PublishServiceUTC {
 			queued.get(0)
 				  .run();
 
-			assertThat(task.getStatus()).isEqualTo(fi.poltsi.vempain.file.api.TaskStatusEnum.CANCELLED);
+			assertThat(task.getStatus()).isEqualTo(fi.poltsi.vempain.common.api.TaskStatusEnum.CANCELLED);
 			org.mockito.Mockito.verify(exportFileRepository, org.mockito.Mockito.never())
 							   .findByFileId(any());
 		}

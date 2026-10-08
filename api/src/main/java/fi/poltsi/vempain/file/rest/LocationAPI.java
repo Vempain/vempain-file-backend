@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file.rest;
 
+import fi.poltsi.vempain.common.api.response.LocationResponse;
 import fi.poltsi.vempain.file.api.request.LocationGuardRequest;
 import fi.poltsi.vempain.file.api.response.LocationGuardResponse;
-import fi.poltsi.vempain.file.api.response.LocationResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;

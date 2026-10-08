@@ -38,6 +38,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 		"vempain.generate-missing-thumbnails.batch-size=10",
 		"vempain.generate-missing-thumbnails.thumb-image-quality=0.5",
 		"vempain.generate-missing-thumbnails.thumb-image-size=100",
+		// Controller tests create task rows directly and drive their state in memory; the periodic worker poll must not claim
+		// those QUEUED rows. Submitted tasks still run, because TaskRunner polls once after the submitting transaction commits.
+		"vempain.tasks.poll-interval-ms=3600000",
+		"vempain.tasks.heartbeat-interval-ms=3600000",
 })
 @AutoConfigureMockMvc
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

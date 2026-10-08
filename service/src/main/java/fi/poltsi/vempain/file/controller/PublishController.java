@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.controller;
 
+import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
-import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.rest.PublishAPI;
 import fi.poltsi.vempain.file.service.PublishService;
 import lombok.RequiredArgsConstructor;

@@ -1,12 +1,11 @@
 package fi.poltsi.vempain.file.controller;
 
-import fi.poltsi.vempain.file.task.TaskProgress;
-import fi.poltsi.vempain.file.task.TaskProgressStore;
+import fi.poltsi.vempain.common.task.TaskProgress;
+import fi.poltsi.vempain.common.task.TaskProgressStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;

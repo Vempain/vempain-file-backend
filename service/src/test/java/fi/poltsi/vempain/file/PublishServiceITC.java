@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file;
 
-import fi.poltsi.vempain.file.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.file.service.PublishService;
-import fi.poltsi.vempain.file.task.TaskProgressStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,9 +16,6 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.time.Instant;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
 		"vempain.app.frontend-url=http://localhost:3000",

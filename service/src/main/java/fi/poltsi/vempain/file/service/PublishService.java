@@ -2,11 +2,13 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.response.LocationResponse;
+import fi.poltsi.vempain.common.task.TaskProgress;
+import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
-import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
@@ -16,8 +18,6 @@ import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
-import fi.poltsi.vempain.file.task.TaskProgress;
-import fi.poltsi.vempain.file.task.TaskRunner;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
@@ -384,7 +384,7 @@ public class PublishService {
 												try {
 													proxy.publishFileGroupNow(request, progress, false);
 													progress.advance("Published " + groupTitle(request));
-												} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
+												} catch (fi.poltsi.vempain.common.task.TaskCancelledException e) {
 													throw e;
 												} catch (Exception e) {
 													log.error("Publish group {} failed", request.getFileGroupId(), e);
@@ -407,7 +407,7 @@ public class PublishService {
 			try {
 				publishFileGroupNow(request, progress, false);
 				progress.advance("Published " + groupTitle(request));
-			} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
+			} catch (fi.poltsi.vempain.common.task.TaskCancelledException e) {
 				throw e;
 			} catch (Exception e) {
 				log.error("Publish group {} failed", request.getFileGroupId(), e);

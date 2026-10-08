@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.request.TagRequest;
+import fi.poltsi.vempain.common.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.response.TagResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

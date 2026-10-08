@@ -118,6 +118,15 @@ jacocoTestCoverageVerification {
 				minimum = 0.95
 			}
 		}
+		rule {
+			element = 'PACKAGE'
+			includes = ['fi.poltsi.vempain.file.task']
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.95
+			}
+		}
 	}
 }
 

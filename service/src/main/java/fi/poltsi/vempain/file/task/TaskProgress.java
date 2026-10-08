@@ -30,25 +30,28 @@ public class TaskProgress {
 	private final String  type;
 	private final String  title;
 	private final Long    ownerId;
-	private final Instant createdAt = Instant.now();
+	private Instant createdAt = Instant.now();
 
-	private final AtomicLong    totalSteps      = new AtomicLong();
-	private final AtomicLong    completedSteps  = new AtomicLong();
-	private final AtomicLong    failedSteps     = new AtomicLong();
-	private final AtomicLong    revertedSteps   = new AtomicLong();
-	private final AtomicBoolean cancelRequested = new AtomicBoolean();
+	final AtomicLong    totalSteps      = new AtomicLong();
+	final AtomicLong    completedSteps  = new AtomicLong();
+	final AtomicLong    failedSteps     = new AtomicLong();
+	final AtomicLong    revertedSteps   = new AtomicLong();
+	final AtomicBoolean cancelRequested = new AtomicBoolean();
 
 	/**
 	 * Undo actions, most recent first. Guarded by {@code this}.
 	 */
 	private final Deque<RegisteredCompensation> compensations = new ArrayDeque<>();
 
-	private volatile TaskStatusEnum status = TaskStatusEnum.QUEUED;
-	private volatile String         message;
-	private volatile String         errorMessage;
-	private volatile Object         result;
-	private volatile Instant        startedAt;
-	private volatile Instant        finishedAt;
+	volatile          TaskStatusEnum    status = TaskStatusEnum.QUEUED;
+	volatile          String            message;
+	volatile          String            errorMessage;
+	volatile          Object            result;
+	volatile          Instant           startedAt;
+	volatile          Instant           finishedAt;
+	private transient TaskProgressStore store;
+	private           String            payload;
+	private           String            workerId;
 
 	TaskProgress(String id, String type, String title, Long ownerId, long totalSteps) {
 		this.id      = id;
@@ -58,11 +61,48 @@ public class TaskProgress {
 		this.totalSteps.set(Math.max(0, totalSteps));
 	}
 
+	void attach(TaskProgressStore store, String payload, String workerId) {
+		this.store    = store;
+		this.payload  = payload;
+		this.workerId = workerId;
+	}
+
+	void updateFrom(TaskProgress source) {
+		totalSteps.set(source.totalSteps.get());
+		completedSteps.set(source.completedSteps.get());
+		failedSteps.set(source.failedSteps.get());
+		revertedSteps.set(source.revertedSteps.get());
+		cancelRequested.set(source.cancelRequested.get());
+		status       = source.status;
+		message      = source.message;
+		errorMessage = source.errorMessage;
+		result       = source.result;
+		startedAt    = source.startedAt;
+		finishedAt   = source.finishedAt;
+		createdAt    = source.createdAt;
+		attach(store, source.payload, source.workerId);
+	}
+
+	public String getPayload() {
+		return payload;
+	}
+
+	String getWorkerId() {
+		return workerId;
+	}
+
+	private void persist() {
+		if (store != null) {
+			store.save(this);
+		}
+	}
+
 	/**
 	 * Sets or corrects the number of steps once the worker knows it.
 	 */
 	public void setTotalSteps(long steps) {
 		totalSteps.set(Math.max(0, steps));
+		persist();
 	}
 
 	/**
@@ -73,6 +113,7 @@ public class TaskProgress {
 	public void advance(String stepMessage) {
 		completedSteps.incrementAndGet();
 		message = stepMessage;
+		persist();
 	}
 
 	/**
@@ -84,6 +125,7 @@ public class TaskProgress {
 		completedSteps.incrementAndGet();
 		failedSteps.incrementAndGet();
 		message = stepMessage;
+		persist();
 	}
 
 	/**
@@ -91,6 +133,7 @@ public class TaskProgress {
 	 */
 	public void message(String stepMessage) {
 		message = stepMessage;
+		persist();
 	}
 
 	/**
@@ -104,6 +147,18 @@ public class TaskProgress {
 		synchronized (this) {
 			compensations.push(new RegisteredCompensation(description, compensation));
 		}
+		// Compensations are intentionally kept in the worker process. Durable task commands
+		// make the work replayable; the operation itself is never serialized as a Java lambda.
+	}
+
+	/**
+	 * Registers a serializable inverse command. Unlike {@link #registerCompensation}, this
+	 * survives a worker restart and is therefore used by multi-file metadata operations.
+	 */
+	public void registerDurableCompensation(String description, String commandType, Object payload) {
+		if (store != null) {
+			store.registerCompensation(this, description, commandType, payload);
+		}
 	}
 
 	/**
@@ -113,6 +168,9 @@ public class TaskProgress {
 	 * @throws TaskCancelledException when cancellation was requested
 	 */
 	public void checkpoint() {
+		if (store != null) {
+			store.refreshCancellation(this);
+		}
 		if (cancelRequested.get()) {
 			throw new TaskCancelledException();
 		}
@@ -120,6 +178,10 @@ public class TaskProgress {
 
 	public boolean isCancelRequested() {
 		return cancelRequested.get();
+	}
+
+	public boolean isDurable() {
+		return store != null && store.isDurable();
 	}
 
 	public boolean isFinished() {
@@ -133,6 +195,13 @@ public class TaskProgress {
 	 * @return false when the task had already finished
 	 */
 	boolean requestCancel() {
+		if (store != null) {
+			return store.requestCancel(this);
+		}
+		return requestCancelLocal();
+	}
+
+	boolean requestCancelLocal() {
 		if (isFinished()) {
 			return false;
 		}
@@ -140,12 +209,20 @@ public class TaskProgress {
 		if (status == TaskStatusEnum.RUNNING) {
 			status = TaskStatusEnum.CANCELLING;
 		}
+		persist();
 		return true;
+	}
+
+	void createdAtOverride(Instant createdAt) {
+		if (createdAt != null) {
+			this.createdAt = createdAt;
+		}
 	}
 
 	void start() {
 		status    = TaskStatusEnum.RUNNING;
 		startedAt = Instant.now();
+		persist();
 	}
 
 	void complete(Object taskResult) {
@@ -155,18 +232,21 @@ public class TaskProgress {
 		if (completedSteps.get() < totalSteps.get()) {
 			completedSteps.set(totalSteps.get());
 		}
+		persist();
 	}
 
 	void fail(String error) {
 		errorMessage = error;
 		status     = TaskStatusEnum.FAILED;
 		finishedAt = Instant.now();
+		persist();
 	}
 
 	void cancelled(String finalMessage) {
 		message    = finalMessage;
 		status     = TaskStatusEnum.CANCELLED;
 		finishedAt = Instant.now();
+		persist();
 	}
 
 	void reverting() {
@@ -188,6 +268,7 @@ public class TaskProgress {
 
 	void countReverted() {
 		revertedSteps.incrementAndGet();
+		persist();
 	}
 
 	public int percent() {

@@ -89,7 +89,15 @@ public class DataService {
 	 */
 	public TaskProgress publishMusicDatasetAsTask() {
 		var musicFiles = loadMusicFilesOrThrow();
-		return taskRunner.submit(TaskTypeEnum.PUBLISH_MUSIC_DATA.name(), "Publish music data set", 3, progress -> publishMusic(musicFiles, progress));
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_MUSIC_DATA.name(), "Publish music data set", 3, java.util.Map.of(),
+										progress -> publishMusic(musicFiles, progress));
+	}
+
+	/**
+	 * Reloads source rows on the worker that claimed the durable command.
+	 */
+	public DataResponse publishMusicDatasetNow(TaskProgress progress) {
+		return publishMusic(loadMusicFilesOrThrow(), progress);
 	}
 
 	private List<MusicFileEntity> loadMusicFilesOrThrow() {
@@ -274,8 +282,14 @@ public class DataService {
 	public TaskProgress publishGpsTimeSeriesByFileGroupAsTask(Long fileGroupId, String timeSeriesName) {
 		var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
 		var images     = loadGpsImagesOrThrow(fileGroupId);
-		return taskRunner.submit(TaskTypeEnum.PUBLISH_GPS_TIME_SERIES.name(), "Publish GPS time series " + identifier, 3,
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_GPS_TIME_SERIES.name(), "Publish GPS time series " + identifier, 3,
+										java.util.Map.of("file_group_id", fileGroupId, "time_series_name", timeSeriesName),
 								 progress -> publishGpsTimeSeries(identifier, fileGroupId, images, progress));
+	}
+
+	public DataResponse publishGpsTimeSeriesNow(Long fileGroupId, String timeSeriesName, TaskProgress progress) {
+		var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
+		return publishGpsTimeSeries(identifier, fileGroupId, loadGpsImagesOrThrow(fileGroupId), progress);
 	}
 
 	private String validateGpsIdentifier(Long fileGroupId, String timeSeriesName) {

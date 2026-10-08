@@ -278,15 +278,27 @@ public class TagService {
 
 	private TaskProgress submitTagTask(TaskTypeEnum type, String title, TagOperationRequest request, List<Long> files, Operation operation,
 									   boolean deleteUnusedTag, Compensation preparationUndo) {
+		var payload = java.util.Map.of("request", request,
+									   "file_ids", files,
+									   "operation", operation.name(),
+									   "delete_unused_tag", deleteUnusedTag);
 		var proxy = applicationContext.getBean(TagService.class);
-		return taskRunner.submit(type.name(), title, files.size(), progress -> {
+		return taskRunner.submitDurable(type.name(), title, files.size(), payload, progress -> {
 			if (preparationUndo != null) {
-				// Registered first so that it runs last, after the per-file metadata changes have been reverted
 				progress.registerCompensation("Restore the tag names", preparationUndo);
 			}
 			proxy.applyTagOperation(request, files, operation, deleteUnusedTag, progress);
 			return null;
 		});
+	}
+
+	/**
+	 * Durable worker entry point.
+	 */
+	public void applyTagOperationForTask(TagOperationRequest request, List<Long> fileIds, String operation,
+										 boolean deleteUnusedTag, TaskProgress progress) {
+		var proxy = applicationContext.getBean(TagService.class);
+		proxy.applyTagOperation(request, fileIds, Operation.valueOf(operation), deleteUnusedTag, progress);
 	}
 
 	/**
@@ -302,6 +314,10 @@ public class TagService {
 							  case REPLACE -> mutateFile(file, newTag, oldTag, Operation.REPLACE);
 						  }
 					  });
+	}
+
+	public void revertTagMutation(long fileId, String oldTag, String newTag, String operation) {
+		revertTagMutation(fileId, oldTag, newTag, Operation.valueOf(operation));
 	}
 
 	/**
@@ -326,7 +342,13 @@ public class TagService {
 			mutateFile(file, oldTag, newTag, operation);
 			if (progress != null) {
 				var fileId = file.getId();
-				progress.registerCompensation("Restore tags of " + file.getFilename(), () -> proxy.revertTagMutation(fileId, oldTag, newTag, operation));
+				if (progress.isDurable()) {
+					progress.registerDurableCompensation("Restore tags of " + file.getFilename(), "TAG_REVERT_MUTATION",
+														 java.util.Map.of("file_id", fileId, "old_tag", oldTag,
+																		  "new_tag", newTag == null ? "" : newTag, "operation", operation.name()));
+				} else {
+					progress.registerCompensation("Restore tags of " + file.getFilename(), () -> proxy.revertTagMutation(fileId, oldTag, newTag, operation));
+				}
 				progress.advance("Updated " + file.getFilename());
 			}
 		}

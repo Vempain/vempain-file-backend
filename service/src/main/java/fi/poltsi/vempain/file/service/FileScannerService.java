@@ -60,7 +60,8 @@ public class FileScannerService {
 		var title = "Scan " + String.join(" and ", java.util.stream.Stream.of(scanRequest.getOriginalDirectory(), scanRequest.getExportDirectory())
 																		  .filter(java.util.Objects::nonNull)
 																		  .toList());
-		return taskRunner.submit(TaskTypeEnum.SCAN_DIRECTORIES.name(), title, 0, progress -> scanDirectories(scanRequest, progress));
+		return taskRunner.submitDurable(TaskTypeEnum.SCAN_DIRECTORIES.name(), title, 0, scanRequest,
+										progress -> scanDirectories(scanRequest, progress));
 	}
 
 	public ScanResponses scanDirectories(ScanRequest scanRequest) {

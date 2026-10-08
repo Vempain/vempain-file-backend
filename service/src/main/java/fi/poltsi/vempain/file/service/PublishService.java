@@ -95,10 +95,11 @@ public class PublishService {
 	 */
 	public TaskProgress publishFileGroup(PublishFileGroupRequest request) {
 		var proxy = applicationContext.getBean(PublishService.class);
-		return taskRunner.submit(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request), 0, progress -> {
-			proxy.publishFileGroupNow(request, progress, true);
-			return null;
-		});
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request), 0, request,
+										progress -> {
+											proxy.publishFileGroupNow(request, progress, true);
+											return null;
+										});
 	}
 
 	/**
@@ -374,23 +375,45 @@ public class PublishService {
 	@Transactional(readOnly = true)
 	public TaskProgress publishAllFileGroups() {
 		var requests = collectPublishableGroups();
-		var proxy    = applicationContext.getBean(PublishService.class);
+		var payload = java.util.Map.of("requests", requests);
+		var proxy   = applicationContext.getBean(PublishService.class);
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), payload,
+										progress -> {
+											for (var request : requests) {
+												progress.checkpoint();
+												try {
+													proxy.publishFileGroupNow(request, progress, false);
+													progress.advance("Published " + groupTitle(request));
+												} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
+													throw e;
+												} catch (Exception e) {
+													log.error("Publish group {} failed", request.getFileGroupId(), e);
+													progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
+												}
+											}
+											return null;
+										});
+	}
 
-		return taskRunner.submit(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), progress -> {
-			for (var request : requests) {
-				progress.checkpoint();
-				try {
-					proxy.publishFileGroupNow(request, progress, false);
-					progress.advance("Published " + groupTitle(request));
-				} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
-					throw e;
-				} catch (Exception e) {
-					log.error("Publish group {} failed", request.getFileGroupId(), e);
-					progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
-				}
+	/**
+	 * Durable worker body for publishing all groups.
+	 */
+	@Transactional
+	public void publishAllFileGroupsNow(TaskProgress progress) {
+		var payload = new tools.jackson.databind.ObjectMapper().readTree(progress.getPayload());
+		for (var node : payload.path("requests")) {
+			progress.checkpoint();
+			var request = new tools.jackson.databind.ObjectMapper().treeToValue(node, PublishFileGroupRequest.class);
+			try {
+				publishFileGroupNow(request, progress, false);
+				progress.advance("Published " + groupTitle(request));
+			} catch (fi.poltsi.vempain.file.task.TaskCancelledException e) {
+				throw e;
+			} catch (Exception e) {
+				log.error("Publish group {} failed", request.getFileGroupId(), e);
+				progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
 			}
-			return null;
-		});
+		}
 	}
 
 	private List<PublishFileGroupRequest> collectPublishableGroups() {

@@ -121,10 +121,13 @@ vempain:
     enabled: true
     cron: "0 30 3 * * *"
   tasks:
-    # Background task facility (publish, scan, data sets, tag rewrites): worker threads and how long finished tasks stay listed
+    # Durable PostgreSQL task facility (publish, scan, data sets, tag rewrites)
     worker-count: ${VEMPAIN_TASK_WORKER_COUNT:4}
     retention-minutes: 120
     cleanup-interval-ms: 60000
+    poll-interval-ms: ${VEMPAIN_TASK_POLL_INTERVAL_MS:1000}
+    heartbeat-interval-ms: ${VEMPAIN_TASK_HEARTBEAT_INTERVAL_MS:10000}
+    lease-seconds: ${VEMPAIN_TASK_LEASE_SECONDS:60}
   generate-missing-thumbnails:
     batch-size: 1000
     worker-count: ${VEMPAIN_THUMBNAIL_WORKER_COUNT:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}

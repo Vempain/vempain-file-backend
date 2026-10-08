@@ -1,64 +1,63 @@
 package fi.poltsi.vempain.file.task;
 
+import fi.poltsi.vempain.auth.repository.UserAccountRepository;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.security.concurrent.DelegatingSecurityContextRunnable;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
- * Runs long-running work as tracked background tasks.
- * <ul>
- *   <li>The task is registered in the {@link TaskProgressStore} immediately so the caller can return its id with HTTP 202.</li>
- *   <li>The submitter's {@link SecurityContext} is propagated to the worker thread, so ACL checks and audit fields keep working.
- *   Authorization that should fail the request itself must still run synchronously before {@code submit}.</li>
- *   <li>When {@code submit} is called inside a transaction the work starts after that transaction has committed, so the worker
- *   never observes uncommitted state of the request.</li>
- *   <li>Cancellation is cooperative: the work calls {@link TaskProgress#checkpoint()} between units of work and registers an
- *   undo action for every change; on cancellation or failure the runner runs those actions in reverse order.</li>
- * </ul>
+ * Submits durable commands and claims them with a PostgreSQL lease. The legacy lambda overload
+ * remains available for focused unit tests and is never used by application services.
  */
 @Slf4j
 @Service
 public class TaskRunner {
-
 	private final TaskProgressStore store;
-	private final Executor          executor;
-	private final boolean           ownsExecutor;
+	private final Executor                  executor;
+	private final boolean                   ownsExecutor;
+	private final TaskCommandExecutor       commandExecutor;
+	private final UserAccountRepository     userAccountRepository;
+	private final String                    workerId = UUID.randomUUID()
+	                                                       .toString();
+	private final int                       workerCount;
+	private final Map<String, TaskProgress> active   = new ConcurrentHashMap<>();
 
 	@Autowired
-	public TaskRunner(TaskProgressStore store, @Value("${vempain.tasks.worker-count:4}") int workerCount) {
-		this(store, newExecutor(Math.max(1, workerCount)), true);
+	public TaskRunner(TaskProgressStore store, TaskCommandExecutor commandExecutor, UserAccountRepository userAccountRepository,
+					  @Value("${vempain.tasks.worker-count:4}") int workerCount) {
+		this(store, newExecutor(Math.max(1, workerCount)), true, commandExecutor, userAccountRepository, workerCount);
 	}
 
-	/**
-	 * Constructor for tests and for embedding the runner with a caller-provided executor.
-	 */
 	public TaskRunner(TaskProgressStore store, Executor executor) {
-		this(store, executor, false);
+		this(store, executor, false, null, null, 1);
 	}
 
-	private TaskRunner(TaskProgressStore store, Executor executor, boolean ownsExecutor) {
-		this.store        = store;
-		this.executor     = executor;
+	private TaskRunner(TaskProgressStore store, Executor executor, boolean ownsExecutor, TaskCommandExecutor commandExecutor,
+					   UserAccountRepository userAccountRepository, int workerCount) {
+		this.store                 = store;
+		this.executor              = executor;
 		this.ownsExecutor = ownsExecutor;
+		this.commandExecutor       = commandExecutor;
+		this.userAccountRepository = userAccountRepository;
+		this.workerCount           = Math.max(1, workerCount);
 	}
 
-	/**
-	 * Requests cancellation of a task. The runner cancels a queued task before it starts; a running task stops at its next
-	 * {@link TaskProgress#checkpoint()} and its registered compensations are run.
-	 *
-	 * @return false when the task had already finished
-	 */
 	public boolean cancel(TaskProgress progress) {
 		var accepted = progress.requestCancel();
 		if (accepted) {
@@ -68,18 +67,35 @@ public class TaskRunner {
 	}
 
 	/**
-	 * Registers and starts a task owned by the current user.
-	 *
-	 * @param type       task type identifier, see {@code TaskTypeEnum}
-	 * @param title      human readable title
-	 * @param totalSteps number of steps when known, otherwise 0 (the work may set it later)
-	 * @param work       the work to perform; its return value becomes the task result
-	 * @return the tracked progress record, already registered in the store
+	 * Creates a PostgreSQL-backed task. Payload must be JSON-serializable.
 	 */
+	public TaskProgress submit(String type, String title, long totalSteps, Object payload) {
+		var progress = store.create(type, title, currentUserId(), totalSteps, payload);
+		schedulePollingAfterCommit(progress);
+		return progress;
+	}
+
+	/**
+	 * Production uses the durable payload. The fallback exists solely for lightweight unit tests
+	 * that construct a runner without a JPA repository.
+	 */
+	public TaskProgress submitDurable(String type, String title, long totalSteps, Object payload, TaskWork<?> localFallback) {
+		return store.isDurable() ? submit(type, title, totalSteps, payload) : submit(type, title, totalSteps, localFallback);
+	}
+
+	/** Compatibility overload for existing unit tests; production code submits durable commands. */
 	public TaskProgress submit(String type, String title, long totalSteps, TaskWork<?> work) {
 		var progress = store.create(type, title, currentUserId(), totalSteps);
-		var runnable = new DelegatingSecurityContextRunnable(() -> execute(progress, work), copyOfCurrentSecurityContext());
-
+		var securityContext = copyOfCurrentSecurityContext();
+		Runnable runnable = () -> {
+			var previous = SecurityContextHolder.getContext();
+			SecurityContextHolder.setContext(securityContext);
+			try {
+				executeLegacy(progress, work);
+			} finally {
+				SecurityContextHolder.setContext(previous);
+			}
+		};
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 				@Override
@@ -97,59 +113,132 @@ public class TaskRunner {
 		} else {
 			executor.execute(runnable);
 		}
-
 		return progress;
 	}
 
-	private void execute(TaskProgress progress, TaskWork<?> work) {
-		if (progress.isCancelRequested()) {
-			progress.cancelled("Cancelled before it started");
-			log.info("Background task {} ({}) was cancelled before it started", progress.getId(), progress.getType());
-			return;
-		}
-
-		progress.start();
-		log.info("Background task {} ({}) started: {}", progress.getId(), progress.getType(), progress.getTitle());
-		try {
-			var result = work.run(progress);
-			progress.complete(result);
-			log.info("Background task {} ({}) completed with {}/{} steps, {} failed", progress.getId(), progress.getType(),
-					 progress.getCompletedSteps()
-							 .get(), progress.getTotalSteps()
-											 .get(), progress.getFailedSteps()
-															 .get());
-		} catch (TaskCancelledException e) {
-			log.info("Background task {} ({}) is cancelling after {} steps", progress.getId(), progress.getType(), progress.getCompletedSteps()
-																														   .get());
-			var failures = revert(progress);
-			progress.cancelled(cancelMessage(progress, failures));
-		} catch (Exception e) {
-			log.error("Background task {} ({}) failed", progress.getId(), progress.getType(), e);
-			var failures = revert(progress);
-			var error = e.getMessage() == null ? e.getClass()
-												  .getSimpleName() : e.getMessage();
-			progress.fail(failures == 0 ? error : error + " (" + failures + " changes could not be reverted)");
+	private void schedulePollingAfterCommit(TaskProgress progress) {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCompletion(int status) {
+					if (status == STATUS_COMMITTED) {
+						executor.execute(TaskRunner.this::poll);
+					} else {
+						store.remove(progress.getId());
+						progress.fail("The request was rolled back before the task could start");
+					}
+				}
+			});
+		} else {
+			poll();
 		}
 	}
 
-	/**
-	 * Runs the registered compensations most recent first. Every compensation is attempted even when an earlier one fails.
-	 *
-	 * @return number of compensations that failed
-	 */
+	@PostConstruct
+	void start() {
+		poll();
+	}
+
+	@Scheduled(fixedDelayString = "${vempain.tasks.poll-interval-ms:1000}")
+	public void poll() {
+		if (commandExecutor == null) {
+			return;
+		}
+		for (int i = active.size(); i < workerCount; i++) {
+			store.claimNext(workerId)
+			     .ifPresent(progress -> {
+					 active.put(progress.getId(), progress);
+					 executor.execute(() -> executeDurable(progress));
+				 });
+		}
+	}
+
+	@Scheduled(fixedDelayString = "${vempain.tasks.heartbeat-interval-ms:10000}")
+	void heartbeat() {
+		// A task reports progress frequently, but heartbeat also protects long external calls.
+		active.values()
+		      .forEach(store::heartbeat);
+	}
+
+	private void executeDurable(TaskProgress progress) {
+		var context = SecurityContextHolder.createEmptyContext();
+		try {
+			if (progress.getOwnerId() != null && userAccountRepository != null) {
+				userAccountRepository.findById(progress.getOwnerId())
+				                     .ifPresent(account ->
+														context.setAuthentication(new UsernamePasswordAuthenticationToken(UserDetailsImpl.build(account), null,
+																														  UserDetailsImpl.build(account)
+						                                                                                                                 .getAuthorities())));
+			}
+			SecurityContextHolder.setContext(context);
+			if (progress.isCancelRequested()) {
+				progress.cancelled("Cancelled before it started");
+				return;
+			}
+			progress.start();
+			var result = commandExecutor.execute(progress);
+			progress.complete(result);
+		} catch (TaskCancelledException e) {
+			var failures = revert(progress);
+			progress.cancelled(cancelMessage(progress, failures));
+		} catch (Exception e) {
+			log.error("Durable task {} ({}) failed", progress.getId(), progress.getType(), e);
+			var failures = revert(progress);
+			var message  = e.getMessage() == null ? e.getClass()
+			                                         .getSimpleName() : e.getMessage();
+			progress.fail(failures == 0 ? message : message + " (" + failures + " changes could not be reverted)");
+		} finally {
+			active.remove(progress.getId());
+			SecurityContextHolder.clearContext();
+		}
+	}
+
+	private void executeLegacy(TaskProgress progress, TaskWork<?> work) {
+		if (progress.isCancelRequested()) {
+			progress.cancelled("Cancelled before it started");
+			return;
+		}
+		progress.start();
+		try {
+			progress.complete(work.run(progress));
+		} catch (TaskCancelledException e) {
+			var failures = revert(progress);
+			progress.cancelled(cancelMessage(progress, failures));
+		} catch (Exception e) {
+			var failures = revert(progress);
+			var message  = e.getMessage() == null ? e.getClass()
+			                                         .getSimpleName() : e.getMessage();
+			progress.fail(failures == 0 ? message : message + " (" + failures + " changes could not be reverted)");
+		}
+	}
+
 	private int revert(TaskProgress progress) {
 		progress.reverting();
-		var compensations = progress.drainCompensations();
-		var failures      = 0;
-		for (var registered : compensations) {
+		var failures = 0;
+		if (commandExecutor != null) {
+			for (var compensation : store.durableCompensations(progress)) {
+				if (compensation.isCompleted()) {
+					continue;
+				}
+				progress.message("Reverting: " + compensation.getDescription());
+				try {
+					commandExecutor.compensate(compensation);
+					store.markCompensationDone(compensation);
+					progress.countReverted();
+				} catch (Exception e) {
+					failures++;
+					log.error("Could not revert durable task compensation {}", compensation.getId(), e);
+				}
+			}
+		}
+		for (var registered : progress.drainCompensations()) {
 			progress.message("Reverting: " + registered.description());
 			try {
-				registered.compensation()
-						  .revert();
+				registered.compensation().revert();
 				progress.countReverted();
 			} catch (Exception e) {
 				failures++;
-				log.error("Background task {} ({}) could not revert '{}'", progress.getId(), progress.getType(), registered.description(), e);
+				log.error("Could not revert task {}", progress.getId(), e);
 			}
 		}
 		return failures;
@@ -157,7 +246,7 @@ public class TaskRunner {
 
 	private static String cancelMessage(TaskProgress progress, int failures) {
 		var reverted = progress.getRevertedSteps()
-							   .get();
+		                       .get();
 		if (reverted == 0 && failures == 0) {
 			return "Cancelled, nothing to revert";
 		}
@@ -165,22 +254,16 @@ public class TaskRunner {
 		return failures == 0 ? message : message + ", " + failures + " could not be reverted";
 	}
 
-	/**
-	 * Identifier of the authenticated Vempain user, or null when the task is started without a user (schedules).
-	 */
 	public static Long currentUserId() {
 		var authentication = SecurityContextHolder.getContext()
-												  .getAuthentication();
-		if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl user) {
-			return user.getId();
-		}
-		return null;
+		                                          .getAuthentication();
+		return authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl user ? user.getId() : null;
 	}
 
 	private static SecurityContext copyOfCurrentSecurityContext() {
 		var copy = SecurityContextHolder.createEmptyContext();
 		copy.setAuthentication(SecurityContextHolder.getContext()
-													.getAuthentication());
+		                                            .getAuthentication());
 		return copy;
 	}
 

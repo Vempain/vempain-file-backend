@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.controller;
 
+import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.CreateGpsTimeSeriesRequest;
-import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.rest.DataPublishAPI;
 import fi.poltsi.vempain.file.service.DataService;
 import lombok.RequiredArgsConstructor;

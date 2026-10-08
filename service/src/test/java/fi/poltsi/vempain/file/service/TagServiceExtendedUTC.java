@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
+import fi.poltsi.vempain.common.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
-import fi.poltsi.vempain.file.api.request.TagRequest;
 import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.repository.FileTagRepository;

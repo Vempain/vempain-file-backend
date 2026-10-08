@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.api.response;
 
-import fi.poltsi.vempain.file.api.request.CopyrightRequest;
+import fi.poltsi.vempain.common.api.request.CopyrightRequest;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
 import fi.poltsi.vempain.file.entity.FileProcessingStatus;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;

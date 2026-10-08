@@ -2,7 +2,7 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.auth.entity.Acl;
 import fi.poltsi.vempain.auth.service.AclService;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;

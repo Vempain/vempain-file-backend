@@ -27,7 +27,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, JpaSpec
 	@Query("""
 			SELECT f
 			FROM FileEntity f
-			WHERE f.fileType = fi.poltsi.vempain.file.api.FileTypeEnum.VIDEO
+			WHERE f.fileType = fi.poltsi.vempain.common.api.FileTypeEnum.VIDEO
 			  AND NOT EXISTS (SELECT e.id FROM ExportFileEntity e WHERE e.file = f)
 			  AND NOT EXISTS (SELECT q.id FROM FileProcessingQueueEntity q WHERE q.file = f)
 			ORDER BY f.id

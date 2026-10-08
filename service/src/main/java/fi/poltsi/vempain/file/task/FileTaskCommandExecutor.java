@@ -1,10 +1,12 @@
 package fi.poltsi.vempain.file.task;
 
+import fi.poltsi.vempain.common.task.TaskCommandExecutor;
+import fi.poltsi.vempain.common.task.TaskProgress;
+import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
-import fi.poltsi.vempain.file.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.service.DataService;
 import fi.poltsi.vempain.file.service.FileScannerService;
 import fi.poltsi.vempain.file.service.PublishService;
@@ -18,15 +20,16 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 
 /**
- * Converts durable task commands into service calls. It deliberately resolves services through
- * the Spring proxy so transactional methods are invoked correctly on worker threads.
+ * The file backend's {@link TaskCommandExecutor}: converts durable task commands into service calls. It deliberately resolves
+ * services through the Spring proxy so transactional methods are invoked correctly on worker threads.
  */
 @Service
 @RequiredArgsConstructor
-public class TaskCommandExecutor {
+public class FileTaskCommandExecutor implements TaskCommandExecutor {
 	private final ApplicationContext applicationContext;
 	private final ObjectMapper       objectMapper;
 
+	@Override
 	public Object execute(TaskProgress progress) {
 		var      type    = TaskTypeEnum.valueOf(progress.getType());
 		JsonNode payload = objectMapper.readTree(progress.getPayload() == null ? "{}" : progress.getPayload());
@@ -70,6 +73,7 @@ public class TaskCommandExecutor {
 		};
 	}
 
+	@Override
 	public void compensate(TaskCompensationEntity compensation) {
 		var payload = objectMapper.readTree(compensation.getPayload());
 		switch (compensation.getCommandType()) {

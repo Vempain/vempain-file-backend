@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.entity;
 
 import fi.poltsi.vempain.auth.entity.AbstractVempainEntity;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import jakarta.persistence.Basic;
 import jakarta.persistence.Column;

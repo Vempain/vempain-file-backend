@@ -1,6 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.response.FileStatisticsResponse;
 import fi.poltsi.vempain.file.repository.GpsLocationRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;

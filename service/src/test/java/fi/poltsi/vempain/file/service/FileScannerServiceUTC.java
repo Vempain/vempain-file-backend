@@ -1,6 +1,9 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.file.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.task.TaskCancelledException;
+import fi.poltsi.vempain.common.task.TaskProgressStore;
+import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
@@ -9,9 +12,6 @@ import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.task.TaskCancelledException;
-import fi.poltsi.vempain.file.task.TaskProgressStore;
-import fi.poltsi.vempain.file.task.TaskRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;

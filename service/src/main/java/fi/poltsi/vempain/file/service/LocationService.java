@@ -1,9 +1,9 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.common.api.response.LocationResponse;
 import fi.poltsi.vempain.file.api.GuardTypeEnum;
 import fi.poltsi.vempain.file.api.request.LocationGuardRequest;
 import fi.poltsi.vempain.file.api.response.LocationGuardResponse;
-import fi.poltsi.vempain.file.api.response.LocationResponse;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.LocationGuardEntity;
 import fi.poltsi.vempain.file.repository.LocationGuardRepository;

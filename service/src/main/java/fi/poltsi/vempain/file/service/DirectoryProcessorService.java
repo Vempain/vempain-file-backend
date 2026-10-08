@@ -6,7 +6,7 @@ import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.tools.AuthTools;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;

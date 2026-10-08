@@ -1,7 +1,7 @@
 package fi.poltsi.vempain.file.rest;
 
+import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.CreateGpsTimeSeriesRequest;
-import fi.poltsi.vempain.file.api.response.TaskAcceptedResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

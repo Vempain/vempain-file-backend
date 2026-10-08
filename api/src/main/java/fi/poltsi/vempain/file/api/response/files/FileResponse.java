@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file.api.response.files;
 
 import fi.poltsi.vempain.auth.api.response.AbstractResponse;
-import fi.poltsi.vempain.file.api.FileTypeEnum;
-import fi.poltsi.vempain.file.api.response.LocationResponse;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.api.response.LocationResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;

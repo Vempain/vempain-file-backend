@@ -28,6 +28,8 @@ public class WebSecurityConfig extends fi.poltsi.vempain.auth.security.WebSecuri
 				"/location/**",
 				"/path-completion/**",
 				"/statistics/**",
-				"/tasks/**");
+				"/tasks/**",
+				// User, unit and ACL management hosted from vempain-auth-core (administrator ACL checked in the controllers)
+				"/content-management/**");
 	}
 }

@@ -107,11 +107,14 @@ vempain:
     max-age: 3600
   original-root-directory: override-me
   export-root-directory: override-me
+  path-completion:
+    # Collation used to sort the directory completions of the import view (BCP 47 tag); fi puts å, ä and ö after z
+    collation-locale: fi
   export-file-type: jpeg
   service:
     admin-backend-url: override-me
-    admin-backend-username: override-me
-    admin-backend-password: override-me
+    # Service-to-service API token created in the admin UI (Administration > API tokens); sent as X-Vempain-Api-Token
+    admin-backend-api-token: override-me
   site-image-size: 1400
   site-video-size: 720p
   refresh-updated-files:

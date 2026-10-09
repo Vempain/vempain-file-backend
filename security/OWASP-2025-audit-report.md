@@ -95,3 +95,19 @@ for Testcontainers, and `exiftool`):
 
 Frontend audit/report is intentionally not changed in this backend task; it
 must be reviewed together with this API report as required by the root task.
+
+## Addendum 2026-10-09 — ACL grantees forwarded to the admin backend
+
+* `POST /api/publish/file-group` and `POST /api/publish/all-file-groups` accept an optional `acls` list of admin user IDs and privilege
+  flags (`PublishAclRequest`, bean-validated: positive `user_id`, at least one privilege). The IDs belong to the admin backend's user
+  base and are forwarded unchanged inside `FileIngestRequest.acls`; the admin backend validates them against its own accounts before
+  storing anything, so this service never resolves or trusts them locally (A01).
+* `GET /api/publish/users` proxies the admin backend's reduced user listing (id, login name, name, nick) through the service account
+  and answers `502` when the admin backend is unreachable; no additional personal data is cached or exposed (A02).
+* Tests: `PublishServiceUTC` (`AclGrantees`), `VempainAdminServiceUTC` (`ListIngestUsers`), `PublishControllerCTC`.
+* `POST /api/publish/file` (single file) authorizes synchronously like the group publish: 404 for an unknown file, 403 unless the
+  caller holds the modify privilege on that file (`FileAclService.requireModify`), before the task is submitted (A01).
+* Service-to-service authentication to the admin backend switched from a long-lived service user password (and the JWT obtained with
+  it) to an API token sent in `X-Vempain-Api-Token` (A04/A07): the token is created in the admin UI with an expiry and a network
+  restriction, lives only in the deployment environment (`ENV_VEMPAIN_ADMIN_BACKEND_API_TOKEN`) and can be revoked without touching this
+  service. The login client and the re-authentication retry loops were removed.

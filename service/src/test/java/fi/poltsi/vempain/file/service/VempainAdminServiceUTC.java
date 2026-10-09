@@ -6,6 +6,7 @@ import feign.RequestTemplate;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
@@ -27,6 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -199,6 +201,54 @@ class VempainAdminServiceUTC {
 			var result = vempainAdminService.getPageableSiteFiles(
 					FileTypeEnum.IMAGE, 0, 10, "id", Sort.Direction.ASC, null, null);
 			assertNull(result);
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// listIngestUsers
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("listIngestUsers")
+	class ListIngestUsers {
+
+		@Test
+		void returnsTheUsersOfTheAdminBackend() {
+			var user = FileIngestUserResponse.builder()
+			                                 .id(12L)
+			                                 .loginName("arnold")
+			                                 .name("Arnold")
+			                                 .nick("Ahnold")
+			                                 .build();
+			when(vempainAdminFileIngestClient.listIngestUsers()).thenReturn(ResponseEntity.ok(List.of(user)));
+
+			var users = vempainAdminService.listIngestUsers();
+
+			assertThat(users).containsExactly(user);
+		}
+
+		@Test
+		void forbiddenTriggersReauthentication() {
+			when(vempainAdminFileIngestClient.listIngestUsers()).thenThrow(fakeFeignException(403));
+
+			assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.listIngestUsers());
+		}
+
+		@Test
+		void otherFailuresBecomeBadGateway() {
+			when(vempainAdminFileIngestClient.listIngestUsers()).thenThrow(fakeFeignException(500));
+
+			var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> vempainAdminService.listIngestUsers());
+			assertThat(ex.getStatusCode()
+			             .value()).isEqualTo(502);
+		}
+
+		@Test
+		void emptyAnswerBecomesBadGateway() {
+			when(vempainAdminFileIngestClient.listIngestUsers()).thenReturn(ResponseEntity.ok(null));
+
+			var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> vempainAdminService.listIngestUsers());
+			assertThat(ex.getStatusCode()
+			             .value()).isEqualTo(502);
 		}
 	}
 }

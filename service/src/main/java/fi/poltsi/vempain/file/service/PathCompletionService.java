@@ -12,7 +12,11 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 import static fi.poltsi.vempain.file.api.PathCompletionEnum.ORIGINAL;
 
@@ -26,6 +30,34 @@ public class PathCompletionService {
 
 	@Value("${vempain.export-root-directory}")
 	private String exportedRootDirectory;
+
+	/**
+	 * Language tag of the collation used to order the completions. The filesystem returns directory entries in an undefined order (in
+	 * practice often by modification time), which made the lists jump around; the completions are therefore always sorted
+	 * alphabetically with a locale-aware collator so that letters such as å, ä and ö land where the configured alphabet puts them
+	 * (after z for the default Finnish/Swedish ordering, not among a and o as a plain code point sort would).
+	 */
+	@Value("${vempain.path-completion.collation-locale:fi}")
+	private String collationLocale;
+
+	/**
+	 * Alphabetical, locale-aware and case-insensitive order of the completions (the case only breaks ties).
+	 */
+	Comparator<String> completionOrder() {
+		var locale   = collationLocale == null || collationLocale.isBlank() ? Locale.of("fi") : Locale.forLanguageTag(collationLocale);
+		var collator = Collator.getInstance(locale);
+		collator.setStrength(Collator.TERTIARY);
+		return collator::compare;
+	}
+
+	/**
+	 * Returns the completions in a stable alphabetical order regardless of the order the filesystem produced them in.
+	 */
+	List<String> sortCompletions(List<String> completions) {
+		var sorted = new ArrayList<>(completions);
+		sorted.sort(completionOrder());
+		return sorted;
+	}
 
 	public PathCompletionResponse completePath(PathCompletionRequest request) {
 		// Normalize request path: expected to start with '/'
@@ -48,7 +80,7 @@ public class PathCompletionService {
 			                       .normalize();
 			if (!fullPath.startsWith(rootPath)) {
 				log.warn("Rejected path completion request outside configured root: {}", requestPath);
-				return new PathCompletionResponse(completions);
+				return new PathCompletionResponse(List.of());
 			}
 
 			if (Files.exists(fullPath) && Files.isDirectory(fullPath) && !Files.isSymbolicLink(fullPath)
@@ -99,6 +131,6 @@ public class PathCompletionService {
 			log.error("Received exception when scanning directories", e);
 		}
 
-		return new PathCompletionResponse(completions);
+		return new PathCompletionResponse(sortCompletions(completions));
 	}
 }

@@ -12,8 +12,7 @@ vempain:
     jwt-expiration-ms: 86400000
   service:
     admin-backend-url: http://localhost:9090
-    admin-backend-username: vempain-admin
-    admin-backend-password: vempain-admin-password
+    admin-backend-api-token: vat_test-token
   original-root-directory: /var/tmp
   export-root-directory: /var/tmp
   export-file-type: jpeg

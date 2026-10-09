@@ -38,8 +38,7 @@ class SetupVerification implements ApplicationContextAware {
 			{"vempain.original-root-directory", TYPE_PATH},
 			{"vempain.export-root-directory", TYPE_PATH},
 			{"vempain.service.admin-backend-url", TYPE_STRING},
-			{"vempain.service.admin-backend-username", TYPE_STRING},
-			{"vempain.service.admin-backend-password", TYPE_STRING}
+			{"vempain.service.admin-backend-api-token", TYPE_STRING}
 	};
 
 	private ApplicationContext applicationContext;

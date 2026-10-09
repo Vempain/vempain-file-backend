@@ -3,6 +3,7 @@ package fi.poltsi.vempain.file.task;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
+import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.service.DataService;
@@ -45,6 +46,19 @@ class FileTaskCommandExecutorUTC {
 	@BeforeEach
 	void setUp() {
 		executor = new FileTaskCommandExecutor(applicationContext, mapper);
+	}
+
+	@Test
+	void executesPublishFileCommand() {
+		var request = PublishFileRequest.builder()
+										.fileId(55L)
+										.build();
+		var task = task("PUBLISH_FILE", request);
+		when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+		assertThat(executor.execute(task)).isNull();
+
+		verify(publishService).publishFileNow(request, task);
 	}
 
 	@Test

@@ -1,19 +1,26 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
+import fi.poltsi.vempain.file.api.request.PublishAclRequest;
+import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
+import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
+import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
-import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
+import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +28,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -36,11 +44,16 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -54,6 +67,8 @@ class PublishServiceUTC {
 	@Mock
 	private FileGroupRepository       fileGroupRepository;
 	@Mock
+	private FileRepository fileRepository;
+	@Mock
 	private ExportFileRepository      exportFileRepository;
 	@Mock
 	private MetadataRepository        metadataRepository;
@@ -65,8 +80,6 @@ class PublishServiceUTC {
 	private LocationService           locationService;
 	@Mock
 	private FileAclService fileAclService;
-	@Mock
-	private VempainAdminTokenProvider vempainAdminTokenProvider;
 	@Mock
 	private ImageTool                 imageTool;
 	@Mock
@@ -408,6 +421,342 @@ class PublishServiceUTC {
 			publishService.authorizeFileGroupPublish(404L);
 
 			org.mockito.Mockito.verifyNoInteractions(fileAclService);
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// additional ACL grantees and the admin user listing
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("ACL grantees and admin users")
+	class AclGrantees {
+
+		private PublishAclRequest acl(long userId, boolean read, boolean modify) {
+			return PublishAclRequest.builder()
+									.userId(userId)
+									.readPrivilege(read)
+									.modifyPrivilege(modify)
+									.build();
+		}
+
+		@Test
+		void toIngestAclsMapsEveryEntryAndLeavesAnEmptyListAsNull() {
+			assertNull(PublishService.toIngestAcls(null));
+			assertNull(PublishService.toIngestAcls(List.of()));
+
+			var mapped = PublishService.toIngestAcls(List.of(acl(5L, true, true), acl(6L, true, false)));
+
+			assertEquals(2, mapped.size());
+			assertEquals(5L, mapped.get(0)
+			                       .getUserId());
+			assertTrue(mapped.get(0)
+			                 .isReadPrivilege());
+			assertTrue(mapped.get(0)
+			                 .isModifyPrivilege());
+			assertFalse(mapped.get(0)
+			                  .isCreatePrivilege());
+			assertFalse(mapped.get(0)
+			                  .isDeletePrivilege());
+			assertEquals(6L, mapped.get(1)
+			                       .getUserId());
+			assertFalse(mapped.get(1)
+			                  .isModifyPrivilege());
+		}
+
+		@Test
+		void publishFileGroupForwardsTheAclsInEveryIngestRequest(@TempDir Path exportDir) throws IOException {
+			ReflectionTestUtils.setField(publishService, "exportRootDirectory", exportDir.toString());
+			var subDir = exportDir.resolve("docs");
+			Files.createDirectories(subDir);
+			Files.write(subDir.resolve("doc.pdf"), "%PDF-1.4\n".getBytes());
+			when(exportFileRepository.findByFileId(55L)).thenReturn(Optional.of(ExportFileEntity.builder()
+																								.id(2L)
+																								.filePath("/docs")
+																								.filename("doc.pdf")
+																								.build()));
+			var mockDocEntity = mock(DocumentFileEntity.class);
+			when(mockDocEntity.getId()).thenReturn(55L);
+			when(mockDocEntity.getFileType()).thenReturn(FileTypeEnum.DOCUMENT);
+			when(mockDocEntity.getFilePath()).thenReturn("/docs");
+			when(mockDocEntity.getFilename()).thenReturn("doc.pdf");
+			when(mockDocEntity.getDescription()).thenReturn(null);
+			when(mockDocEntity.getGpsLocation()).thenReturn(null);
+			when(mockDocEntity.getPageCount()).thenReturn(5);
+			when(metadataRepository.findByFile(mockDocEntity)).thenReturn(List.of());
+			when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
+			var group = FileGroupEntity.builder()
+									   .id(9L)
+									   .files(List.<FileEntity>of(mockDocEntity))
+									   .build();
+			when(fileGroupRepository.findById(9L)).thenReturn(Optional.of(group));
+			when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+																								  .siteFileId(500L)
+																								  .galleryId(77L)
+																								  .build());
+
+			var request = PublishFileGroupRequest.builder()
+												 .fileGroupId(9L)
+												 .galleryName("Docs")
+												 .acls(List.of(acl(5L, true, true)))
+												 .build();
+			publishService.publishFileGroupNow(request, null, false);
+
+			var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
+			verify(vempainAdminService).uploadAsSiteFile(any(), captor.capture());
+			var ingest = captor.getValue();
+			assertEquals("Docs", ingest.getGalleryName());
+			assertEquals(1, ingest.getAcls()
+			                      .size());
+			assertEquals(5L, ingest.getAcls()
+			                       .getFirst()
+			                       .getUserId());
+			assertTrue(ingest.getAcls()
+			                 .getFirst()
+			                 .isReadPrivilege());
+			assertTrue(ingest.getAcls()
+			                 .getFirst()
+			                 .isModifyPrivilege());
+			assertFalse(ingest.getAcls()
+			                  .getFirst()
+			                  .isDeletePrivilege());
+			assertEquals(77L, group.getGalleryId());
+		}
+
+		@Test
+		void publishAllFileGroupsCarriesTheAclsIntoEveryGroupRequest() {
+			var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+			var group = FileGroupEntity.builder()
+									   .id(7L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(70L)
+																				 .aclId(70L)
+																				 .build()))
+									   .build();
+			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
+			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
+			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
+					.thenReturn(new PageImpl<>(List.of(projection)));
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishAllFileGroups(PublishAllFileGroupsRequest.builder()
+																					  .acls(List.of(acl(5L, true, false)))
+																					  .build());
+
+			assertThat(task.getType()).isEqualTo("PUBLISH_ALL_FILE_GROUPS");
+			// The in-memory runner of this test does not persist the payload; inspect what was handed to the durable submit instead
+			var payloadCaptor = ArgumentCaptor.forClass(Object.class);
+			verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_ALL_FILE_GROUPS"), org.mockito.ArgumentMatchers.anyString(),
+											 org.mockito.ArgumentMatchers.anyLong(), payloadCaptor.capture(), any());
+			@SuppressWarnings("unchecked")
+			var requests = (List<PublishFileGroupRequest>) ((java.util.Map<String, Object>) payloadCaptor.getValue()).get("requests");
+			assertEquals(1, requests.size());
+			assertEquals(7L, requests.getFirst()
+			                         .getFileGroupId());
+			assertEquals(1, requests.getFirst()
+			                        .getAcls()
+			                        .size());
+			assertEquals(5L, requests.getFirst()
+			                         .getAcls()
+			                         .getFirst()
+			                         .getUserId());
+			assertTrue(requests.getFirst()
+			                   .getAcls()
+			                   .getFirst()
+			                   .isReadPrivilege());
+			assertFalse(requests.getFirst()
+			                    .getAcls()
+			                    .getFirst()
+			                    .isModifyPrivilege());
+		}
+
+		@Test
+		void listPublishUsersMapsTheAdminUsers() {
+			when(vempainAdminService.listIngestUsers()).thenReturn(List.of(FileIngestUserResponse.builder()
+																								 .id(12L)
+																								 .loginName("arnold")
+																								 .name("Arnold")
+																								 .nick("Ahnold")
+																								 .build()));
+
+			var users = publishService.listPublishUsers();
+
+			assertEquals(1, users.size());
+			assertEquals(12L, users.getFirst()
+			                       .getId());
+			assertEquals("arnold", users.getFirst()
+			                            .getLoginName());
+			assertEquals("Arnold", users.getFirst()
+			                            .getName());
+			assertEquals("Ahnold", users.getFirst()
+			                            .getNick());
+		}
+
+		@Test
+		void listPublishUsersPassesARefusedTokenThrough() {
+			when(vempainAdminService.listIngestUsers()).thenThrow(new fi.poltsi.vempain.auth.exception.VempainAuthenticationException());
+
+			assertThrows(fi.poltsi.vempain.auth.exception.VempainAuthenticationException.class, () -> publishService.listPublishUsers());
+		}
+
+		@Test
+		void listPublishUsersPassesOtherErrorsThrough() {
+			when(vempainAdminService.listIngestUsers()).thenThrow(new org.springframework.web.server.ResponseStatusException(
+					org.springframework.http.HttpStatus.BAD_GATEWAY));
+
+			assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> publishService.listPublishUsers());
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// single file publish
+	// ------------------------------------------------------------------
+	@Nested
+	@DisplayName("publishFile")
+	class PublishSingleFile {
+
+		private DocumentFileEntity exportedDocument(Path exportDir) throws IOException {
+			ReflectionTestUtils.setField(publishService, "exportRootDirectory", exportDir.toString());
+			var subDir = exportDir.resolve("docs");
+			Files.createDirectories(subDir);
+			Files.write(subDir.resolve("doc.pdf"), "%PDF-1.4\n".getBytes());
+			when(exportFileRepository.findByFileId(55L)).thenReturn(Optional.of(ExportFileEntity.builder()
+																								.id(2L)
+																								.filePath("/docs")
+																								.filename("doc.pdf")
+																								.build()));
+			var mockDocEntity = mock(DocumentFileEntity.class);
+			when(mockDocEntity.getId()).thenReturn(55L);
+			when(mockDocEntity.getFileType()).thenReturn(FileTypeEnum.DOCUMENT);
+			when(mockDocEntity.getFilePath()).thenReturn("/docs");
+			when(mockDocEntity.getFilename()).thenReturn("doc.pdf");
+			when(mockDocEntity.getDescription()).thenReturn(null);
+			when(mockDocEntity.getGpsLocation()).thenReturn(null);
+			when(mockDocEntity.getPageCount()).thenReturn(5);
+			when(metadataRepository.findByFile(mockDocEntity)).thenReturn(List.of());
+			when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
+			when(fileRepository.findById(55L)).thenReturn(Optional.of(mockDocEntity));
+			return mockDocEntity;
+		}
+
+		@Test
+		void publishFileUploadsWithoutAnyGalleryAndForwardsTheAcls(@TempDir Path exportDir) throws IOException {
+			exportedDocument(exportDir);
+			when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+																								  .siteFileId(500L)
+																								  .updated(false)
+																								  .build());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishFile(PublishFileRequest.builder()
+																	.fileId(55L)
+																	.acls(List.of(PublishAclRequest.builder()
+																								   .userId(5L)
+																								   .readPrivilege(true)
+																								   .build()))
+																	.build());
+
+			assertThat(task.getType()).isEqualTo("PUBLISH_FILE");
+			assertThat(task.getTitle()).isEqualTo("Publish file doc.pdf");
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			assertThat(task.getTotalSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getCompletedSteps()
+						   .get()).isEqualTo(1);
+			assertThat(task.getMessage()).isEqualTo("Published doc.pdf");
+
+			var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
+			verify(vempainAdminService).uploadAsSiteFile(any(), captor.capture());
+			var ingest = captor.getValue();
+			assertNull(ingest.getGalleryId());
+			assertNull(ingest.getGalleryName());
+			assertNull(ingest.getGalleryDescription());
+			assertEquals(0L, ingest.getSortOrder());
+			assertEquals(5, ingest.getPages());
+			assertEquals(1, ingest.getAcls()
+			                      .size());
+			assertEquals(5L, ingest.getAcls()
+			                       .getFirst()
+			                       .getUserId());
+			verify(fileGroupRepository, never()).save(any());
+		}
+
+		@Test
+		void publishFileWithoutExportFails() {
+			var mockDocEntity = mock(DocumentFileEntity.class);
+			when(mockDocEntity.getId()).thenReturn(56L);
+			when(mockDocEntity.getFilename()).thenReturn("missing.pdf");
+			when(fileRepository.findById(56L)).thenReturn(Optional.of(mockDocEntity));
+			when(exportFileRepository.findByFileId(56L)).thenReturn(Optional.empty());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishFile(PublishFileRequest.builder()
+																	.fileId(56L)
+																	.build());
+
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.FAILED);
+			assertThat(task.getErrorMessage()).isEqualTo("No export file for missing.pdf");
+			verify(vempainAdminService, never()).uploadAsSiteFile(any(), any());
+		}
+
+		@Test
+		void publishFileMarksMissingFileAsFailed() {
+			when(fileRepository.findById(404L)).thenReturn(Optional.empty());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishFile(PublishFileRequest.builder()
+																	.fileId(404L)
+																	.build());
+
+			assertThat(task.getTitle()).isEqualTo("Publish file #404");
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.FAILED);
+			assertThat(task.getErrorMessage()).isEqualTo("File 404 not found");
+		}
+
+		@Test
+		void cancelledPublishFileRemovesTheCreatedSiteFile(@TempDir Path exportDir) throws IOException {
+			exportedDocument(exportDir);
+			when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+																								  .siteFileId(500L)
+																								  .updated(false)
+																								  .build());
+			var store  = new TaskProgressStore();
+			var queued = new java.util.ArrayList<Runnable>();
+			var runner = new TaskRunner(store, queued::add);
+			ReflectionTestUtils.setField(publishService, "taskRunner", runner);
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishFile(PublishFileRequest.builder()
+																	.fileId(55L)
+																	.build());
+			queued.get(0)
+				  .run();
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+
+			// A task that is cancelled while running would have reverted the upload through the registered compensation
+			var running = publishService.publishFile(PublishFileRequest.builder()
+																	   .fileId(55L)
+																	   .build());
+			runner.cancel(running);
+			queued.get(1)
+				  .run();
+			assertThat(running.getStatus()).isEqualTo(TaskStatusEnum.CANCELLED);
+			verify(vempainAdminService, never()).deleteSiteFile(500L);
+		}
+
+		@Test
+		void authorizeFilePublishRequiresModifyOnTheFileAndKnowsMissingFiles() {
+			var file = ImageFileEntity.builder()
+									  .id(70L)
+									  .aclId(70L)
+									  .build();
+			when(fileRepository.findById(70L)).thenReturn(Optional.of(file));
+			publishService.authorizeFilePublish(70L);
+			verify(fileAclService).requireModify(file);
+
+			when(fileRepository.findById(404L)).thenReturn(Optional.empty());
+			var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> publishService.authorizeFilePublish(404L));
+			assertThat(ex.getStatusCode()
+			             .value()).isEqualTo(404);
 		}
 	}
 }

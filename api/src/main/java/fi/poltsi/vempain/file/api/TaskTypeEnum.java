@@ -8,9 +8,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * service emits and the result payload each one attaches to the finished task.
  */
 @Schema(description = "Background task types emitted by the file backend",
-		allowableValues = {"PUBLISH_FILE_GROUP", "PUBLISH_ALL_FILE_GROUPS", "SCAN_DIRECTORIES", "PUBLISH_MUSIC_DATA", "PUBLISH_GPS_TIME_SERIES",
+		allowableValues = {"PUBLISH_FILE", "PUBLISH_FILE_GROUP", "PUBLISH_ALL_FILE_GROUPS", "SCAN_DIRECTORIES", "PUBLISH_MUSIC_DATA", "PUBLISH_GPS_TIME_SERIES",
 						   "TAG_REMOVE_FROM_ALL", "TAG_REPLACE_ACROSS_ALL", "TAG_RENAME_ACROSS_ALL"})
 public enum TaskTypeEnum {
+	/**
+	 * Uploads one file to the admin backend as a site file without any gallery. No result payload.
+	 */
+	PUBLISH_FILE,
 	/**
 	 * Uploads every file of one file group to the admin backend. No result payload.
 	 */

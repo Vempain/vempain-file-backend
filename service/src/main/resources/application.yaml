@@ -25,6 +25,7 @@ spring:
       ddl-auto: validate
   flyway:
     default-schema: vempain_file
+    out-of-order: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
 

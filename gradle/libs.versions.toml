@@ -22,7 +22,7 @@ swagger = "2.2.55"
 testcontainers = "2.0.5"
 thumbnailator = "0.4.21"
 vempain-admin = "1.0.52"
-vempain-auth = "1.0.29"
+vempain-auth = "1.0.31"
 vempain-common = "1.0.1"
 
 [plugins]

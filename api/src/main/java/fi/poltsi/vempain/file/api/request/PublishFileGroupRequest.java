@@ -2,12 +2,15 @@ package fi.poltsi.vempain.file.api.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.annotation.Nullable;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
+
+import java.util.List;
 
 @Data
 @Builder
@@ -26,4 +29,11 @@ public class PublishFileGroupRequest {
 	@Nullable
 	@Schema(description = "Optional gallery description", example = "This is a description of the gallery", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
 	private String galleryDescription;
+
+	@Nullable
+	@Valid
+	@Schema(description = "Additional admin users (see GET /publish/users) granted privileges on the published site files and the gallery; "
+						  + "the publishing service account always keeps every privilege",
+			requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+	private List<PublishAclRequest> acls;
 }

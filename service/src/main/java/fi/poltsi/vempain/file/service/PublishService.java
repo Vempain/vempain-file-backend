@@ -1,5 +1,6 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.admin.api.request.file.FileIngestAclRequest;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
@@ -7,17 +8,21 @@ import fi.poltsi.vempain.common.api.response.LocationResponse;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
+import fi.poltsi.vempain.file.api.request.PublishAclRequest;
+import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
+import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
+import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
-import fi.poltsi.vempain.file.feign.VempainAdminTokenProvider;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
+import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +31,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.io.IOException;
@@ -49,6 +56,7 @@ import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataA
 @Service
 public class PublishService {
 	private final FileGroupRepository  fileGroupRepository;
+	private final FileRepository fileRepository;
 	private final ExportFileRepository exportFileRepository;
 	private final MetadataRepository metadataRepository;
 
@@ -57,7 +65,6 @@ public class PublishService {
 	private final LocationService     locationService;
 	private final FileAclService fileAclService;
 
-	private final VempainAdminTokenProvider vempainAdminTokenProvider;
 	private final ImageTool          imageTool;
 	private final ApplicationContext applicationContext;
 	private final TaskRunner         taskRunner;
@@ -70,6 +77,42 @@ public class PublishService {
 
 	@Value("${vempain.export-file-type}")
 	private String exportFileType;
+
+	/**
+	 * The admin users a publish may grant privileges to, fetched from the admin backend with the service-to-service API token.
+	 *
+	 * @throws VempainAuthenticationException when the admin backend refuses the token
+	 */
+	public List<PublishUserResponse> listPublishUsers() {
+		return vempainAdminService.listIngestUsers()
+								  .stream()
+								  .map(user -> PublishUserResponse.builder()
+																  .id(user.getId())
+																  .loginName(user.getLoginName())
+																  .name(user.getName())
+																  .nick(user.getNick())
+																  .build())
+								  .toList();
+	}
+
+	/**
+	 * Maps the additional grantees of a publish request to the ingest contract of the admin backend; null when none were requested.
+	 */
+	static List<FileIngestAclRequest> toIngestAcls(List<PublishAclRequest> acls) {
+		if (acls == null || acls.isEmpty()) {
+			return null;
+		}
+
+		return acls.stream()
+				   .map(acl -> FileIngestAclRequest.builder()
+												   .userId(acl.getUserId())
+												   .readPrivilege(acl.isReadPrivilege())
+												   .createPrivilege(acl.isCreatePrivilege())
+												   .modifyPrivilege(acl.isModifyPrivilege())
+												   .deletePrivilege(acl.isDeletePrivilege())
+												   .build())
+				   .toList();
+	}
 
 	/**
 	 * Publishing a file group sends every file of the group to the admin backend, so the caller must hold the modify privilege on
@@ -88,6 +131,70 @@ public class PublishService {
 
 		fileAclService.requireModify(optionalGroup.get()
 												  .getFiles());
+	}
+
+	/**
+	 * Publishing a single file sends it to the admin backend, so the caller must hold the modify privilege on it. Runs synchronously in
+	 * the caller's request so that the request itself fails instead of the background task.
+	 *
+	 * @throws ResponseStatusException 404 when the file does not exist
+	 * @throws AccessDeniedException   when the file is not modifiable by the current user
+	 */
+	@Transactional(readOnly = true)
+	public void authorizeFilePublish(long fileId) {
+		var file = fileRepository.findById(fileId)
+								 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File " + fileId + " not found"));
+		fileAclService.requireModify(file);
+	}
+
+	/**
+	 * Starts a background task of one step that publishes a single file as a site file. No gallery is created or linked on the admin
+	 * side: the ingest request carries neither a gallery ID nor a gallery name.
+	 */
+	@Transactional(readOnly = true)
+	public TaskProgress publishFile(PublishFileRequest request) {
+		var title = "Publish file " + fileRepository.findById(request.getFileId())
+													.map(FileEntity::getFilename)
+													.orElse("#" + request.getFileId());
+		var proxy = applicationContext.getBean(PublishService.class);
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_FILE.name(), title, 1, request, progress -> {
+			proxy.publishFileNow(request, progress);
+			return null;
+		});
+	}
+
+	/**
+	 * Publishes one file in the calling thread. The upload is registered as a compensation of the task when it created a new site
+	 * file, so that cancelling (or a later failure) removes it from the admin backend again.
+	 *
+	 * @throws IllegalStateException when the file or its export does not exist
+	 */
+	@Transactional
+	public void publishFileNow(PublishFileRequest request, TaskProgress progress) {
+		var fileEntity = fileRepository.findById(request.getFileId())
+									   .orElseThrow(() -> new IllegalStateException("File " + request.getFileId() + " not found"));
+		var exportFilePath = resolveExportedPath(fileEntity.getId());
+
+		if (exportFilePath == null || !Files.exists(exportFilePath)) {
+			throw new IllegalStateException("No export file for " + fileEntity.getFilename());
+		}
+
+		if (progress != null) {
+			progress.checkpoint();
+		}
+
+		try {
+			var response = uploadFile(fileEntity, exportFilePath, FileIngestRequest.builder()
+																				   .sortOrder(0)
+																				   .acls(toIngestAcls(request.getAcls())), "vempain-");
+			if (progress != null) {
+				registerUploadCompensation(progress, fileEntity.getFilename(), response);
+				progress.advance("Published " + fileEntity.getFilename());
+			}
+			log.debug("Published file {} as site file {}", fileEntity.getFilename(), response == null ? null : response.getSiteFileId());
+		} catch (IOException e) {
+			throw new IllegalStateException("Failed to publish " + fileEntity.getFilename() + ": " + e.getMessage(), e);
+		}
 	}
 
 	/**
@@ -226,12 +333,12 @@ public class PublishService {
 								.sortOrder(sortOrder)
 								.galleryId(fileGroup.getGalleryId())
 								.galleryName(request.getGalleryName())
-								.galleryDescription(request.getGalleryDescription());
+								.galleryDescription(request.getGalleryDescription())
+								.acls(toIngestAcls(request.getAcls()));
 	}
 
 	/**
-	 * Resizes images, fills the ingest request from the file entity and uploads the file to the admin backend, retrying once the
-	 * admin token has been renewed after an authentication failure.
+	 * Resizes images, fills the ingest request from the file entity and uploads the file to the admin backend.
 	 */
 	private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
 																					FileIngestRequest.FileIngestRequestBuilder builder,
@@ -310,23 +417,8 @@ public class PublishService {
 				fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
 			}
 
-			// Upload with authentication retry
-			final int maxRetries = 3;
-			int       attempt    = 0;
-
-			while (true) {
-				try {
-					return vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
-				} catch (VempainAuthenticationException authEx) {
-					attempt++;
-					if (attempt >= maxRetries) {
-						log.error("Authentication failed after {} attempts for file {}", attempt, fileEntity.getFilename());
-						throw authEx;
-					}
-					log.warn("Authentication failed (attempt {}/{}). Re-authenticating and retrying...", attempt, maxRetries);
-					vempainAdminTokenProvider.login();
-				}
-			}
+			// The admin backend authenticates the call with the configured API token; a refusal is final (no login to retry)
+			return vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
 		} finally {
 			if (tempPathToDelete != null) {
 				try {
@@ -367,14 +459,20 @@ public class PublishService {
 		}
 	}
 
+	@Transactional(readOnly = true)
+	public TaskProgress publishAllFileGroups() {
+		return publishAllFileGroups(null);
+	}
+
 	/**
 	 * Starts one background task that publishes every file group the caller may fully modify, one step per group. Groups with
-	 * files the caller cannot modify are skipped. Returns the task; {@code total_steps} is the number of groups it will publish.
+	 * files the caller cannot modify are skipped. The ACL entries of the request, if any, are granted on every published group.
+	 * Returns the task; {@code total_steps} is the number of groups it will publish.
 	 */
 	// Read-only transaction so that the lazily loaded file collections can be checked against the caller's ACL privileges
 	@Transactional(readOnly = true)
-	public TaskProgress publishAllFileGroups() {
-		var requests = collectPublishableGroups();
+	public TaskProgress publishAllFileGroups(PublishAllFileGroupsRequest publishAllRequest) {
+		var requests = collectPublishableGroups(publishAllRequest == null ? null : publishAllRequest.getAcls());
 		var payload = java.util.Map.of("requests", requests);
 		var proxy   = applicationContext.getBean(PublishService.class);
 		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), payload,
@@ -416,7 +514,7 @@ public class PublishService {
 		}
 	}
 
-	private List<PublishFileGroupRequest> collectPublishableGroups() {
+	private List<PublishFileGroupRequest> collectPublishableGroups(List<PublishAclRequest> acls) {
 		var requests = new ArrayList<PublishFileGroupRequest>();
 		int page     = 0;
 		int size     = 50;
@@ -444,6 +542,7 @@ public class PublishService {
 													.galleryDescription(projection.description() != null && projection.description()
 																													  .length() > 2 ?
 																		projection.description() : projection.groupName())
+													.acls(acls == null || acls.isEmpty() ? null : acls)
 													.build());
 			}
 

@@ -75,6 +75,11 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   ACL-linked resource here: it extends `AbstractVempainEntity` and carries an `acl_id`. Tags, file groups, locations, location guards,
   metadata, export files, queues and checkpoints have no ACL and must never be ACL-checked; checks on tag operations apply to the *files*
   being tagged, not to the tag.
+- User, unit and ACL management of this service's own user base is served by the controllers of `vempain-auth-core`
+  (`fi.poltsi.vempain.auth.controller.{User,Unit,Acl}Controller`, paths `/content-management/users|units|acls`, administrator ACL
+  required): `WebSecurityConfig` authenticates `/content-management/**` and `HostedManagementCTC` checks the hosting. The file frontend
+  manages the file-side users here; it never talks to the admin backend for them. Units nest (auth migration `V2__unit_members.sql`),
+  circular nesting is rejected with 400, and a principal carries every unit containing its direct units, which `FileAclService` relies on.
 - All file authorization goes through `FileAclService` (built on `AclAuthorizationService` from `vempain-auth`): `readableFiles()` is the
   JPA Specification every paged listing must include, `requireRead/Modify/Delete` guard single-file endpoints and content download, and
   `requireModify(files)`/`canModifyAll(files)` guard file-group publishing. Keep only endpoint authentication in `WebSecurityConfig`; do not
@@ -87,8 +92,22 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `StatisticsService` counts, the refresh/thumbnail/video schedules, and the admin-side republish of already published files. Do not add
   per-file ACL checks to these paths; they do require an authenticated caller like every other endpoint.
 - Publishing a file group (`POST /api/publish/file-group`) requires the modify privilege on every file of the group, checked synchronously
-  in `PublishService.authorizeFileGroupPublish` before the background task starts; `publishAllFileGroups` skips groups the caller cannot
-  fully modify. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
+  in `PublishService.authorizeFileGroupPublish` before the background task starts; `publishAllFileGroups` (`POST /api/publish/all-file-groups`,
+  optional body) skips groups the caller cannot fully modify.
+- A single file is published with `POST /api/publish/file` (`PublishFileRequest`: `file_id` + optional `acls`): `PublishController`
+  calls `PublishService.authorizeFilePublish` first (404 for an unknown file, 403 without the modify privilege), then
+  `publishFile` submits a one-step `PUBLISH_FILE` task whose body `publishFileNow` uploads the export through the same `uploadFile`
+  path as a group publish but with neither gallery ID nor gallery name, so the admin backend creates or updates the site file only and
+  never a gallery. The created site file is registered as a compensation (removed again on cancel); a missing export fails the task.
+- The admin and file user bases are separate: every publish logs in to the admin backend as the configured service account (`vempain.service.admin-backend-*`),
+  so by default only that account is on the ACL of the created site files and gallery. A publish
+  request can grant additional admin users through `acls` (`PublishAclRequest`: `user_id` of an admin account + the four `*_privilege`
+  flags, bean-validated: user ID required and positive, at least one privilege). `PublishService.toIngestAcls` copies them into every
+  `FileIngestRequest` of the group (the admin backend validates them again before storing anything and answers `400` otherwise, which
+  fails that file's step). The grantable admin users come from `GET /api/publish/users` (`PublishUserResponse`), proxied by
+  `PublishService.listPublishUsers` -> `VempainAdminService.listIngestUsers` (`FileIngestAPI.listIngestUsers`) with the same
+  re-authentication retry as the uploads; an unreachable admin backend answers `502`. Never resolve these IDs against this backend's
+  own `user_account` table. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
   request itself always runs before `TaskRunner.submit`.
 - Long-running actions never block the HTTP request. They run through the shared durable task facility of `vempain-common-core`
   (`fi.poltsi.vempain.common.task`: `TaskRunner.submitDurable(type, title, totalSteps, payload, localFallback)` -> `TaskProgress`,
@@ -99,7 +118,7 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   (`V1009__durable_tasks.sql`, the reference schema lives in `vempain-common-core`) and kept for `vempain.tasks.retention-minutes`.
   This service's part is `fi.poltsi.vempain.file.task.FileTaskCommandExecutor` (the `TaskCommandExecutor` bean that maps `TaskTypeEnum`
     + JSON payload to service calls and replays `TAG_REVERT_MUTATION` compensations) and `fi.poltsi.vempain.file.api.TaskTypeEnum`:
-      publish file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
+      publish single file / file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
       `DataResponse`), and the tag remove/replace/rename-across-all-files operations. Rules: validate and authorize synchronously before
       submitting; report one step per unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy
       (`applicationContext.getBean(...)`) because the task body runs outside the request transaction; a task submitted inside a transaction
@@ -130,6 +149,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
 - Background refresh of modified source files runs via `UpdatedFileRefreshSchedule` (`vempain.refresh-updated-files.*`)
+- `PathCompletionService` (`POST /api/path-completion`, the directory pickers of the import view) always returns its completions in
+  alphabetical order using a locale-aware `Collator` (`vempain.path-completion.collation-locale`, default `fi`: å, ä and ö sort after
+  z and case only breaks ties); never return the raw filesystem order, it follows modification times and makes the lists jump.
+  `PathCompletionServiceUTC`/`ITC` cover the non-ASCII ordering.
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
 - Data dataset publication flows:
     - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
@@ -140,6 +163,12 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 
 - Scanning processes leaf directories below the configured original/export roots. `DirectoryProcessorService` owns file, subtype, metadata, tag, GPS,
   and export-file persistence. Export derivatives are linked through `originalDocumentId` and are skipped when their original entity is absent.
+- Calls to the admin backend authenticate with a service-to-service API token: `VempainAdminFeignConfig` sends
+  `vempain.service.admin-backend-api-token` in the `X-Vempain-Api-Token` header (`Constants.API_TOKEN_HEADER` of the admin API) on every
+  Feign call. The token is created in the admin UI (Administration > API tokens, bound to this service's network and an expiry) and
+  configured through `ENV_VEMPAIN_ADMIN_BACKEND_API_TOKEN`; there is no login, JWT or password any more (`SetupVerification` requires the
+  property). A 401/403 from the admin backend means the token is wrong, expired, revoked or used from another network and surfaces as
+  `VempainAuthenticationException` without any retry.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
   as a background task with one step per file (publish-all: one step per group, groups processed sequentially).
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.

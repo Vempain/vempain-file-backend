@@ -34,6 +34,25 @@ class PathCompletionServiceITC {
 	void setup() {
 		ReflectionTestUtils.setField(service, "originalRootDirectory", originalRoot.toString());
 		ReflectionTestUtils.setField(service, "exportedRootDirectory", exportRoot.toString());
+		ReflectionTestUtils.setField(service, "collationLocale", "fi");
+	}
+
+	@Test
+	@DisplayName("completions of both roots are alphabetical with å, ä and ö after z")
+	void completePath_sortsAlphabeticallyWithNonAscii() throws IOException {
+		for (var root : java.util.List.of(originalRoot, exportRoot)) {
+			Files.createDirectories(root.resolve("Övriga"));
+			Files.createDirectories(root.resolve("matkat"));
+			Files.createDirectories(root.resolve("Åbo"));
+			Files.createDirectories(root.resolve("ääni"));
+			Files.createDirectories(root.resolve("Arkisto"));
+		}
+
+		var original = service.completePath(new PathCompletionRequest("/", PathCompletionEnum.ORIGINAL));
+		var exported = service.completePath(new PathCompletionRequest("/", PathCompletionEnum.EXPORTED));
+
+		assertThat(original.getCompletions()).containsExactly("/Arkisto", "/matkat", "/Åbo", "/ääni", "/Övriga");
+		assertThat(exported.getCompletions()).containsExactly("/Arkisto", "/matkat", "/Åbo", "/ääni", "/Övriga");
 	}
 
 	@Test

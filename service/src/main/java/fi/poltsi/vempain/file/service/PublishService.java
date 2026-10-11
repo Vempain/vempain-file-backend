@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
@@ -147,9 +148,19 @@ public class PublishService {
 
 	@Transactional(readOnly = true)
 	public void authorizeFilesPublish(List<Long> fileIds) {
-		for (var fileId : fileIds) {
-			authorizeFilePublish(fileId);
+		var requestedIds = new LinkedHashSet<>(fileIds);
+		var files        = fileRepository.findAllById(requestedIds);
+		var foundIds = files.stream()
+							.map(FileEntity::getId)
+							.collect(java.util.stream.Collectors.toSet());
+		var missingIds = requestedIds.stream()
+									 .filter(fileId -> !foundIds.contains(fileId))
+									 .toList();
+		if (!missingIds.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Files not found: " + missingIds);
 		}
+
+		fileAclService.requireModifyBulk(files);
 	}
 
 	/**

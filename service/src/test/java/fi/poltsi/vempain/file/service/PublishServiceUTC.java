@@ -753,5 +753,41 @@ class PublishServiceUTC {
 			assertThat(ex.getStatusCode()
 			             .value()).isEqualTo(404);
 		}
+
+		@Test
+		void authorizeFilesPublishLoadsTheSetOnceAndReportsMissingIds() {
+			var first = ImageFileEntity.builder()
+			                           .id(70L)
+			                           .aclId(70L)
+			                           .build();
+			when(fileRepository.findAllById(any())).thenReturn(List.of(first));
+
+			var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+								  () -> publishService.authorizeFilesPublish(List.of(70L, 71L)));
+
+			assertThat(ex.getStatusCode()
+			             .value()).isEqualTo(404);
+			assertThat(ex.getReason()).isEqualTo("Files not found: [71]");
+			verify(fileAclService, never()).requireModifyBulk(any());
+			verify(fileRepository).findAllById(any());
+		}
+
+		@Test
+		void authorizeFilesPublishUsesOneBulkAuthorizationCall() {
+			var first  = ImageFileEntity.builder()
+			                            .id(70L)
+			                            .aclId(70L)
+			                            .build();
+			var second = ImageFileEntity.builder()
+			                            .id(71L)
+			                            .aclId(71L)
+			                            .build();
+			when(fileRepository.findAllById(any())).thenReturn(List.of(first, second));
+
+			publishService.authorizeFilesPublish(List.of(70L, 71L));
+
+			verify(fileAclService).requireModifyBulk(List.of(first, second));
+			verify(fileAclService, never()).requireModify(any(FileEntity.class));
+		}
 	}
 }

@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.auth.entity.Acl;
 import fi.poltsi.vempain.auth.entity.Unit;
+import fi.poltsi.vempain.auth.repository.AclRepository;
 import fi.poltsi.vempain.auth.security.AclAuthorizationService;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
 import fi.poltsi.vempain.file.entity.FileEntity;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FileAclService {
 	private final AclAuthorizationService aclAuthorizationService;
+	private final AclRepository aclRepository;
 
 	/**
 	 * Specification that keeps only the files the current user may read. Used by every paged listing so that paging and counting are
@@ -80,6 +83,42 @@ public class FileAclService {
 
 		for (var file : files) {
 			requireModify(file);
+		}
+	}
+
+	/**
+	 * Checks all files against one snapshot of the ACL table. This is used by bulk operations that must authorize a set before
+	 * submitting background work; it avoids one ACL query per file and reports every denied file in one fail-closed error.
+	 */
+	public void requireModifyBulk(Collection<? extends FileEntity> files) {
+		if (files == null || files.isEmpty()) {
+			return;
+		}
+
+		var access       = currentAclAccess();
+		var modifyAclIds = new HashSet<Long>();
+		var requestedAclIds = files.stream()
+								   .filter(Objects::nonNull)
+								   .map(FileEntity::getAclId)
+								   .filter(aclId -> aclId > 0)
+								   .collect(Collectors.toSet());
+		if (access.userId() != null && !requestedAclIds.isEmpty()) {
+			aclRepository.findByAclIdIn(requestedAclIds)
+						 .stream()
+						 .filter(acl -> (Objects.equals(acl.getUserId(), access.userId())
+										 || (acl.getUserId() == null && acl.getUnitId() != null && access.unitIds()
+			                                                                                             .contains(acl.getUnitId())))
+										&& acl.isModifyPrivilege())
+						 .map(Acl::getAclId)
+						 .forEach(modifyAclIds::add);
+		}
+
+		var deniedIds = files.stream()
+							 .filter(file -> file == null || file.getAclId() <= 0 || !modifyAclIds.contains(file.getAclId()))
+							 .map(file -> file == null ? null : file.getId())
+							 .toList();
+		if (!deniedIds.isEmpty()) {
+			throw new AccessDeniedException("The current user has no modify access to files: " + deniedIds);
 		}
 	}
 

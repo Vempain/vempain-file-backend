@@ -1,6 +1,8 @@
 package fi.poltsi.vempain.file.service;
 
+import fi.poltsi.vempain.auth.entity.Acl;
 import fi.poltsi.vempain.auth.entity.Unit;
+import fi.poltsi.vempain.auth.repository.AclRepository;
 import fi.poltsi.vempain.auth.security.AclAuthorizationService;
 import fi.poltsi.vempain.auth.security.AclAuthorizationService.AclPrivilege;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
@@ -34,6 +36,8 @@ import static org.mockito.Mockito.when;
 class FileAclServiceUTC {
 	@Mock
 	private AclAuthorizationService aclAuthorizationService;
+	@Mock
+	private AclRepository aclRepository;
 
 	@InjectMocks
 	private FileAclService fileAclService;
@@ -103,6 +107,30 @@ class FileAclServiceUTC {
 		assertThatThrownBy(() -> fileAclService.requireRead(null)).isInstanceOf(AccessDeniedException.class);
 		fileAclService.requireModify((List<ImageFileEntity>) null);
 		assertThat(fileAclService.canModifyAll(null)).isTrue();
+		verify(aclAuthorizationService, never()).hasPrivilege(any(Long.class), any(), any());
+	}
+
+	@Test
+	void bulkModifyCheckUsesOneAclSnapshotAndFailsClosed() {
+		authenticate(user(1L, Set.of()));
+		var allowed = ImageFileEntity.builder()
+		                             .id(10L)
+		                             .aclId(100L)
+		                             .build();
+		var denied  = ImageFileEntity.builder()
+		                             .id(11L)
+		                             .aclId(101L)
+		                             .build();
+		when(aclRepository.findByAclIdIn(Set.of(100L, 101L))).thenReturn(List.of(Acl.builder()
+																					.aclId(100L)
+																					.userId(1L)
+																					.modifyPrivilege(true)
+																					.build()));
+
+		assertThatThrownBy(() -> fileAclService.requireModifyBulk(List.of(allowed, denied)))
+				.isInstanceOf(AccessDeniedException.class)
+				.hasMessage("The current user has no modify access to files: [11]");
+		verify(aclRepository).findByAclIdIn(Set.of(100L, 101L));
 		verify(aclAuthorizationService, never()).hasPrivilege(any(Long.class), any(), any());
 	}
 

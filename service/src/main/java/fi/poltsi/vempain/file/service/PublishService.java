@@ -21,7 +21,6 @@ import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
-import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import fi.poltsi.vempain.file.tools.MetadataTool;
@@ -45,7 +44,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
-import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
 
 /**
  * Publishes file groups to the admin backend. Publishing runs as background tasks ({@link TaskRunner}); the caller gets the task
@@ -58,7 +56,6 @@ public class PublishService {
 	private final FileGroupRepository  fileGroupRepository;
 	private final FileRepository fileRepository;
 	private final ExportFileRepository exportFileRepository;
-	private final MetadataRepository metadataRepository;
 
 	private final VempainAdminService vempainAdminService;
 	private final TagService          tagService;
@@ -343,8 +340,10 @@ public class PublishService {
 	private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
 																					FileIngestRequest.FileIngestRequestBuilder builder,
 																					String tempPrefix) throws IOException {
-		var  metadataList     = metadataRepository.findByFile(fileEntity);
-		var  metadataJson     = collectStandardMetadataAsJson(metadataList, fileEntity);
+		var metadataJson = fileEntity.getMetadataRaw();
+		if (metadataJson == null || metadataJson.isBlank()) {
+			metadataJson = "[]";
+		}
 		var  siteFileName     = fileEntity.getFilename();
 		Path uploadPath       = exportFilePath;
 		Path tempPathToDelete = null;

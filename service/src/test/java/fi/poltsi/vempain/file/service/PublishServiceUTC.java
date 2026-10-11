@@ -19,7 +19,6 @@ import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
-import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,8 +69,6 @@ class PublishServiceUTC {
 	private FileRepository fileRepository;
 	@Mock
 	private ExportFileRepository      exportFileRepository;
-	@Mock
-	private MetadataRepository        metadataRepository;
 	@Mock
 	private VempainAdminService       vempainAdminService;
 	@Mock
@@ -184,7 +181,6 @@ class PublishServiceUTC {
 			when(mockFileEntity.getFilename()).thenReturn("test.jpg");
 			when(mockFileEntity.getDescription()).thenReturn("Test");
 			when(mockFileEntity.getGpsLocation()).thenReturn(null);
-			when(metadataRepository.findByFile(mockFileEntity)).thenReturn(List.of());
 			when(tagService.getTagRequestsByFileId(42L)).thenReturn(List.of());
 			when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(null);
 
@@ -232,7 +228,6 @@ class PublishServiceUTC {
 			when(mockDocEntity.getDescription()).thenReturn(null);
 			when(mockDocEntity.getGpsLocation()).thenReturn(null);
 			when(mockDocEntity.getPageCount()).thenReturn(5);
-			when(metadataRepository.findByFile(mockDocEntity)).thenReturn(List.of());
 			when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
 			when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(null);
 
@@ -482,7 +477,7 @@ class PublishServiceUTC {
 			when(mockDocEntity.getDescription()).thenReturn(null);
 			when(mockDocEntity.getGpsLocation()).thenReturn(null);
 			when(mockDocEntity.getPageCount()).thenReturn(5);
-			when(metadataRepository.findByFile(mockDocEntity)).thenReturn(List.of());
+			when(mockDocEntity.getMetadataRaw()).thenReturn("[{\"IFD0\":{\"Make\":\"NIKON CORPORATION\",\"Model\":\"NIKON D750\"}}]");
 			when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
 			var group = FileGroupEntity.builder()
 									   .id(9L)
@@ -505,6 +500,7 @@ class PublishServiceUTC {
 			verify(vempainAdminService).uploadAsSiteFile(any(), captor.capture());
 			var ingest = captor.getValue();
 			assertEquals("Docs", ingest.getGalleryName());
+			assertEquals("[{\"IFD0\":{\"Make\":\"NIKON CORPORATION\",\"Model\":\"NIKON D750\"}}]", ingest.getMetadata());
 			assertEquals(1, ingest.getAcls()
 			                      .size());
 			assertEquals(5L, ingest.getAcls()
@@ -632,7 +628,6 @@ class PublishServiceUTC {
 			when(mockDocEntity.getDescription()).thenReturn(null);
 			when(mockDocEntity.getGpsLocation()).thenReturn(null);
 			when(mockDocEntity.getPageCount()).thenReturn(5);
-			when(metadataRepository.findByFile(mockDocEntity)).thenReturn(List.of());
 			when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
 			when(fileRepository.findById(55L)).thenReturn(Optional.of(mockDocEntity));
 			return mockDocEntity;

@@ -23,7 +23,7 @@ testcontainers = "2.0.5"
 thumbnailator = "0.4.21"
 vempain-admin = "1.0.59"
 vempain-auth = "1.0.33"
-vempain-common = "1.0.1"
+vempain-common = "1.0.3"
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

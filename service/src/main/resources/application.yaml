@@ -87,6 +87,7 @@ logging:
       poltsi: INFO
 
 vempain:
+  name: @projectName@
   scheduling:
     enabled: ${VEMPAIN_SCHEDULING_ENABLED:true}
   developer:

@@ -78,6 +78,23 @@ class PublishControllerCTC extends AbstractControllerCTC {
 	}
 
 	@Test
+	void publishFiles_returns404_whenAnyRequestedFileDoesNotExist() throws Exception {
+		doPost("/publish/files", "{\"file_ids\":[9304,9305]}")
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void publishFiles_returns403_whenAnyRequestedFileMayNotBeModified() throws Exception {
+		seedImageFile(9306L, "readonly-selected.jpg", false);
+		try {
+			doPost("/publish/files", "{\"file_ids\":[9306]}")
+					.andExpect(status().isForbidden());
+		} finally {
+			deleteImageFile(9306L);
+		}
+	}
+
+	@Test
 	void publishFile_returns202_withAclGrantees() throws Exception {
 		seedImageFile(9302L, "single.jpg", true);
 		try {
@@ -227,4 +244,3 @@ class PublishControllerCTC extends AbstractControllerCTC {
 	}
 
 }
-

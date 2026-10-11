@@ -12,6 +12,7 @@ import fi.poltsi.vempain.file.api.request.PublishAclRequest;
 import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
+import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
@@ -144,6 +145,13 @@ public class PublishService {
 		fileAclService.requireModify(file);
 	}
 
+	@Transactional(readOnly = true)
+	public void authorizeFilesPublish(List<Long> fileIds) {
+		for (var fileId : fileIds) {
+			authorizeFilePublish(fileId);
+		}
+	}
+
 	/**
 	 * Starts a background task of one step that publishes a single file as a site file. No gallery is created or linked on the admin
 	 * side: the ingest request carries neither a gallery ID nor a gallery name.
@@ -158,6 +166,34 @@ public class PublishService {
 			proxy.publishFileNow(request, progress);
 			return null;
 		});
+	}
+
+	@Transactional(readOnly = true)
+	public TaskProgress publishFiles(PublishFilesRequest request) {
+		var proxy = applicationContext.getBean(PublishService.class);
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_FILES.name(), "Publish selected files", request.getFileIds()
+		                                                                                                    .size(), request,
+										progress -> {
+											proxy.publishFilesNow(request, progress);
+											return null;
+										});
+	}
+
+	@Transactional
+	public void publishFilesNow(PublishFilesRequest request, TaskProgress progress) {
+		for (var fileId : request.getFileIds()) {
+			progress.checkpoint();
+			try {
+				publishFileNow(PublishFileRequest.builder()
+				                                 .fileId(fileId)
+				                                 .build(), progress);
+			} catch (fi.poltsi.vempain.common.task.TaskCancelledException e) {
+				throw e;
+			} catch (Exception e) {
+				log.error("Failed to publish file {}", fileId, e);
+				progress.advanceFailed("Failed file " + fileId + ": " + e.getMessage());
+			}
+		}
 	}
 
 	/**

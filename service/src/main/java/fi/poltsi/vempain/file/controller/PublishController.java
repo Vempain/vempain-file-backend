@@ -4,6 +4,7 @@ import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
+import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import fi.poltsi.vempain.file.rest.PublishAPI;
 import fi.poltsi.vempain.file.service.PublishService;
@@ -26,6 +27,14 @@ public class PublishController implements PublishAPI {
 		return ResponseEntity.accepted()
 							 .body(publishService.publishFile(request)
 												 .toAcceptedResponse());
+	}
+
+	@Override
+	public ResponseEntity<TaskAcceptedResponse> publishFiles(PublishFilesRequest request) {
+		publishService.authorizeFilesPublish(request.getFileIds());
+		return ResponseEntity.accepted()
+							 .body(publishService.publishFiles(request)
+		                                         .toAcceptedResponse());
 	}
 
 	@Override

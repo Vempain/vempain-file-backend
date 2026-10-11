@@ -6,6 +6,7 @@ import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
+import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.service.DataService;
@@ -38,6 +39,11 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
 			case PUBLISH_FILE -> {
 				applicationContext.getBean(PublishService.class)
 								  .publishFileNow(objectMapper.treeToValue(payload, PublishFileRequest.class), progress);
+				yield null;
+			}
+			case PUBLISH_FILES -> {
+				applicationContext.getBean(PublishService.class)
+								  .publishFilesNow(objectMapper.treeToValue(payload, PublishFilesRequest.class), progress);
 				yield null;
 			}
 			case PUBLISH_FILE_GROUP -> {

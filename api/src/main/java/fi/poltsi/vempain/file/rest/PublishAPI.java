@@ -4,6 +4,7 @@ import fi.poltsi.vempain.common.api.response.TaskAcceptedResponse;
 import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
+import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -45,6 +46,20 @@ public interface PublishAPI {
 	@SecurityRequirement(name = "Bearer Authentication")
 	@PostMapping(path = BASE_PATH + "/file", consumes = "application/json", produces = "application/json")
 	ResponseEntity<TaskAcceptedResponse> publishFile(@Valid @RequestBody PublishFileRequest request);
+
+	@Operation(summary = "Publish selected files",
+			   description = "Publishes the selected files to the admin backend as one background task. Files without an export are reported as failed steps.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "202", description = "Accepted, the work continues as a background task",
+						 content = @Content(schema = @Schema(implementation = TaskAcceptedResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE)),
+			@ApiResponse(responseCode = "400", description = "Invalid request", content = @Content),
+			@ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+			@ApiResponse(responseCode = "403", description = "The caller may not modify one of the files", content = @Content),
+			@ApiResponse(responseCode = "404", description = "A file does not exist", content = @Content)
+	})
+	@SecurityRequirement(name = "******")
+	@PostMapping(path = BASE_PATH + "/files", consumes = "application/json", produces = "application/json")
+	ResponseEntity<TaskAcceptedResponse> publishFiles(@Valid @RequestBody PublishFilesRequest request);
 
 	@Operation(summary = "Publish File Group",
 			   description = "Publishes every file of a group to the admin backend as a background task. "

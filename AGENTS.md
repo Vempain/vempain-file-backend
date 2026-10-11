@@ -27,6 +27,11 @@ then release the admin backend, then bump both versions in `gradle/libs.versions
 ./docker_db.sh                  # start local PostgreSQL container for local app runs
 ```
 
+## CLI contract synchronization
+
+Any REST API change in this repository—endpoint, path, method, request/response DTO, JSON field, status code, or behavior—requires a corresponding
+review and update of `vempain-cli`. Keep the CLI's commands and tests aligned with the published API contract before considering the backend change complete.
+
 Tests require `exiftool` installed on the host. GitHub Package Registry credentials must be set via `gpr.user`/`gpr.token` in `~/.gradle/gradle.properties` or
 `GITHUB_ACTOR`/`GITHUB_TOKEN` env vars.
 

@@ -142,11 +142,12 @@ processResources {
 	def ver = version.toString()
 	// declare as input for configuration cache
 	inputs.property("projectVersion", ver)
+	inputs.property("projectName", rootProject.name)
 
 	filesMatching("**/application.yaml") {
 		filteringCharset = "UTF-8"
 		filter(ReplaceTokens,
-				tokens: [projectVersion: ver]
+				tokens: [projectName: rootProject.name, projectVersion: ver]
 		)
 	}
 }

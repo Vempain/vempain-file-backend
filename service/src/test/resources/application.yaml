@@ -6,6 +6,8 @@ spring:
     password: test
 
 vempain:
+  name: vempain-file-backend
+  version: 0.0.1-SNAPSHOT
   app:
     frontend-url: http://localhost:3000
     jwt-secret: some_secret_key

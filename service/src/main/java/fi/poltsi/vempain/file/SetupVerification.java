@@ -14,13 +14,18 @@ import org.springframework.core.env.AbstractEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 @Slf4j
@@ -40,6 +45,8 @@ class SetupVerification implements ApplicationContextAware {
 			{"vempain.service.admin-backend-url", TYPE_STRING},
 			{"vempain.service.admin-backend-api-token", TYPE_STRING}
 	};
+
+	private static final Set<String> TLS_SSL_MODES = Set.of("require", "verify-ca", "verify-full");
 
 	private ApplicationContext applicationContext;
 
@@ -92,19 +99,58 @@ class SetupVerification implements ApplicationContextAware {
 				}
 			}
 
-			if (env.acceptsProfiles(org.springframework.core.env.Profiles.of("prod"))) {
-				var adminUrl = env.getProperty("vempain.service.admin-backend-url", "");
-				if (!"https".equalsIgnoreCase(URI.create(adminUrl)
-				                                 .getScheme())) {
-					closeApplication("Production Admin backend URL must use HTTPS");
-				}
+		}
+	}
 
-				var datasourceUrl = env.getProperty("spring.datasource.url", "");
-				if (datasourceUrl.contains("useSSL=false") || !datasourceUrl.contains("sslmode=")) {
-					closeApplication("Production datasource URL must require TLS");
-				}
+	@EventListener
+	public void verifyProductionSettings(ContextRefreshedEvent event) {
+		final Environment env = event.getApplicationContext()
+									 .getEnvironment();
+		if (!env.acceptsProfiles(Profiles.of("prod"))) {
+			return;
+		}
+
+		var adminUrl = env.getProperty("vempain.service.admin-backend-url", "");
+		if (!"https".equalsIgnoreCase(URI.create(adminUrl)
+										 .getScheme())) {
+			closeApplication("Production Admin backend URL must use HTTPS");
+			return;
+		}
+
+		if (!requiresTls(env.getProperty("spring.datasource.url", ""))) {
+			closeApplication("Production datasource URL must require TLS: set sslmode=require, verify-ca or verify-full");
+		}
+	}
+
+	/**
+	 * Tells whether a PostgreSQL JDBC URL makes the driver insist on TLS: {@code sslmode} is require, verify-ca or verify-full, or {@code ssl} is
+	 * given without an {@code sslmode} (the driver then verifies the full certificate). Weaker modes such as prefer or allow fall back to
+	 * plaintext when the server offers no TLS, so they do not count.
+	 */
+	static boolean requiresTls(String jdbcUrl) {
+		var queryStart = jdbcUrl == null ? -1 : jdbcUrl.indexOf('?');
+		if (queryStart < 0) {
+			return false;
+		}
+
+		String sslMode = null;
+		var    ssl     = false;
+		for (var parameter : jdbcUrl.substring(queryStart + 1)
+									.split("&")) {
+			var separator = parameter.indexOf('=');
+			var name = (separator < 0 ? parameter : parameter.substring(0, separator)).trim()
+																					  .toLowerCase(Locale.ROOT);
+			var value = separator < 0 ? "" : URLDecoder.decode(parameter.substring(separator + 1), StandardCharsets.UTF_8)
+													   .trim()
+													   .toLowerCase(Locale.ROOT);
+			if ("sslmode".equals(name)) {
+				sslMode = value;
+			} else if ("ssl".equals(name)) {
+				ssl = !"false".equals(value);
 			}
 		}
+
+		return sslMode == null ? ssl : TLS_SSL_MODES.contains(sslMode);
 	}
 
 	private void closeApplication(String message) {

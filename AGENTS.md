@@ -174,6 +174,9 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   configured through `ENV_VEMPAIN_ADMIN_BACKEND_API_TOKEN`; there is no login, JWT or password any more (`SetupVerification` requires the
   property). A 401/403 from the admin backend means the token is wrong, expired, revoked or used from another network and surfaces as
   `VempainAuthenticationException` without any retry.
+- In the `prod` profile `SetupVerification.verifyProductionSettings` refuses to start unless the admin backend URL is HTTPS and
+  `spring.datasource.url` requires TLS (`sslmode=require`, `verify-ca` or `verify-full`, or `ssl` without an `sslmode`); `prefer`/`allow` do
+  not count because they fall back to plaintext. The `vempain-cluster` databases also reject plaintext connections.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
   as a background task with one step per file (publish-all: one step per group, groups processed sequentially).
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.

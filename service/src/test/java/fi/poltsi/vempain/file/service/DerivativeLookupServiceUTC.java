@@ -3,6 +3,8 @@ package fi.poltsi.vempain.file.service;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
+import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.file.tools.SampleFiles;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -117,6 +119,46 @@ class DerivativeLookupServiceUTC {
 
 			var result = derivativeLookupService.findDerivative("/nonexistent2", "file.jpg", "doc-xyz");
 			assertNull(result);
+		}
+	}
+
+
+	@Nested
+	@DisplayName("filesystem fallback")
+	class FilesystemFallback {
+
+		@Test
+		void findOriginalFallsBackToAFileCarryingTheDocumentId() throws Exception {
+			when(fileRepository.findByOriginalDocumentId("doc-fs")).thenReturn(null);
+			var sub   = Files.createDirectories(tempExportDir.resolve("fs"));
+			var match = SampleFiles.jpeg(sub.resolve("photo.jpg"));
+			MetadataTool.writeMetadataValue(match, "XMP-xmpMM", "OriginalDocumentID", "doc-fs");
+			SampleFiles.jpeg(sub.resolve("other.jpg"));
+
+			assertThat(derivativeLookupService.findOriginal("/fs", "photo.png", "doc-fs")).isEqualTo(match);
+		}
+
+		@Test
+		void findDerivativeFallsBackToAFileDerivedFromTheDocumentAndIgnoresFilesWithoutXmp() throws Exception {
+			when(exportFileRepository.findByOriginalDocumentId("doc-d")).thenReturn(null);
+			var sub = Files.createDirectories(tempExportDir.resolve("d"));
+			Files.writeString(sub.resolve("photo.txt"), "no xmp at all");
+			assertThat(derivativeLookupService.findDerivative("/d", "photo.jpg", "doc-d")).isNull();
+
+			var unrelated = SampleFiles.jpeg(sub.resolve("photo.jpeg"));
+			MetadataTool.writeMetadataValue(unrelated, "XMP-xmpMM", "OriginalDocumentID", "doc-other");
+			assertThat(derivativeLookupService.findDerivative("/d", "photo.jpg", "doc-d")).isNull();
+
+			var match = SampleFiles.jpeg(sub.resolve("photo.jpg"));
+			MetadataTool.writeMetadataValue(match, "XMP-xmpMM", "DerivedFromOriginalDocumentID", "doc-d");
+			assertThat(derivativeLookupService.findDerivative("/d", "photo.jpg", "doc-d")).isEqualTo(match);
+
+			// a file whose metadata cannot be read is logged and skipped
+			try (var tool = org.mockito.Mockito.mockStatic(MetadataTool.class)) {
+				tool.when(() -> MetadataTool.extractMetadataJson(org.mockito.ArgumentMatchers.any()))
+					.thenThrow(new IOException("exiftool missing"));
+				assertThat(derivativeLookupService.findDerivative("/d", "photo.jpg", "doc-d")).isNull();
+			}
 		}
 	}
 }

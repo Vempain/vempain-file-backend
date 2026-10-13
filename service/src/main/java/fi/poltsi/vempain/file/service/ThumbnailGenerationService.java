@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -73,13 +72,12 @@ public class ThumbnailGenerationService {
 				extractVideoFrame(sourcePath, videoFramePath, videoCapturePercentage);
 				sourcePath = videoFramePath;
 			}
-			Dimension dimensions = imageTool.resizeImage(
-					sourcePath, temporaryPath, thumbnailMinimumSize, thumbnailQuality, null);
+			imageTool.resizeImage(sourcePath, temporaryPath, thumbnailMinimumSize, thumbnailQuality, null);
 			Files.move(temporaryPath, thumbnail.destinationPath(),
 			           StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
 			var acl           = aclService.createUniqueAcl(targetFile.getCreator(), null, true, true, true, true);
-			var thumbnailFile = createThumbnailEntity(targetFile, acl, thumbnail, dimensions);
+			var thumbnailFile = createThumbnailEntity(targetFile, acl, thumbnail);
 			thumbFileRepository.saveAndFlush(thumbnailFile);
 			log.info("Generated thumbnail for file id={} at {}", targetFile.getId(), thumbnail.relativePath());
 		} finally {
@@ -114,8 +112,7 @@ public class ThumbnailGenerationService {
 		}
 	}
 
-	private ThumbFileEntity createThumbnailEntity(FileEntity targetFile, Acl acl, ThumbnailPath thumbnail,
-	                                              Dimension dimensions) {
+	private ThumbFileEntity createThumbnailEntity(FileEntity targetFile, Acl acl, ThumbnailPath thumbnail) {
 		var thumbnailFile = new ThumbFileEntity();
 		thumbnailFile.setAclId(acl.getAclId());
 		thumbnailFile.setCreated(Instant.now());
@@ -137,7 +134,8 @@ public class ThumbnailGenerationService {
 		thumbnailFile.setSha256sum(sha256sum);
 		thumbnailFile.setTargetFile(targetFile);
 		thumbnailFile.setRelationType("thumbnail");
-		thumbnailFile.setDescription(dimensions.width + "x" + dimensions.height);
+		// The thumbnail describes the same content as the file it was made from; its pixel size is derived data, not a description
+		thumbnailFile.setDescription(targetFile.getDescription());
 		return thumbnailFile;
 	}
 

@@ -28,12 +28,20 @@ class MetadataToolExtendedUTC {
 	class ExtractDescription {
 
 		@Test
-		void returnsXmpDescription() {
+		void returnsXmpDcDescription() {
+			// exiftool -g1 names the group "XMP-dc"; the family 0 "XMP" group never appears in the scanner's output
 			var json = new JSONObject();
 			var xmp  = new JSONObject();
 			xmp.put("Description", "A nice photo");
-			json.put("XMP", xmp);
+			json.put("XMP-dc", xmp);
 			assertThat(MetadataTool.extractDescription(json)).isEqualTo("A nice photo");
+		}
+
+		@Test
+		void returnsIfd0ImageDescription() {
+			var json = new JSONObject();
+			json.put("IFD0", new JSONObject().put("ImageDescription", "Camera caption"));
+			assertThat(MetadataTool.extractDescription(json)).isEqualTo("Camera caption");
 		}
 
 		@Test

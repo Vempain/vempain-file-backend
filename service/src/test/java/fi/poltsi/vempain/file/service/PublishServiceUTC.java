@@ -124,14 +124,21 @@ class PublishServiceUTC {
 
 		@Test
 		void returnsCount() {
-			when(fileGroupRepository.countById(5L)).thenReturn(3L);
+			when(fileGroupRepository.countFilesById(5L)).thenReturn(3L);
 			assertThat(publishService.countFilesInGroup(5L)).isEqualTo(3L);
 		}
 
 		@Test
 		void returnsZeroWhenNoFiles() {
-			when(fileGroupRepository.countById(99L)).thenReturn(0L);
+			when(fileGroupRepository.countFilesById(99L)).thenReturn(0L);
 			assertThat(publishService.countFilesInGroup(99L)).isEqualTo(0L);
+		}
+
+		@Test
+		void fileGroupExistsAsksTheRepository() {
+			when(fileGroupRepository.existsById(5L)).thenReturn(true);
+			assertThat(publishService.fileGroupExists(5L)).isTrue();
+			assertThat(publishService.fileGroupExists(6L)).isFalse();
 		}
 	}
 
@@ -278,6 +285,7 @@ class PublishServiceUTC {
 																				 .build()))
 									   .build();
 			when(fileGroupRepository.findById(406L)).thenReturn(Optional.of(group));
+			when(fileGroupRepository.countFilesById(406L)).thenReturn(1L);
 			when(exportFileRepository.findByFileId(60L)).thenReturn(Optional.empty());
 			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
@@ -286,6 +294,8 @@ class PublishServiceUTC {
 																												 .build());
 
 			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_FILE_GROUP"), org.mockito.ArgumentMatchers.anyString(),
+											 org.mockito.ArgumentMatchers.eq(1L), any(), any());
 			assertThat(task.getTotalSteps()
 						   .get()).isEqualTo(1);
 			assertThat(task.getFailedSteps()
@@ -294,16 +304,59 @@ class PublishServiceUTC {
 		}
 
 		@Test
-		void publishAllFileGroupsSchedulesEveryPage() {
+		void publishAllFileGroupsCountsEveryFileAsAStep() {
 			var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
 			var group = FileGroupEntity.builder()
 									   .id(7L)
 									   .files(List.<FileEntity>of(ImageFileEntity.builder()
 																				 .id(70L)
 																				 .aclId(70L)
+																				 .filename("a.jpg")
+																				 .build(),
+																  ImageFileEntity.builder()
+																				 .id(71L)
+																				 .aclId(71L)
+																				 .filename("b.jpg")
 																				 .build()))
 									   .build();
 			when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
+			when(fileGroupRepository.countFilesById(7L)).thenReturn(2L);
+			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
+			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
+					.thenReturn(new PageImpl<>(List.of(projection)));
+			when(exportFileRepository.findByFileId(any())).thenReturn(Optional.empty());
+			when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+			var task = publishService.publishAllFileGroups();
+
+			assertThat(task.getType()).isEqualTo("PUBLISH_ALL_FILE_GROUPS");
+			// The total is the number of files of the publishable groups, known when the task is submitted
+			verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_ALL_FILE_GROUPS"), org.mockito.ArgumentMatchers.anyString(),
+											 org.mockito.ArgumentMatchers.eq(2L), any(), any());
+			assertThat(task.getTotalSteps()
+						   .get()).isEqualTo(2);
+			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+			// Both files lack an export: every file is one (failed) step of the task
+			assertThat(task.getCompletedSteps()
+						   .get()).isEqualTo(2);
+			assertThat(task.getFailedSteps()
+						   .get()).isEqualTo(2);
+			assertThat(task.getMessage()).isEqualTo("Published Photos");
+		}
+
+		@Test
+		void publishAllFileGroupsFailsTheRemainingStepsOfAGroupThatThrows() {
+			var projection = new FileGroupSummaryRow(9L, "/broken", "Broken", "", 3, null);
+			var group = FileGroupEntity.builder()
+									   .id(9L)
+									   .files(List.<FileEntity>of(ImageFileEntity.builder()
+																				 .id(90L)
+																				 .aclId(90L)
+																				 .build()))
+									   .build();
+			when(fileGroupRepository.findById(9L)).thenReturn(Optional.of(group))
+												  .thenThrow(new IllegalStateException("database gone"));
+			when(fileGroupRepository.countFilesById(9L)).thenReturn(3L);
 			when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
 			when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
 					.thenReturn(new PageImpl<>(List.of(projection)));
@@ -311,13 +364,12 @@ class PublishServiceUTC {
 
 			var task = publishService.publishAllFileGroups();
 
-			assertThat(task.getType()).isEqualTo("PUBLISH_ALL_FILE_GROUPS");
-			assertThat(task.getTotalSteps()
-						   .get()).isEqualTo(1);
 			assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
-			assertThat(task.getCompletedSteps()
-						   .get()).isEqualTo(1);
-			assertThat(task.getMessage()).isEqualTo("Published Photos");
+			assertThat(task.getTotalSteps()
+						   .get()).isEqualTo(3);
+			assertThat(task.getFailedSteps()
+						   .get()).isEqualTo(3);
+			assertThat(task.getMessage()).isEqualTo("Failed Broken: database gone");
 		}
 
 		@Test

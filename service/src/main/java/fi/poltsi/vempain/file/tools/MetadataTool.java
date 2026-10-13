@@ -70,6 +70,7 @@ public class MetadataTool {
 	private static final String COMPOSITE_IMAGE_SIZE_FIELD = "ImageSize";
 	private static final String CREATE_DATE_FIELD          = "CreateDate";
 	private static final String DATETIME_ORIGINAL_FIELD    = "DateTimeOriginal";
+	private static final String IFD0_IMAGE_DESCRIPTION_FIELD = "ImageDescription";
 	private static final String IPTC_CAPTION_FIELD         = "Caption-Abstract";
 	private static final String IPTC_KEYWORD_FIELD         = "Keywords";
 	private static final String MIMETYPE_FIELD             = "MIMEType";
@@ -649,12 +650,34 @@ public class MetadataTool {
 	 * @param jsonObject Extracted JSON formatted metadata (from @MetadataTools.getMetadataAsJSON())
 	 * @return String value retrieved, or null if none were found
 	 */
+	/**
+	 * The free-text description of a file from the ExifTool {@code -g1} metadata, in order of preference: {@code XMP-dc:Description},
+	 * {@code IFD0:ImageDescription} and finally the legacy {@code IPTC:Caption-Abstract}. Blank values are skipped.
+	 *
+	 * @return the first non-blank description, or {@code null} when the file carries none
+	 */
 	public static String extractDescription(JSONObject jsonObject) {
-		var locations = new HashMap<String, List<String>>();
-		locations.put(XMP_KEY, List.of(XMP_DESCRIPTION_FIELD));
+		if (jsonObject == null) {
+			return null;
+		}
+		var locations = new LinkedHashMap<String, List<String>>();
+		locations.put(XMP_DC_KEY, List.of(XMP_DESCRIPTION_FIELD));
+		locations.put(IFD0_KEY, List.of(IFD0_IMAGE_DESCRIPTION_FIELD));
 		locations.put(IPTC_KEY, List.of(IPTC_CAPTION_FIELD));
 
-		return extractJsonString(jsonObject, locations);
+		for (var location : locations.entrySet()) {
+			var group = jsonObject.optJSONObject(location.getKey());
+			if (group == null) {
+				continue;
+			}
+			for (var key : location.getValue()) {
+				var value = Objects.toString(group.opt(key), null);
+				if (value != null && !value.isBlank()) {
+					return value.trim();
+				}
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -1239,6 +1262,62 @@ public class MetadataTool {
 		}
 	}
 
+	/**
+	 * ExifTool family 1 groups that describe the file or the extraction itself and can never be written back into a file.
+	 */
+	private static final Set<String> READ_ONLY_GROUPS = Set.of("ExifTool", "File", "System", "Composite");
+
+	/**
+	 * Group and tag names ExifTool accepts on the command line; anything else is refused so that request text can never become an
+	 * ExifTool option or a {@code -TAG+=}/{@code -TAG<=} operator.
+	 */
+	private static final java.util.regex.Pattern TAG_NAME_PATTERN = java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]*");
+
+	/**
+	 * @return whether values of the ExifTool family 1 group can be written back into the files
+	 */
+	public static boolean isWritableGroup(String group) {
+		return group != null && !READ_ONLY_GROUPS.contains(group);
+	}
+
+	/**
+	 * @return whether the text is a syntactically safe ExifTool group or tag name
+	 */
+	public static boolean isValidTagName(String name) {
+		return name != null && TAG_NAME_PATTERN.matcher(name)
+											   .matches();
+	}
+
+	/**
+	 * Writes one {@code -GROUP:KEY=value} into the file in place; an empty or null value removes the entry. The group and key must
+	 * pass {@link #isValidTagName(String)} and the group must be {@link #isWritableGroup(String) writable}. ExifTool refuses to
+	 * write unknown or read-only tags, which surfaces as an {@link IOException}.
+	 */
+	public static void writeMetadataValue(File file, String group, String key, String value) throws IOException {
+		if (!isValidTagName(group) || !isValidTagName(key)) {
+			throw new IOException("Invalid metadata group or key: " + group + ":" + key);
+		}
+		if (!isWritableGroup(group)) {
+			throw new IOException("Metadata group is read-only: " + group);
+		}
+		var command = new ArrayList<String>();
+		command.add("exiftool");
+		command.add("-overwrite_original_in_place");
+		command.add("-" + group + ":" + key + "=" + (value == null ? "" : value));
+		command.add(file.getAbsolutePath());
+		try {
+			runWriteCommand(command, file);
+		} catch (IOException e) {
+			if (!isUnparseableMakerNotesError(e)) {
+				throw e;
+			}
+
+			log.warn("Retrying metadata write with ExifTool minor-error suppression for {}", file.getAbsolutePath());
+			command.add(1, "-m");
+			runWriteCommand(command, file);
+		}
+	}
+
 	private static boolean isUnparseableMakerNotesError(IOException exception) {
 		var message = exception.getMessage();
 		return message != null
@@ -1246,10 +1325,16 @@ public class MetadataTool {
 	}
 
 	private static void addSubjectWriteArguments(List<String> command, String tag, List<String> subjects) {
+		var written = false;
 		for (var subject : subjects) {
 			if (subject != null && !subject.isBlank()) {
 				command.add("-" + tag + "=" + subject);
+				written = true;
 			}
+		}
+		if (!written) {
+			// Without any value ExifTool would leave the tag untouched; an empty assignment removes the remaining subjects
+			command.add("-" + tag + "=");
 		}
 	}
 
@@ -1797,13 +1882,6 @@ public class MetadataTool {
 		} catch (Exception e) {
 			log.error("Failed to serialize metadata map to JSON array", e);
 			return "[]";
-		}
-	}
-
-	// Helper: put value if not null/blank (String)
-	private static void putIfNotNull(Map<String, Object> map, String key, String value) {
-		if (value != null && !value.isBlank()) {
-			map.put(key, value);
 		}
 	}
 

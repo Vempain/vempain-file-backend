@@ -22,6 +22,7 @@ public class WebSecurityConfig extends fi.poltsi.vempain.auth.security.WebSecuri
 				"/files/**",
 				"/file-groups/**",
 				"/tags/**",
+				"/metadata/**",
 				"/scan-files/**",
 				"/publish/**",
 				"/data-publish/**",

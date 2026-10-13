@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "Background task types emitted by the file backend",
 		allowableValues = {"PUBLISH_FILE", "PUBLISH_FILES", "PUBLISH_FILE_GROUP", "PUBLISH_ALL_FILE_GROUPS", "SCAN_DIRECTORIES", "PUBLISH_MUSIC_DATA", "PUBLISH_GPS_TIME_SERIES",
-						   "TAG_REMOVE_FROM_ALL", "TAG_REPLACE_ACROSS_ALL", "TAG_RENAME_ACROSS_ALL"})
+						   "TAG_REMOVE_FROM_ALL", "TAG_REPLACE_ACROSS_ALL", "TAG_RENAME_ACROSS_ALL", "METADATA_UPDATE_VALUE"})
 public enum TaskTypeEnum {
 	/**
 	 * Uploads one file to the admin backend as a site file without any gallery. No result payload.
@@ -50,5 +50,9 @@ public enum TaskTypeEnum {
 	/**
 	 * Renames a tag on every tagged file (rewrites file metadata). No result payload.
 	 */
-	TAG_RENAME_ACROSS_ALL
+	TAG_RENAME_ACROSS_ALL,
+	/**
+	 * Rewrites one metadata group/key value in every file carrying it (rewrites file metadata). No result payload.
+	 */
+	METADATA_UPDATE_VALUE
 }

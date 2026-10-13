@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -97,5 +99,85 @@ class GenerateMissingThumbnailsScheduleUTC {
 		                       .file(target)
 		                       .filename("image.jpg")
 		                       .build();
+	}
+
+
+	@Test
+	void scheduledRunHonoursTheEnabledFlag() {
+		ReflectionTestUtils.setField(schedule, "schedulerEnabled", false);
+		schedule.generateMissingThumbnailsScheduled();
+		verifyNoInteractions(exportFileRepository);
+
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of());
+		configure(1);
+		schedule.generateMissingThumbnailsScheduled();
+		verify(exportFileRepository).findImagesMissingThumbnails(any());
+	}
+
+	@Test
+	void concurrentInvocationIsSkipped() throws Exception {
+		var entered = new CountDownLatch(1);
+		var release = new CountDownLatch(1);
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenAnswer(invocation -> {
+			entered.countDown();
+			release.await(2, TimeUnit.SECONDS);
+			return List.of();
+		});
+		configure(1);
+
+		var first = new Thread(schedule::generateMissingThumbnails);
+		first.start();
+		assertThat(entered.await(1, TimeUnit.SECONDS)).isTrue();
+		schedule.generateMissingThumbnails();
+		release.countDown();
+		first.join(2000);
+
+		verify(exportFileRepository).findImagesMissingThumbnails(any());
+	}
+
+	@Test
+	void concurrentlyCreatedThumbnailsAndRejectedJobsAreOnlyLogged() throws Exception {
+		var file = exportFile(1L);
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of(file));
+		doThrow(new DataIntegrityViolationException("duplicate")).when(thumbnailGenerationService)
+																 .generateThumbnail(file, null, null, 0, 0, 0);
+		configure(1);
+
+		schedule.generateMissingThumbnails();
+		verify(thumbnailGenerationService).generateThumbnail(file, null, null, 0, 0, 0);
+
+		// a stopped executor rejects the job, which is logged and leaves the file for the next run
+		schedule.shutdownExecutor();
+		schedule.generateMissingThumbnails();
+		verify(thumbnailGenerationService, org.mockito.Mockito.times(1)).generateThumbnail(file, null, null, 0, 0, 0);
+	}
+
+	@Test
+	void interruptionWhileWaitingIsLoggedAndTheFlagIsRestored() throws Exception {
+		var file    = exportFile(1L);
+		var entered = new CountDownLatch(1);
+		var release = new CountDownLatch(1);
+		when(exportFileRepository.findImagesMissingThumbnails(any())).thenReturn(List.of(file));
+		doAnswer(invocation -> {
+			entered.countDown();
+			release.await(2, TimeUnit.SECONDS);
+			return null;
+		}).when(thumbnailGenerationService)
+		  .generateThumbnail(file, null, null, 0, 0, 0);
+		configure(1);
+
+		Thread.currentThread()
+			  .interrupt();
+		boolean restored;
+		try {
+			schedule.generateMissingThumbnails();
+		} finally {
+			restored = Thread.interrupted();
+			assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+			release.countDown();
+		}
+
+		assertThat(restored).as("the interrupt flag is restored for the caller")
+							.isTrue();
 	}
 }

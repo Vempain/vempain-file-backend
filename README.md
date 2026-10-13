@@ -136,6 +136,16 @@ name field (`tag_name` and the German, English, Spanish, Finnish, and Swedish tr
 The response is a `PagedResponse<TagResponse>` containing the current `content` and
 `total_elements`. The legacy `GET /api/tags` endpoint remains available.
 
+### Metadata
+
+`POST /api/metadata/paged` lists the distinct metadata group, key and value combinations of the `metadata` table with the number of
+files carrying each one; `metadata_group`, `metadata_key` and `metadata_value` are optional contains-filters that can be combined,
+`sort_by` accepts `metadata_group`, `metadata_key`, `metadata_value` and `file_count`. `POST /api/metadata/files/paged` lists the files (that the caller may
+read) carrying one combination, filtered by `filename` and `file_type` and sortable by `filename`, `file_type` and
+`filesize`. `POST /api/metadata/value` rewrites the value in every file carrying the combination as a background task (`202`,
+`METADATA_UPDATE_VALUE`, one step per file; an empty `new_value` removes the entry); the caller needs the modify privilege on all of those
+files, and the `ExifTool`, `File`, `System` and `Composite` groups are read-only.
+
 ## How to build
 
 In order to build the project, you need to have Java 21 and Git installed on your machine. Begin with cloning the repository. After that run the following

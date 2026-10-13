@@ -91,4 +91,77 @@ class FileContentServiceUTC {
 		assertThat(ex.getStatusCode()
 		             .value()).isEqualTo(400);
 	}
+
+
+	@Test
+	void resolveOriginalFile_unavailableRoot_isAnInternalError() {
+		ReflectionTestUtils.setField(fileContentService, "originalRootDirectory", "/nonexistent-root-" + java.util.UUID.randomUUID());
+		var entity = mock(FileEntity.class);
+		when(fileRepository.findById(5L)).thenReturn(Optional.of(entity));
+
+		var ex = assertThrows(ResponseStatusException.class, () -> fileContentService.resolveOriginalFile(5L));
+		assertThat(ex.getStatusCode()
+					 .value()).isEqualTo(500);
+	}
+
+	@Test
+	void resolveOriginalFile_missingContent_isNotFound() {
+		var entity = mock(FileEntity.class);
+		when(entity.getFilePath()).thenReturn("/");
+		when(entity.getFilename()).thenReturn("nope.txt");
+		when(fileRepository.findById(6L)).thenReturn(Optional.of(entity));
+
+		var ex = assertThrows(ResponseStatusException.class, () -> fileContentService.resolveOriginalFile(6L));
+		assertThat(ex.getStatusCode()
+					 .value()).isEqualTo(404);
+	}
+
+	@Test
+	void resolveOriginalFile_normalisesRootAndBackslashDirectories() throws Exception {
+		Files.writeString(tempDir.resolve("root.txt"), "root");
+		var nested = tempDir.resolve("sub/dir");
+		Files.createDirectories(nested);
+		Files.writeString(nested.resolve("nested.txt"), "nested");
+
+		var nullPath = mock(FileEntity.class);
+		when(nullPath.getFilePath()).thenReturn(null);
+		when(nullPath.getFilename()).thenReturn("root.txt");
+		when(fileRepository.findById(7L)).thenReturn(Optional.of(nullPath));
+		assertThat(fileContentService.resolveOriginalFile(7L)
+									 .absolutePath()).isEqualTo(tempDir.resolve("root.txt"));
+
+		var slash = mock(FileEntity.class);
+		when(slash.getFilePath()).thenReturn(" / ");
+		when(slash.getFilename()).thenReturn("root.txt");
+		when(fileRepository.findById(8L)).thenReturn(Optional.of(slash));
+		assertThat(fileContentService.resolveOriginalFile(8L)
+									 .size()).isEqualTo(4L);
+
+		var backslashes = mock(FileEntity.class);
+		when(backslashes.getFilePath()).thenReturn("\\\\sub\\dir");
+		when(backslashes.getFilename()).thenReturn("nested.txt");
+		when(fileRepository.findById(9L)).thenReturn(Optional.of(backslashes));
+		assertThat(fileContentService.resolveOriginalFile(9L)
+									 .absolutePath()).isEqualTo(nested.resolve("nested.txt"));
+	}
+
+
+	@Test
+	void resolveOriginalFile_fileVanishingBeforeTheSizeLookup_isAnInternalError() throws Exception {
+		var target = tempDir.resolve("vanishing.txt");
+		Files.writeString(target, "soon gone");
+		var entity = mock(FileEntity.class);
+		when(entity.getFilePath()).thenReturn("/");
+		when(entity.getFilename()).thenReturn("vanishing.txt");
+		// the MIME type is read right before the size, so the file is removed in between
+		when(entity.getMimetype()).thenAnswer(invocation -> {
+			Files.delete(target);
+			return "text/plain";
+		});
+		when(fileRepository.findById(10L)).thenReturn(Optional.of(entity));
+
+		var ex = assertThrows(ResponseStatusException.class, () -> fileContentService.resolveOriginalFile(10L));
+		assertThat(ex.getStatusCode()
+					 .value()).isEqualTo(500);
+	}
 }

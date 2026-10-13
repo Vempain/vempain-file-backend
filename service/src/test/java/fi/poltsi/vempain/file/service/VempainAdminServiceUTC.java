@@ -36,6 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -249,6 +251,34 @@ class VempainAdminServiceUTC {
 			var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> vempainAdminService.listIngestUsers());
 			assertThat(ex.getStatusCode()
 			             .value()).isEqualTo(502);
+		}
+	}
+
+
+	@Nested
+	@DisplayName("deleteSiteFile")
+	class DeleteSiteFile {
+
+		@Test
+		void removesTheSiteFileAndIgnoresOneThatIsAlreadyGone() {
+			vempainAdminService.deleteSiteFile(5L);
+			verify(vempainAdminFileIngestClient).deleteSiteFile(5L);
+
+			doThrow(fakeFeignException(404)).when(vempainAdminFileIngestClient)
+											.deleteSiteFile(6L);
+			vempainAdminService.deleteSiteFile(6L);
+			verify(vempainAdminFileIngestClient).deleteSiteFile(6L);
+		}
+
+		@Test
+		void refusedTokensAndOtherFailuresAreThrown() {
+			doThrow(fakeFeignException(403)).when(vempainAdminFileIngestClient)
+											.deleteSiteFile(7L);
+			assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.deleteSiteFile(7L));
+
+			doThrow(fakeFeignException(500)).when(vempainAdminFileIngestClient)
+											.deleteSiteFile(8L);
+			assertThrows(FeignException.class, () -> vempainAdminService.deleteSiteFile(8L));
 		}
 	}
 }

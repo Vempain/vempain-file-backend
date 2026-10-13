@@ -4,6 +4,7 @@ import fi.poltsi.vempain.common.task.TaskCommandExecutor;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
+import fi.poltsi.vempain.file.api.request.MetadataValueUpdateRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
@@ -11,6 +12,7 @@ import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.service.DataService;
 import fi.poltsi.vempain.file.service.FileScannerService;
+import fi.poltsi.vempain.file.service.MetadataService;
 import fi.poltsi.vempain.file.service.PublishService;
 import fi.poltsi.vempain.file.service.TagService;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +84,13 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
 				                  .applyTagOperationForTask(request, ids, operation, deleteUnused, progress);
 				yield null;
 			}
+			case METADATA_UPDATE_VALUE -> {
+				var request = objectMapper.treeToValue(payload.path("request"), MetadataValueUpdateRequest.class);
+				var ids     = toLongList(payload.path("file_ids"));
+				applicationContext.getBean(MetadataService.class)
+								  .applyValueUpdateForTask(request, ids, progress);
+				yield null;
+			}
 		};
 	}
 
@@ -97,7 +106,22 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
 																	payload.path("new_tag")
 					                                                       .asText(null), payload.path("operation")
 					                                                                             .asText());
+			case "METADATA_REVERT_VALUE" -> applicationContext.getBean(MetadataService.class)
+															  .revertValue(payload.path("file_id")
+																				  .asLong(),
+																		   payload.path("metadata_group")
+																				  .asText(null),
+																		   payload.path("metadata_key")
+																				  .asText(null),
+																		   payload.path("old_value")
+																				  .asText(""));
 			default -> throw new IllegalArgumentException("Unknown task compensation command: " + compensation.getCommandType());
 		}
+	}
+
+	private List<Long> toLongList(JsonNode node) {
+		var ids = new java.util.ArrayList<Long>();
+		node.forEach(value -> ids.add(value.asLong()));
+		return ids;
 	}
 }

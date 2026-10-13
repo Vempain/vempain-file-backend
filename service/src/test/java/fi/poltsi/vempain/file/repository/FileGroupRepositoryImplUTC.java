@@ -5,6 +5,7 @@ import jakarta.persistence.Query;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -52,5 +53,20 @@ class FileGroupRepositoryImplUTC {
 		assertThat(sql.getAllValues()
 					  .get(0)).contains("fg.path LIKE :term0 ESCAPE '\\'");
 		verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%Trip\\_\\%%");
+	}
+
+
+	@Test
+	void sortColumnsAreMappedThroughTheAllowListAndJoinedInOrder() {
+		repository.searchFileGroups(null, false, PageRequest.of(0, 10, Sort.by(Sort.Order.desc("id"), Sort.Order.asc("description"),
+																			   Sort.Order.asc("group_name"), Sort.Order.desc("file_count"),
+																			   Sort.Order.asc("bogus; DROP TABLE"))));
+
+		var sql = ArgumentCaptor.forClass(String.class);
+		verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
+		assertThat(sql.getAllValues()
+					  .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, fg.path ASC")
+							  .doesNotContain("DROP TABLE")
+							  .doesNotContain(" WHERE ");
 	}
 }

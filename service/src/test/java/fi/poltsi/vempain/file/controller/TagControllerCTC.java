@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.controller;
 
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
 import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.file.tools.SampleFiles;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -10,6 +11,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -319,5 +321,130 @@ class TagControllerCTC extends AbstractControllerCTC {
 		}
 		assertThat(task.getStatus()).as(task.getErrorMessage())
 									.isEqualTo(fi.poltsi.vempain.common.api.TaskStatusEnum.COMPLETED);
+	}
+
+
+	private void seedTaggedImage(long fileId, java.io.File image, String relativeDirectory, Long aclUser, boolean modify, String... tagNames) {
+		seedFileRowWithAcl(fileId, "IMAGE", "image/jpeg", image.getName(), relativeDirectory, aclUser, true, modify, modify);
+		jdbcTemplate.update("INSERT INTO image_files (id, width, height, color_depth, dpi, group_label) VALUES (?, 16, 16, 24, 72, '')", fileId);
+		for (var tagName : tagNames) {
+			jdbcTemplate.update("INSERT INTO tags (tag_name) VALUES (?) ON CONFLICT (tag_name) DO NOTHING", tagName);
+			var tagId = jdbcTemplate.queryForObject("SELECT id FROM tags WHERE tag_name = ?", Long.class, tagName);
+			jdbcTemplate.update("INSERT INTO file_tags (file_id, tag_id) VALUES (?, ?)", fileId, tagId);
+		}
+	}
+
+	private List<String> subjectsOf(java.io.File image) throws Exception {
+		return MetadataTool.extractSubjects(MetadataTool.extractMetadataJsonObject(image));
+	}
+
+	@Test
+	void addReplaceRenameAndRemoveTagsOnSelectedFiles(@TempDir Path tempDirectory) throws Exception {
+		var image = SampleFiles.jpeg(tempDirectory.resolve("tagged.jpg"));
+		MetadataTool.writeSubjects(image, List.of("ctc-old"));
+		seedTaggedImage(9101L, image, "/" + tempDirectory.getFileName(), 1L, true, "ctc-old");
+		try {
+			doPost("/tags/files/add", """
+					{"tag_name":"ctc-new","tag_name_fi":"uusi","file_ids":[9101]}
+					""")
+					.andExpect(status().isNoContent());
+			assertThat(subjectsOf(image)).containsExactly("ctc-old", "ctc-new");
+			assertThat(jdbcTemplate.queryForObject("SELECT tag_name_fi FROM tags WHERE tag_name = ?", String.class, "ctc-new")).isEqualTo("uusi");
+
+			doPost("/tags/files/replace", """
+					{"tag_name":"ctc-new","replacement_tag_name":"ctc-old","file_ids":[9101]}
+					""")
+					.andExpect(status().isNoContent());
+			assertThat(subjectsOf(image)).containsExactly("ctc-old");
+			assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tags WHERE tag_name = ?", Integer.class, "ctc-new")).as("the unused tag is removed")
+																															 .isZero();
+
+			doPost("/tags/files/rename", """
+					{"tag_name":"ctc-old","replacement_tag_name":"ctc-renamed","file_ids":[9101]}
+					""")
+					.andExpect(status().isNoContent());
+			assertThat(subjectsOf(image)).containsExactly("ctc-renamed");
+
+			doPost("/tags/files/remove", """
+					{"tag_name":"ctc-renamed","file_ids":[9101]}
+					""")
+					.andExpect(status().isNoContent());
+			assertThat(subjectsOf(image)).isEmpty();
+			assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM file_tags WHERE file_id = ?", Integer.class, 9101L)).isZero();
+		} finally {
+			deleteFileRow(9101L);
+		}
+	}
+
+	@Test
+	void tagMutationsAreDeniedWithoutTheModifyPrivilege(@TempDir Path tempDirectory) throws Exception {
+		var image = SampleFiles.jpeg(tempDirectory.resolve("locked.jpg"));
+		MetadataTool.writeSubjects(image, List.of("ctc-locked"));
+		seedTaggedImage(9102L, image, "/" + tempDirectory.getFileName(), 1L, false, "ctc-locked");
+		try {
+			doPost("/tags/files/add", "{\"tag_name\":\"ctc-new\",\"file_ids\":[9102]}")
+					.andExpect(status().isForbidden());
+			doPost("/tags/files/remove", "{\"tag_name\":\"ctc-locked\",\"file_ids\":[9102]}")
+					.andExpect(status().isForbidden());
+			doPost("/tags/all/remove", "{\"tag_name\":\"ctc-locked\"}")
+					.andExpect(status().isForbidden());
+			assertThat(subjectsOf(image)).containsExactly("ctc-locked");
+		} finally {
+			deleteFileRow(9102L);
+		}
+	}
+
+	@Test
+	void replaceAndRemoveAcrossAllFilesRunAsTasks(@TempDir Path tempDirectory) throws Exception {
+		var image = SampleFiles.jpeg(tempDirectory.resolve("everywhere.jpg"));
+		MetadataTool.writeSubjects(image, List.of("ctc-all", "ctc-keep"));
+		seedTaggedImage(9103L, image, "/" + tempDirectory.getFileName(), 1L, true, "ctc-all", "ctc-keep");
+		try {
+			var replaced = doPost("/tags/all/replace", """
+					{"tag_name":"ctc-all","replacement_tag_name":"ctc-keep"}
+					""")
+					.andExpect(status().isAccepted())
+					.andExpect(jsonPath("$.type").value("TAG_REPLACE_ACROSS_ALL"))
+					.andExpect(jsonPath("$.total_steps").value(1))
+					.andReturn();
+			awaitTaskCompletion(replaced);
+			assertThat(subjectsOf(image)).containsExactly("ctc-keep");
+
+			var removed = doPost("/tags/all/remove", """
+					{"tag_name":"ctc-keep"}
+					""")
+					.andExpect(status().isAccepted())
+					.andExpect(jsonPath("$.type").value("TAG_REMOVE_FROM_ALL"))
+					.andReturn();
+			awaitTaskCompletion(removed);
+			assertThat(subjectsOf(image)).isEmpty();
+			assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM tags WHERE tag_name IN (?, ?)", Integer.class, "ctc-all", "ctc-keep")).isZero();
+		} finally {
+			deleteFileRow(9103L);
+		}
+	}
+
+	@Test
+	void filesByTagListOnlyTheReadableTaggedFiles(@TempDir Path tempDirectory) throws Exception {
+		var readable = SampleFiles.jpeg(tempDirectory.resolve("readable.jpg"));
+		var hidden   = SampleFiles.jpeg(tempDirectory.resolve("hidden.jpg"));
+		seedTaggedImage(9104L, readable, "/" + tempDirectory.getFileName(), 1L, true, "ctc-listed");
+		seedTaggedImage(9105L, hidden, "/" + tempDirectory.getFileName(), 2L, true, "ctc-listed");
+		var tagId = jdbcTemplate.queryForObject("SELECT id FROM tags WHERE tag_name = ?", Long.class, "ctc-listed");
+		try {
+			doPost("/tags/" + tagId + "/files/paged", """
+					{"page":0,"size":10,"search":"readable","sort_by":"filename","direction":"ASC"}
+					""")
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.content", hasSize(1)))
+					.andExpect(jsonPath("$.content[0].id", is(9104)))
+					.andExpect(jsonPath("$.total_elements", is(1)));
+			doPost("/tags/" + tagId + "/files/paged", "{\"page\":0,\"size\":10}")
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.content", hasSize(1)));
+		} finally {
+			deleteFileRow(9104L);
+			deleteFileRow(9105L);
+		}
 	}
 }

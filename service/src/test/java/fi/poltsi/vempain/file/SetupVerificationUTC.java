@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,5 +80,101 @@ class SetupVerificationUTC {
 		var context = mock(ConfigurableApplicationContext.class);
 		when(context.getEnvironment()).thenReturn(environment);
 		return context;
+	}
+
+
+	private static ConfigurableApplicationContext contextWithEssentials(String jwtSecret, String frontendUrl, String originalRoot) {
+		var environment = new MockEnvironment().withProperty("vempain.app.frontend-url", frontendUrl)
+											   .withProperty("vempain.original-root-directory", originalRoot)
+											   .withProperty("vempain.export-root-directory", "/tmp")
+											   .withProperty("vempain.service.admin-backend-url", "https://admin.example/api")
+											   .withProperty("vempain.service.admin-backend-api-token", "vat_token");
+		if (jwtSecret != null) {
+			environment.setProperty("vempain.app.jwt-secret", jwtSecret);
+		}
+		var context = mock(ConfigurableApplicationContext.class);
+		when(context.getEnvironment()).thenReturn(environment);
+		return context;
+	}
+
+	@Test
+	void checkEssentialConfigurations_acceptsACompleteConfiguration() {
+		var context = contextWithEssentials("secret", "http://localhost:3000", "/tmp");
+
+		new SetupVerification(context).checkEssentialConfigurations(new ContextRefreshedEvent(context));
+
+		verify(context, never()).close();
+	}
+
+	@Test
+	void checkEssentialConfigurations_closesTheApplicationForMissingDefaultOrNonexistentValues() {
+		var missing = contextWithEssentials(null, "http://localhost:3000", "/tmp");
+		new SetupVerification(missing).checkEssentialConfigurations(new ContextRefreshedEvent(missing));
+		verify(missing).close();
+
+		var defaulted = contextWithEssentials("secret", "override-me", "/tmp");
+		new SetupVerification(defaulted).checkEssentialConfigurations(new ContextRefreshedEvent(defaulted));
+		verify(defaulted).close();
+
+		var nonexistent = contextWithEssentials("secret", "http://localhost:3000", "/nonexistent-root-" + java.util.UUID.randomUUID());
+		new SetupVerification(nonexistent).checkEssentialConfigurations(new ContextRefreshedEvent(nonexistent));
+		verify(nonexistent).close();
+	}
+
+	@Test
+	void verifyProductionSettings_closesApplicationForAPlainHttpAdminUrlInProd() {
+		var environment = new MockEnvironment().withProperty("spring.datasource.url", "jdbc:postgresql://db:5432/vempain_file?sslmode=require")
+											   .withProperty("vempain.service.admin-backend-url", "http://admin.example/api");
+		environment.setActiveProfiles("prod");
+		var context = mock(ConfigurableApplicationContext.class);
+		when(context.getEnvironment()).thenReturn(environment);
+
+		new SetupVerification(context).verifyProductionSettings(new ContextRefreshedEvent(context));
+
+		verify(context).close();
+	}
+
+	@Test
+	void printAllConfiguration_listsThePropertyNamesWithoutFailing() {
+		var context = contextWith("local", "jdbc:postgresql://localhost:5432/vempain_file");
+
+		new SetupVerification(context).printAllConfiguration(new ContextRefreshedEvent(context));
+
+		verify(context, never()).close();
+	}
+
+
+	@Test
+	void checkEssentialConfigurations_validatesNumbersFilesAndRejectsUnknownTypes() throws Exception {
+		var executable = java.nio.file.Files.createTempFile("setup-verification", ".sh");
+		executable.toFile()
+				  .setExecutable(true);
+		var plain = java.nio.file.Files.createTempFile("setup-verification", ".txt");
+		plain.toFile()
+			 .setExecutable(false);
+		try {
+			var valid = contextWithEssentials("secret", "http://localhost:3000", "/tmp");
+			((MockEnvironment) valid.getEnvironment()).withProperty("a.number", "42")
+													  .withProperty("a.file", executable.toString());
+			var verification = new SetupVerification(valid);
+			ReflectionTestUtils.setField(verification, "requiredKeys", new String[][]{{"a.number", "number"}, {"a.file", "file"}});
+			verification.checkEssentialConfigurations(new ContextRefreshedEvent(valid));
+			verify(valid, never()).close();
+
+			var invalid = contextWithEssentials("secret", "http://localhost:3000", "/tmp");
+			((MockEnvironment) invalid.getEnvironment()).withProperty("a.number", "forty-two")
+														.withProperty("a.missing", "/nonexistent-" + java.util.UUID.randomUUID())
+														.withProperty("a.directory", "/tmp")
+														.withProperty("a.plain", plain.toString())
+														.withProperty("a.unknown", "x");
+			var failing = new SetupVerification(invalid);
+			ReflectionTestUtils.setField(failing, "requiredKeys", new String[][]{{"a.number", "number"}, {"a.missing", "file"}, {"a.directory", "file"},
+																				 {"a.plain", "file"}, {"a.unknown", "colour"}});
+			failing.checkEssentialConfigurations(new ContextRefreshedEvent(invalid));
+			verify(invalid, org.mockito.Mockito.atLeast(5)).close();
+		} finally {
+			java.nio.file.Files.deleteIfExists(executable);
+			java.nio.file.Files.deleteIfExists(plain);
+		}
 	}
 }

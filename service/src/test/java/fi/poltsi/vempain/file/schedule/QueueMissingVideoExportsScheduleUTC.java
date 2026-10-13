@@ -101,4 +101,15 @@ class QueueMissingVideoExportsScheduleUTC {
 		                      .id(id)
 		                      .build();
 	}
+
+
+	@Test
+	void scheduledInvocationRunsWhenEnabled() {
+		when(fileRepository.findVideosMissingExports(any(Pageable.class))).thenReturn(List.of());
+		configure(25, 3, true);
+
+		schedule.queueMissingVideoExportsScheduled();
+
+		verify(fileRepository).findVideosMissingExports(any(Pageable.class));
+	}
 }

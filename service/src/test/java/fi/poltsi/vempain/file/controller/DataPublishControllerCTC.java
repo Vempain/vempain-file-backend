@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -75,5 +77,48 @@ class DataPublishControllerCTC extends AbstractControllerCTC {
 					.andExpect(status().isBadRequest());
 		}
 
+	}
+
+
+	@Nested
+	@DisplayName("accepted publications")
+	class AcceptedPublications {
+
+		@Test
+		void publishMusic_returns202_whenMusicFilesExist() throws Exception {
+			seedFileRow(9201L, "MUSIC", "audio/mpeg", "song.mp3", "/ctc-music");
+			jdbcTemplate.update("INSERT INTO audio_files (id, duration, bit_rate, sample_rate, codec, channels) VALUES (?, 10, 128, 44100, 'mp3', 2)", 9201L);
+			jdbcTemplate.update("INSERT INTO music_files (id, artist, album_artist, album, year, track_name, track_number, track_total, genre) "
+								+ "VALUES (?, 'Artist', 'Artist', 'Album', 2024, 'Song', 1, 1, 'Rock')", 9201L);
+			try {
+				doPost(MUSIC_PATH, "")
+						.andExpect(status().isAccepted())
+						.andExpect(jsonPath("$.task_id", notNullValue()))
+						.andExpect(jsonPath("$.type").value("PUBLISH_MUSIC_DATA"));
+			} finally {
+				deleteFileRow(9201L);
+			}
+		}
+
+		@Test
+		void publishGps_returns202_whenTheGroupHasGpsImages() throws Exception {
+			jdbcTemplate.update("INSERT INTO gps_locations (latitude, latitude_ref, longitude, longitude_ref) VALUES (60.17, 'N', 24.94, 'E')");
+			var gpsId = jdbcTemplate.queryForObject("SELECT MAX(id) FROM gps_locations", Long.class);
+			seedFileRow(9202L, "IMAGE", "image/jpeg", "geo.jpg", "/ctc-gps");
+			jdbcTemplate.update("INSERT INTO image_files (id, width, height, color_depth, dpi, group_label) VALUES (?, 16, 16, 24, 72, '')", 9202L);
+			jdbcTemplate.update("UPDATE files SET gps_location_id = ?, original_datetime = NOW() WHERE id = ?", gpsId, 9202L);
+			jdbcTemplate.update("INSERT INTO file_group (path, group_name, description) VALUES (?, ?, ?)", "/ctc-gps", "GPS Group", "Test");
+			var groupId = jdbcTemplate.queryForObject("SELECT MAX(id) FROM file_group", Long.class);
+			jdbcTemplate.update("INSERT INTO file_group_files (file_group_id, file_id) VALUES (?, ?)", groupId, 9202L);
+			try {
+				doPost(GPS_PATH, "{\"file_group_id\":" + groupId + ",\"time_series_name\":\"CTC Series\"}")
+						.andExpect(status().isAccepted())
+						.andExpect(jsonPath("$.task_id", notNullValue()))
+						.andExpect(jsonPath("$.type").value("PUBLISH_GPS_TIME_SERIES"));
+			} finally {
+				deleteFileRow(9202L);
+				jdbcTemplate.update("DELETE FROM gps_locations WHERE id = ?", gpsId);
+			}
+		}
 	}
 }

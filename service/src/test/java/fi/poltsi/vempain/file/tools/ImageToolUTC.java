@@ -77,4 +77,29 @@ class ImageToolUTC {
 		ImageIO.write(image, "png", path.toFile());
 		return path;
 	}
+
+
+	@Test
+	void resizeIntoAnUnwritableDestinationFailsWithInternalServerError(@TempDir Path tempDirectory) throws Exception {
+		var source      = createImage(tempDirectory.resolve("source.png"), 80, 40);
+		var destination = Files.createDirectories(tempDirectory.resolve("out.jpg"));
+
+		var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().resizeImage(source, destination, 100, 0.7f, null));
+
+		assertThat(exception.getStatusCode()
+							.value()).isEqualTo(500);
+	}
+
+	@Test
+	void directoriesAndTruncatedImagesFailWithInternalServerError(@TempDir Path tempDirectory) throws Exception {
+		var directory = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(tempDirectory));
+		assertThat(directory.getStatusCode()
+							.value()).isEqualTo(500);
+
+		var truncated = tempDirectory.resolve("truncated.png");
+		Files.write(truncated, new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R'});
+		var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(truncated));
+		assertThat(exception.getStatusCode()
+							.value()).isEqualTo(500);
+	}
 }

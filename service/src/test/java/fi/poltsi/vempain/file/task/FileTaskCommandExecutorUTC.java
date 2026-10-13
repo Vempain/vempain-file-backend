@@ -2,12 +2,14 @@ package fi.poltsi.vempain.file.task;
 
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
+import fi.poltsi.vempain.file.api.request.MetadataValueUpdateRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
 import fi.poltsi.vempain.file.service.DataService;
 import fi.poltsi.vempain.file.service.FileScannerService;
+import fi.poltsi.vempain.file.service.MetadataService;
 import fi.poltsi.vempain.file.service.PublishService;
 import fi.poltsi.vempain.file.service.TagService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,8 @@ class FileTaskCommandExecutorUTC {
 	private DataService        dataService;
 	@Mock
 	private TagService         tagService;
+	@Mock
+	private MetadataService metadataService;
 
 	private final ObjectMapper        mapper = new ObjectMapper();
 	private FileTaskCommandExecutor executor;
@@ -122,6 +126,27 @@ class FileTaskCommandExecutorUTC {
 
 		verify(tagService).applyTagOperationForTask(request, List.of(1L, 2L), "REMOVE", true, task);
 		verify(tagService).revertTagMutation(1L, "old", "", "REMOVE");
+	}
+
+	@Test
+	void executesMetadataCommandAndCompensation() {
+		var request = MetadataValueUpdateRequest.builder()
+												.metadataGroup("XMP-dc")
+												.metadataKey("Creator")
+												.metadataValue("Jane")
+												.newValue("Joe")
+												.build();
+		var task = task("METADATA_UPDATE_VALUE", Map.of("request", request, "file_ids", List.of(3L, 4L)));
+		when(applicationContext.getBean(MetadataService.class)).thenReturn(metadataService);
+		var compensation = new TaskCompensationEntity();
+		compensation.setCommandType("METADATA_REVERT_VALUE");
+		compensation.setPayload(mapper.writeValueAsString(Map.of("file_id", 3L, "metadata_group", "XMP-dc", "metadata_key", "Creator", "old_value", "Jane")));
+
+		assertThat(executor.execute(task)).isNull();
+		executor.compensate(compensation);
+
+		verify(metadataService).applyValueUpdateForTask(request, List.of(3L, 4L), task);
+		verify(metadataService).revertValue(3L, "XMP-dc", "Creator", "Jane");
 	}
 
 	@Test

@@ -242,15 +242,24 @@ public class PublishService {
 	}
 
 	/**
-	 * Starts a background task that publishes one file group. One step per file.
+	 * Starts a background task that publishes one file group. One step per file; the total is known from the start so that the
+	 * progress is right from the first poll (an empty group is one step that reports it has nothing to publish).
 	 */
 	public TaskProgress publishFileGroup(PublishFileGroupRequest request) {
 		var proxy = applicationContext.getBean(PublishService.class);
-		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request), 0, request,
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_FILE_GROUP.name(), "Publish file group " + groupTitle(request),
+										groupSteps(request.getFileGroupId()), request,
 										progress -> {
 											proxy.publishFileGroupNow(request, progress, true);
 											return null;
 										});
+	}
+
+	/**
+	 * Steps a file group contributes to a task: one per file, and one for a group without files so that it is still reported.
+	 */
+	private long groupSteps(long fileGroupId) {
+		return Math.max(1L, countFilesInGroup(fileGroupId));
 	}
 
 	/**
@@ -269,7 +278,7 @@ public class PublishService {
 													 .isEmpty()) {
 			log.debug("File group {} has no files to publish", request.getFileGroupId());
 			if (progress != null && reportFileSteps) {
-				progress.message("File group has no files to publish");
+				progress.advance("File group has no files to publish");
 			}
 			return;
 		}
@@ -480,7 +489,11 @@ public class PublishService {
 	 * Count files in a group without loading the full collection.
 	 */
 	public long countFilesInGroup(long fileGroupId) {
-		return fileGroupRepository.countById(fileGroupId);
+		return fileGroupRepository.countFilesById(fileGroupId);
+	}
+
+	public boolean fileGroupExists(long fileGroupId) {
+		return fileGroupRepository.existsById(fileGroupId);
 	}
 
 	@Transactional
@@ -511,30 +524,20 @@ public class PublishService {
 	}
 
 	/**
-	 * Starts one background task that publishes every file group the caller may fully modify, one step per group. Groups with
-	 * files the caller cannot modify are skipped. The ACL entries of the request, if any, are granted on every published group.
-	 * Returns the task; {@code total_steps} is the number of groups it will publish.
+	 * Starts one background task that publishes every file group the caller may fully modify, one step per file (an empty group
+	 * counts as one step). Groups with files the caller cannot modify are skipped. The ACL entries of the request, if any, are
+	 * granted on every published group. Returns the task; {@code total_steps} is the number of files it will publish.
 	 */
 	// Read-only transaction so that the lazily loaded file collections can be checked against the caller's ACL privileges
 	@Transactional(readOnly = true)
 	public TaskProgress publishAllFileGroups(PublishAllFileGroupsRequest publishAllRequest) {
-		var requests = collectPublishableGroups(publishAllRequest == null ? null : publishAllRequest.getAcls());
-		var payload = java.util.Map.of("requests", requests);
-		var proxy   = applicationContext.getBean(PublishService.class);
-		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", requests.size(), payload,
+		var groups   = collectPublishableGroups(publishAllRequest == null ? null : publishAllRequest.getAcls());
+		var requests = groups.requests();
+		var payload  = java.util.Map.of("requests", requests);
+		var proxy    = applicationContext.getBean(PublishService.class);
+		return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_ALL_FILE_GROUPS.name(), "Publish all file groups", groups.totalSteps(), payload,
 										progress -> {
-											for (var request : requests) {
-												progress.checkpoint();
-												try {
-													proxy.publishFileGroupNow(request, progress, false);
-													progress.advance("Published " + groupTitle(request));
-												} catch (fi.poltsi.vempain.common.task.TaskCancelledException e) {
-													throw e;
-												} catch (Exception e) {
-													log.error("Publish group {} failed", request.getFileGroupId(), e);
-													progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
-												}
-											}
+											publishGroupsAsSteps(requests, progress, proxy);
 											return null;
 										});
 	}
@@ -544,26 +547,53 @@ public class PublishService {
 	 */
 	@Transactional
 	public void publishAllFileGroupsNow(TaskProgress progress) {
-		var payload = new tools.jackson.databind.ObjectMapper().readTree(progress.getPayload());
+		var mapper   = new tools.jackson.databind.ObjectMapper();
+		var payload  = mapper.readTree(progress.getPayload());
+		var requests = new ArrayList<PublishFileGroupRequest>();
 		for (var node : payload.path("requests")) {
+			requests.add(mapper.treeToValue(node, PublishFileGroupRequest.class));
+		}
+		publishGroupsAsSteps(requests, progress, this);
+	}
+
+	/**
+	 * Publishes the groups one after the other, every file as one step of the task. A group that fails as a whole marks the steps
+	 * of its remaining files as failed, so that the task still ends at its total.
+	 */
+	private void publishGroupsAsSteps(List<PublishFileGroupRequest> requests, TaskProgress progress, PublishService target) {
+		for (var request : requests) {
 			progress.checkpoint();
-			var request = new tools.jackson.databind.ObjectMapper().treeToValue(node, PublishFileGroupRequest.class);
+			var expectedSteps = groupSteps(request.getFileGroupId());
+			var stepsBefore = progress.getCompletedSteps()
+									  .get();
 			try {
-				publishFileGroupNow(request, progress, false);
-				progress.advance("Published " + groupTitle(request));
+				target.publishFileGroupNow(request, progress, true);
+				progress.message("Published " + groupTitle(request));
 			} catch (fi.poltsi.vempain.common.task.TaskCancelledException e) {
 				throw e;
 			} catch (Exception e) {
 				log.error("Publish group {} failed", request.getFileGroupId(), e);
-				progress.advanceFailed("Failed " + groupTitle(request) + ": " + e.getMessage());
+				var remaining = expectedSteps - (progress.getCompletedSteps()
+														 .get() - stepsBefore);
+				var message = "Failed " + groupTitle(request) + ": " + e.getMessage();
+				for (long step = 0; step < Math.max(1L, remaining); step++) {
+					progress.advanceFailed(message);
+				}
 			}
 		}
 	}
 
-	private List<PublishFileGroupRequest> collectPublishableGroups(List<PublishAclRequest> acls) {
-		var requests = new ArrayList<PublishFileGroupRequest>();
-		int page     = 0;
-		int size     = 50;
+	/**
+	 * The groups the caller may publish and the number of task steps they add up to (one per file, one for an empty group).
+	 */
+	private record PublishableGroups(List<PublishFileGroupRequest> requests, long totalSteps) {
+	}
+
+	private PublishableGroups collectPublishableGroups(List<PublishAclRequest> acls) {
+		var  requests   = new ArrayList<PublishFileGroupRequest>();
+		long totalSteps = 0;
+		int  page       = 0;
+		int  size       = 50;
 
 		while (true) {
 			var pageable = PageRequest.of(page, size, Sort.by("path"));
@@ -590,6 +620,7 @@ public class PublishService {
 																		projection.description() : projection.groupName())
 													.acls(acls == null || acls.isEmpty() ? null : acls)
 													.build());
+				totalSteps += Math.max(1L, projection.fileCount());
 			}
 
 			page++;
@@ -598,7 +629,7 @@ public class PublishService {
 			}
 		}
 
-		return requests;
+		return new PublishableGroups(requests, totalSteps);
 	}
 
 	private static String groupTitle(PublishFileGroupRequest request) {

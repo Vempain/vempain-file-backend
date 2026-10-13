@@ -1,9 +1,12 @@
 package fi.poltsi.vempain.file.service;
 
 import feign.FeignException;
+import feign.Request;
+import feign.RequestTemplate;
 import fi.poltsi.vempain.admin.api.request.DataRequest;
 import fi.poltsi.vempain.admin.api.response.DataResponse;
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -25,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -569,5 +574,148 @@ class DataServiceUTC {
 		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
 		assertThat(task.getResult()).isSameAs(created);
 		verify(vempainAdminDataClient, never()).deleteDataSet(any());
+	}
+
+
+	private static FeignException feignFailure(int status) {
+		return FeignException.errorStatus("admin", feign.Response.builder()
+																 .status(status)
+																 .reason("error")
+																 .request(Request.create(Request.HttpMethod.POST, "http://admin", Map.of(), null, new RequestTemplate()))
+																 .headers(Map.of())
+																 .build());
+	}
+
+	private MusicFileEntity oneMusicFile() {
+		var music = new MusicFileEntity();
+		music.setArtist("Miles Davis");
+		when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+		return music;
+	}
+
+	private ImageFileEntity oneGpsImage(Long fileGroupId, String directory) {
+		var location = new GpsLocationEntity();
+		location.setLatitude(new BigDecimal("60.12345"));
+		location.setLatitudeRef('N');
+		location.setLongitude(new BigDecimal("24.93545"));
+		location.setLongitudeRef('E');
+		var image = new ImageFileEntity();
+		image.setFilename("photo.jpg");
+		image.setGpsLocation(location);
+		image.setOriginalDatetime(Instant.parse("2024-05-06T07:08:09Z"));
+		if (fileGroupId != null) {
+			when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(fileGroupId)).thenReturn(List.of(image));
+		}
+		if (directory != null) {
+			when(imageFileRepository.findByFilePathWithGpsOrderedByTime(directory)).thenReturn(List.of(image));
+		}
+		when(locationService.isGuardedLocation(location)).thenReturn(false);
+		return image;
+	}
+
+	@Test
+	void publishMusicDatasetAsTask_updatesAnExistingDataSetInThreeSteps() {
+		oneMusicFile();
+		var updated = new DataResponse();
+		updated.setIdentifier(DataService.MUSIC_IDENTIFIER);
+		// an empty answer still means the data set exists on the admin side
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenReturn(ResponseEntity.ok(null));
+		when(vempainAdminDataClient.updateDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(updated));
+
+		var task = dataService.publishMusicDatasetAsTask();
+
+		assertThat(task.getType()).isEqualTo("PUBLISH_MUSIC_DATA");
+		assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+		assertThat(task.getCompletedSteps()
+					   .get()).isEqualTo(3);
+		assertThat(task.getResult()).isSameAs(updated);
+		verify(vempainAdminDataClient, never()).createDataSet(any(DataRequest.class));
+
+		var reloaded = dataService.publishMusicDatasetNow(TaskProgress.unmanaged("t", "PUBLISH_MUSIC_DATA", "title", 1L, 3, "{}"));
+		assertThat(reloaded).isSameAs(updated);
+		verify(musicFileService, org.mockito.Mockito.times(2)).findAllOrdered();
+	}
+
+	@Test
+	void adminFailuresAreMappedToHttpStatuses() {
+		oneMusicFile();
+		var existing = new DataResponse();
+		existing.setIdentifier(DataService.MUSIC_IDENTIFIER);
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenReturn(ResponseEntity.ok(existing));
+		when(vempainAdminDataClient.updateDataSet(any(DataRequest.class))).thenThrow(feignFailure(409));
+		var conflict = org.junit.jupiter.api.Assertions.assertThrows(ResponseStatusException.class, () -> dataService.generateAndPublishMusicDataset());
+		assertThat(conflict.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+
+		when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenThrow(mock(FeignException.NotFound.class));
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenThrow(feignFailure(400), feignFailure(404), feignFailure(500))
+																		  .thenReturn(ResponseEntity.status(500)
+																									.build());
+		for (var expected : List.of(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR)) {
+			var failure = org.junit.jupiter.api.Assertions.assertThrows(ResponseStatusException.class, () -> dataService.generateAndPublishMusicDataset());
+			assertThat(failure.getStatusCode()).isEqualTo(expected);
+		}
+	}
+
+	@Test
+	void gpsTimeSeriesByDirectory_normalisesThePathAndPublishes() {
+		oneGpsImage(null, "/holidays/2024");
+		when(vempainAdminDataClient.getDataSetByIdentifier("gps_timeseries_holidays_2024")).thenThrow(mock(FeignException.NotFound.class));
+		var created = new DataResponse();
+		created.setIdentifier("gps_timeseries_holidays_2024");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(created));
+
+		var response = dataService.generateAndPublishGpsTimeSeries("//holidays/2024/");
+
+		assertThat(response).isSameAs(created);
+		var captor = ArgumentCaptor.forClass(DataRequest.class);
+		verify(vempainAdminDataClient).createDataSet(captor.capture());
+		assertThat(captor.getValue()
+						 .getIdentifier()).isEqualTo("gps_timeseries_holidays_2024");
+		assertThat(captor.getValue()
+						 .getType()).isEqualTo("time_series");
+		// the original date is used when there is no GPS timestamp
+		assertThat(captor.getValue()
+						 .getCsvData()).contains("2024-05-06T07:08:09Z,60.12345,N,24.93545,E,,photo.jpg");
+	}
+
+	@Test
+	void buildGpsIdentifier_stripsTrailingUnderscoresAndCapsTheLength() {
+		assertThat(dataService.buildGpsIdentifier("/a/")).isEqualTo("gps_timeseries_a");
+		var identifier = dataService.buildGpsIdentifier("/" + "abcdefghij".repeat(8));
+		assertThat(identifier).hasSize(60)
+							  .startsWith("gps_timeseries_abcdefghij");
+	}
+
+	@Test
+	void publishGpsTimeSeriesNow_reloadsTheImagesOfTheGroup() {
+		oneGpsImage(5L, null);
+		when(vempainAdminDataClient.getDataSetByIdentifier("trip")).thenThrow(mock(FeignException.NotFound.class));
+		var created = new DataResponse();
+		created.setIdentifier("trip");
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(created));
+		var progress = TaskProgress.unmanaged("t", "PUBLISH_GPS_TIME_SERIES", "title", 1L, 3, "{}");
+
+		assertThat(dataService.publishGpsTimeSeriesNow(5L, "trip", progress)).isSameAs(created);
+		assertThat(progress.getCompletedSteps()
+						   .get()).isEqualTo(3);
+	}
+
+	@Test
+	void timeSeriesNamesAreNormalisedToAdminIdentifiers() {
+		oneGpsImage(5L, null);
+		when(vempainAdminDataClient.getDataSetByIdentifier(any())).thenThrow(mock(FeignException.NotFound.class));
+		when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenAnswer(invocation -> {
+			var response = new DataResponse();
+			response.setIdentifier(invocation.getArgument(0, DataRequest.class)
+											 .getIdentifier());
+			return ResponseEntity.ok(response);
+		});
+
+		assertThat(dataService.generateAndPublishGpsTimeSeriesByFileGroup(5L, "_Summer__Trip_")
+							  .getIdentifier()).isEqualTo("summer_trip");
+		assertThat(dataService.generateAndPublishGpsTimeSeriesByFileGroup(5L, "___")
+							  .getIdentifier()).isEqualTo("gps_timeseries");
+		assertThat(dataService.generateAndPublishGpsTimeSeriesByFileGroup(5L, "x".repeat(70))
+							  .getIdentifier()).hasSize(60);
 	}
 }

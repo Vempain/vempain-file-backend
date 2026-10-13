@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -69,6 +70,7 @@ class ThumbnailGenerationServiceUTC {
 		var target = new ImageFileEntity();
 		target.setId(48111L);
 		target.setCreator(7L);
+		target.setDescription("Sunset over the harbour");
 		var export = ExportFileEntity.builder()
 		                             .file(target)
 		                             .filename("image.jpg")
@@ -95,6 +97,9 @@ class ThumbnailGenerationServiceUTC {
 		                 .getTargetFile()).isSameAs(target);
 		assertThat(captor.getValue()
 		                 .getFileType()).isEqualTo(FileTypeEnum.THUMB);
+		assertThat(captor.getValue()
+						 .getDescription()).as("the thumbnail carries the described file's description, not its pixel size")
+										   .isEqualTo("Sunset over the harbour");
 		assertThat(Files.readString(originalDir.resolve("thumb/image/image.jpeg"))).isEqualTo("thumbnail");
 	}
 
@@ -150,5 +155,50 @@ class ThumbnailGenerationServiceUTC {
 			}
 			recorder.stop();
 		}
+	}
+
+
+	@Test
+	void missingExportFileIsSkipped() throws Exception {
+		var exportDir = Files.createTempDirectory("thumbnail-missing-export");
+		var target    = new ImageFileEntity();
+		target.setId(48113L);
+		var export = ExportFileEntity.builder()
+									 .file(target)
+									 .filename("gone.jpg")
+									 .filePath("/image")
+									 .build();
+		when(thumbFileRepository.existsByTargetFileId(48113L)).thenReturn(false);
+
+		thumbnailGenerationService.generateThumbnail(export, exportDir.toString(), exportDir.toString(), 250, 0.7f);
+
+		verify(imageTool, never()).resizeImage(any(), any(), any(Integer.class), any(Float.class), any());
+		verify(thumbFileRepository, never()).saveAndFlush(any());
+	}
+
+	@Test
+	void invalidCapturePercentageIsRejectedAndLeavesNoTemporaryFile() throws Exception {
+		var originalDir = Files.createTempDirectory("thumbnail-bad-percentage-original");
+		var exportDir   = Files.createTempDirectory("thumbnail-bad-percentage-export");
+		var source      = exportDir.resolve("sample.mp4");
+		createSampleVideo(source);
+		var target = new VideoFileEntity();
+		target.setId(48114L);
+		target.setFileType(FileTypeEnum.VIDEO);
+		var export = ExportFileEntity.builder()
+									 .file(target)
+									 .filename("sample.mp4")
+									 .filePath("/")
+									 .build();
+		when(thumbFileRepository.existsByTargetFileId(48114L)).thenReturn(false);
+
+		assertThrows(IllegalArgumentException.class,
+					 () -> thumbnailGenerationService.generateThumbnail(export, originalDir.toString(), exportDir.toString(), 250, 0.7f, 1.5f));
+
+		try (var leftovers = Files.list(originalDir.resolve("thumb"))) {
+			assertThat(leftovers.toList()).as("the temporary thumbnail is removed again")
+										  .isEmpty();
+		}
+		verify(thumbFileRepository, never()).saveAndFlush(any());
 	}
 }

@@ -2,6 +2,10 @@ package fi.poltsi.vempain.file.tools;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,5 +37,18 @@ class LikePatternsUTC {
 
 		assertEquals(LikePatterns.MAX_TEXT_LENGTH + 2, pattern.length());
 		assertTrue(pattern.startsWith("%a") && pattern.endsWith("a%"));
+	}
+
+
+	@Test
+	void tokenListsAreCappedAndNullTextIsAnEmptyPattern() {
+		assertThat(LikePatterns.limitTokens(null)).isEmpty();
+		var tokens = IntStream.range(0, 12)
+							  .mapToObj(Integer::toString)
+							  .toList();
+		assertThat(LikePatterns.limitTokens(tokens)).hasSize(LikePatterns.MAX_TOKENS);
+		assertThat(LikePatterns.limitTokens(List.of("a"))).containsExactly("a");
+		assertThat(LikePatterns.containsIgnoreCase(null)).isEqualTo("%%");
+		assertThat(LikePatterns.containsIgnoreCase("ÅÄÖ")).isEqualTo("%åäö%");
 	}
 }

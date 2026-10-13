@@ -124,7 +124,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   This service's part is `fi.poltsi.vempain.file.task.FileTaskCommandExecutor` (the `TaskCommandExecutor` bean that maps `TaskTypeEnum`
     + JSON payload to service calls and replays `TAG_REVERT_MUTATION` compensations) and `fi.poltsi.vempain.file.api.TaskTypeEnum`:
       publish single file / file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
-      `DataResponse`), and the tag remove/replace/rename-across-all-files operations. Rules: validate and authorize synchronously before
+      `DataResponse`), the tag remove/replace/rename-across-all-files operations and the metadata value rewrite (`METADATA_UPDATE_VALUE`). Rules: validate and
+      authorize synchronously before
       submitting; report one step per unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy
       (`applicationContext.getBean(...)`) because the task body runs outside the request transaction; a task submitted inside a transaction
       starts after that transaction commits. Cancellation is cooperative and reverting (saga style): call `progress.checkpoint()` before every
@@ -178,7 +179,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `spring.datasource.url` requires TLS (`sslmode=require`, `verify-ca` or `verify-full`, or `ssl` without an `sslmode`); `prefer`/`allow` do
   not count because they fall back to plaintext. The `vempain-cluster` databases also reject plaintext connections.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
-  as a background task with one step per file (publish-all: one step per group, groups processed sequentially).
+  as a background task with one step per file, also for publish-all (groups processed sequentially, an empty group counts as one step and a
+  group that fails as a whole marks its remaining file steps as failed). The totals are computed when the task is submitted
+  (`FileGroupRepository.countFilesById`, the `file_count` of the group search), so `total_steps` is right from the first poll; the
+  progress rows commit in their own transaction (`vempain-common` 1.0.4+) and are therefore visible while the group's transaction is open.
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.
 - `UpdatedFileRefreshSchedule` persists its checkpoint in `scheduler_checkpoint`, verifies changed files with SHA-256, refreshes metadata and derivatives, and
   republishes only files whose `site_file_published` flag is true.
@@ -187,9 +191,29 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Runtime API traffic uses `/api` on port 8080; actuator and Swagger are exposed on port 8081. Local runs require PostgreSQL, valid `vempain.*`
   settings, existing source/export roots, and `exiftool`.
 
+- A file's `description` column comes from `MetadataTool.extractDescription` (scan and refresh): `XMP-dc:Description`, then
+  `IFD0:ImageDescription`, then the legacy `IPTC:Caption-Abstract`, using the family 1 group names of the scanner's `exiftool -g1 -J`
+  output (there is no `XMP` group in it). Thumbnails (`ThumbnailGenerationService`) carry the description of the file they were made
+  from, never their pixel size; `V1011` backfilled both from the `metadata` table and the thumbnails' target files.
+- Metadata management (`MetadataAPI` at `/metadata`, `MetadataController` -> `MetadataService`) browses the `metadata` table (one row per
+  file, ExifTool family 1 group and key, filled by `DirectoryProcessorService.processMetadata` from `exiftool -g1 -J`) and rewrites values:
+  `POST /metadata/paged` (`MetadataSearchRequest`: contains-filters on `metadata_group`/`metadata_key`/`metadata_value`, sort by
+  group/key/value/`file_count`) returns distinct group/key/value rows with system-wide file counts (`MetadataSummaryResponse`, native SQL
+  in `MetadataRepositoryImpl`, index `V1010`); `POST /metadata/files/paged` (`MetadataFilesRequest`: the triple plus `filename`/`file_type`
+  filters, sort through `FileSearchHelper.buildSort`) lists only files passing `FileAclService.readableFiles`; `POST /metadata/value`
+  (`MetadataValueUpdateRequest`: the triple plus `new_value`, empty removes the entry) answers `202` with a `METADATA_UPDATE_VALUE` task
+  after `requireModifyBulk` on every file carrying the value. The task body `MetadataService.applyValueUpdate` runs
+  `MetadataTool.writeMetadataValue` (`exiftool -GROUP:KEY=value`, in place) on the original and its export file, updates the export
+  checksum and thumbnail, re-reads the file through `DirectoryProcessorService.refreshExistingOriginalFile` (which rebuilds the file's
+  `metadata` rows) and registers a `METADATA_REVERT_VALUE` compensation per file (replayed by `FileTaskCommandExecutor`). Group and key
+  names must match `MetadataTool.isValidTagName` (`[A-Za-z0-9][A-Za-z0-9_-]*`, so request text can never become an ExifTool option or
+  `+=`/`<=` operator) and the groups `ExifTool`, `File`, `System` and `Composite` are read-only (`isWritableGroup`, reported as
+  `writable=false` in the summary). Metadata rows themselves carry no ACL. Covered by `MetadataServiceUTC`, `MetadataControllerCTC` (end
+  to end with ExifTool) and `MetadataToolITC`.
 - Every `LIKE` pattern built from request text goes through `fi.poltsi.vempain.file.tools.LikePatterns` (`contains`/`containsIgnoreCase`/`prefix`: escapes
   `%`, `_` and `\\`, truncates to 200 characters; `limitTokens` caps a search at 10 tokens) and declares the escape character,
-  as in `FileGroupRepositoryImpl` (native SQL, `ESCAPE_CLAUSE`), `FileSearchHelper` and `TagService` tag search (Criteria API, `ESCAPE_CHAR`). Request text
+  as in `FileGroupRepositoryImpl` and `MetadataRepositoryImpl` (native SQL, `ESCAPE_CLAUSE`), `FileSearchHelper`, `MetadataService.findFiles` and
+  `TagService` tag search (Criteria API, `ESCAPE_CHAR`). Request text
   never acts as wildcard syntax (OWASP A05).
 
 - Security findings and their mitigations are recorded in `security/OWASP-2025-audit-report.md`; keep it current when changing authorization,

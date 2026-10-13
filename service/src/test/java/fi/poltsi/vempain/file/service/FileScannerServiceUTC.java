@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.service;
 
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
 import fi.poltsi.vempain.common.task.TaskCancelledException;
+import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.request.ScanRequest;
@@ -12,6 +13,7 @@ import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -19,6 +21,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.EnumSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -167,5 +171,74 @@ class FileScannerServiceUTC {
 											 mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
 
 		assertThat(service.recorderFor(null)).isSameAs(ScanRecorder.NONE);
+	}
+
+
+	private FileScannerService serviceWithRoots(DirectoryProcessorService processor, String originalRoot, String exportRoot) {
+		var service = new FileScannerService(processor, mock(FileResponseEnricher.class), mock(TaskRunner.class), mock(FileRepository.class),
+											 mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+		ReflectionTestUtils.setField(service, "originalRootDirectory", originalRoot);
+		ReflectionTestUtils.setField(service, "exportRootDirectory", exportRoot);
+		return service;
+	}
+
+	@Test
+	void unreadableExportDirectoryIsReportedAsAFailedScan(@TempDir Path root) throws Exception {
+		Assumptions.assumeFalse("root".equals(System.getProperty("user.name")), "root can read every directory");
+		var export  = Files.createDirectories(root.resolve("export"));
+		var service = serviceWithRoots(mock(DirectoryProcessorService.class), root.toString(), root.toString());
+		var request = new ScanRequest();
+		request.setExportDirectory("/export");
+
+		Files.setPosixFilePermissions(export, EnumSet.noneOf(PosixFilePermission.class));
+		try {
+			var response = service.scanDirectories(request)
+								  .getScanExportResponse();
+
+			assertThat(response.isSuccess()).isFalse();
+			assertThat(response.getErrorMessage()).isEqualTo("Unable to scan the requested directory");
+		} finally {
+			Files.setPosixFilePermissions(export, EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE));
+		}
+	}
+
+	@Test
+	void unavailableScanRootIsAnInternalError() {
+		var service = serviceWithRoots(mock(DirectoryProcessorService.class), "/nonexistent-root-" + java.util.UUID.randomUUID(), "/tmp");
+		var request = new ScanRequest();
+		request.setOriginalDirectory("/photos");
+
+		var failure = assertThrows(ResponseStatusException.class, () -> service.scanDirectories(request));
+
+		assertThat(failure.getStatusCode()
+						  .value()).isEqualTo(500);
+	}
+
+	@Test
+	void theRootDirectoryItselfCanBeScanned(@TempDir Path root) throws Exception {
+		var processor = mock(DirectoryProcessorService.class);
+		when(processor.processOriginalDirectory(any(), any(), any(), any(), any(ScanRecorder.class))).thenReturn(java.util.List.of(0L, 0L));
+		var service = serviceWithRoots(processor, root.toString(), root.toString());
+		var request = new ScanRequest();
+		request.setOriginalDirectory("/");
+
+		var response = service.scanDirectories(request)
+							  .getScanOriginalResponse();
+
+		assertThat(response.isSuccess()).isTrue();
+		org.mockito.Mockito.verify(processor)
+						   .processOriginalDirectory(org.mockito.ArgumentMatchers.eq(root.toRealPath()), any(), any(), any(), any(ScanRecorder.class));
+	}
+
+	@Test
+	void recorderCheckpointsDelegateToTheTask() {
+		var service  = serviceWithRoots(mock(DirectoryProcessorService.class), "/tmp", "/tmp");
+		var progress = TaskProgress.unmanaged("t", "SCAN_DIRECTORIES", "title", 1L, 1, "{}");
+
+		var recorder = service.recorderFor(progress);
+		recorder.checkpoint();
+
+		assertThat(recorder).isNotSameAs(ScanRecorder.NONE);
+		assertThat(progress.isCancelRequested()).isFalse();
 	}
 }

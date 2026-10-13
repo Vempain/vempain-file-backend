@@ -134,7 +134,7 @@ class PublishControllerCTC extends AbstractControllerCTC {
 
 	@Test
 	void publishFileGroup_returns202_whenFileGroupExists() throws Exception {
-		// countFilesInGroup uses countById which returns 1 when the group exists
+		// A group without files still exists: the task is accepted and reports that there is nothing to publish
 		jdbcTemplate.update(
 				"INSERT INTO file_group (path, group_name, description) VALUES (?, ?, ?)",
 				"/pub/path", "Publish Group", "A group to publish");
@@ -243,4 +243,20 @@ class PublishControllerCTC extends AbstractControllerCTC {
 			   .andExpect(status().isUnauthorized());
 	}
 
+
+	@Test
+	void publishFiles_returns202_whenEveryFileMayBeModified() throws Exception {
+		seedImageFile(9307L, "seven.jpg", true);
+		seedImageFile(9308L, "eight.jpg", true);
+		try {
+			doPost("/publish/files", "{\"file_ids\":[9307,9308]}")
+					.andExpect(status().isAccepted())
+					.andExpect(jsonPath("$.task_id", notNullValue()))
+					.andExpect(jsonPath("$.type").value("PUBLISH_FILES"))
+					.andExpect(jsonPath("$.total_steps").value(2));
+		} finally {
+			deleteImageFile(9307L);
+			deleteImageFile(9308L);
+		}
+	}
 }

@@ -39,7 +39,7 @@ public class PublishController implements PublishAPI {
 
 	@Override
 	public ResponseEntity<TaskAcceptedResponse> publishFileGroup(PublishFileGroupRequest request) {
-		if (publishService.countFilesInGroup(request.getFileGroupId()) == 0L) {
+		if (!publishService.fileGroupExists(request.getFileGroupId())) {
 			return ResponseEntity.notFound()
 			                     .build();
 		}

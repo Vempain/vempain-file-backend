@@ -667,6 +667,41 @@ class MetadataToolUTC {
 	}
 
 	// ------------------------------------------------------------------
+	// extractDescription — XMP-dc:Description, then IFD0:ImageDescription, then IPTC:Caption-Abstract (exiftool -g1 groups)
+
+	@Test
+	@DisplayName("extractDescription prefers XMP-dc:Description over IFD0:ImageDescription and IPTC:Caption-Abstract")
+	void extractDescription_prefersXmpDc() {
+		var root = new JSONObject().put("XMP-dc", new JSONObject().put("Description", "xmp text"))
+								   .put("IFD0", new JSONObject().put("ImageDescription", "ifd0 text"))
+								   .put("IPTC", new JSONObject().put("Caption-Abstract", "iptc text"));
+		assertEquals("xmp text", MetadataTool.extractDescription(root));
+	}
+
+	@Test
+	@DisplayName("extractDescription falls back to IFD0:ImageDescription when XMP-dc:Description is missing or blank")
+	void extractDescription_fallsBackToIfd0() {
+		var root = new JSONObject().put("XMP-dc", new JSONObject().put("Description", "  "))
+								   .put("IFD0", new JSONObject().put("ImageDescription", " ifd0 text "))
+								   .put("IPTC", new JSONObject().put("Caption-Abstract", "iptc text"));
+		assertEquals("ifd0 text", MetadataTool.extractDescription(root));
+	}
+
+	@Test
+	@DisplayName("extractDescription falls back to IPTC:Caption-Abstract and ignores the family 0 XMP group")
+	void extractDescription_fallsBackToIptc() {
+		var root = new JSONObject().put("XMP", new JSONObject().put("Description", "family 0 text"))
+								   .put("IPTC", new JSONObject().put("Caption-Abstract", "iptc text"));
+		assertEquals("iptc text", MetadataTool.extractDescription(root));
+	}
+
+	@Test
+	@DisplayName("extractDescription returns null without any description and for null input")
+	void extractDescription_returnsNull_whenAbsent() {
+		assertNull(MetadataTool.extractDescription(new JSONObject().put("IFD0", new JSONObject().put("Make", "Canon"))));
+		assertNull(MetadataTool.extractDescription(null));
+	}
+
 	// extractMusicDescription — Vorbis Description (FLAC) and ID3 Comment (MP3)
 	// ------------------------------------------------------------------
 

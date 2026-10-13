@@ -54,6 +54,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -491,8 +492,11 @@ public class DirectoryProcessorService {
 			mimetype = extractMimetype(jsonObject);
 
 			if (mimetype == null) {
-				log.error("Failed to determine MIME type for file: {}", file.getName());
-				return Boolean.FALSE;
+				mimetype = inferMimetypeFromFilename(file);
+				if (mimetype == null) {
+					log.error("Failed to determine MIME type for file: {}", file.getName());
+					return Boolean.FALSE;
+				}
 			}
 		}
 
@@ -702,6 +706,9 @@ public class DirectoryProcessorService {
 		var mimetype = Files.probeContentType(file.toPath());
 		if (mimetype == null) {
 			mimetype = extractMimetype(jsonObject);
+		}
+		if (mimetype == null) {
+			mimetype = inferMimetypeFromFilename(file);
 		}
 		if (mimetype == null) {
 			return false;
@@ -1119,8 +1126,9 @@ public class DirectoryProcessorService {
 				continue;
 			}
 			try {
-				// Take the part before first dot as major
-				var majorStr = token.split("\\.")[0];
+				// Take the part before first dot as major; a token of only dots (e.g. from "name.bin") splits to nothing
+				var parts    = token.split("\\.");
+				var majorStr = parts.length == 0 ? "" : parts[0];
 				if (!majorStr.isBlank()) {
 					return Integer.parseInt(majorStr);
 				}
@@ -1154,6 +1162,18 @@ public class DirectoryProcessorService {
 			return "BINARY";
 		}
 		return "OTHER";
+	}
+
+	private String inferMimetypeFromFilename(File file) {
+		var filename = file.getName()
+		                   .toLowerCase(Locale.ROOT);
+		if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
+			return "application/yaml";
+		}
+		if (filename.endsWith(".msi")) {
+			return "application/x-msi";
+		}
+		return null;
 	}
 
 	private Set<String> determineOperatingSystems(String mimetype, String filename) {

@@ -363,8 +363,10 @@ public class TagService {
 
 			var metadata = MetadataTool.extractMetadataJsonObject(original);
 			var subjects = new ArrayList<>(MetadataTool.extractSubjects(metadata));
-			if (operation == Operation.ADD && !subjects.contains(oldTag)) {
-				subjects.add(oldTag);
+			if (operation == Operation.ADD) {
+				if (!subjects.contains(oldTag)) {
+					subjects.add(oldTag);
+				}
 			} else if (operation == Operation.REMOVE) {
 				subjects.removeIf(oldTag::equals);
 			} else {

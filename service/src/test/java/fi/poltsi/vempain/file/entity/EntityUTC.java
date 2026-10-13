@@ -1,7 +1,9 @@
 package fi.poltsi.vempain.file.entity;
 
+import fi.poltsi.vempain.file.service.ScanRecorder;
 import fi.poltsi.vempain.file.service.VempainMultipartFile;
 import fi.poltsi.vempain.file.tools.FileTool;
+import fi.poltsi.vempain.file.tools.LikePatterns;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -478,6 +480,73 @@ class EntityUTC {
 			assertThat(row.groupName()).isEqualTo("group");
 			assertThat(row.description()).isEqualTo("description");
 			assertThat(row.fileCount()).isEqualTo(5L);
+		}
+	}
+
+
+	@Nested
+	@DisplayName("FileEntity responses")
+	class FileEntityResponses {
+
+		@Test
+		void baseResponseOptionallyDropsTheRawMetadata() {
+			var entity = new FileEntity() {
+			};
+			entity.setFilename("plain.bin");
+			entity.setMetadataRaw("{\"a\":1}");
+
+			assertThat(entity.toResponse()
+							 .getMetadataRaw()).isEqualTo("{\"a\":1}");
+			assertThat(entity.toResponse(false)
+							 .getMetadataRaw()).isNull();
+			assertThat(entity.toResponse(false)
+							 .getFilename()).isEqualTo("plain.bin");
+		}
+
+		@Test
+		void fileGroupResponseListsItsFilesWithoutRawMetadata() {
+			var image = new ImageFileEntity();
+			image.setId(3L);
+			image.setFilename("a.jpg");
+			image.setMetadataRaw("{}");
+			var group = FileGroupEntity.builder()
+									   .id(1L)
+									   .path("/p")
+									   .groupName("g")
+									   .description("")
+									   .files(new ArrayList<>(List.of(image)))
+									   .build();
+
+			var response = group.toResponse();
+
+			assertThat(response.getFiles()).hasSize(1);
+			assertThat(response.getFiles()
+							   .getFirst()
+							   .getId()).isEqualTo(3L);
+			assertThat(response.getFiles()
+							   .getFirst()
+							   .getMetadataRaw()).isNull();
+		}
+
+		@Test
+		void multipartFileOfAMissingPathIsEmpty() {
+			var multipart = VempainMultipartFile.builder()
+												.path(Path.of("/nonexistent-" + System.nanoTime()))
+												.contentType("image/jpeg")
+												.build();
+
+			assertThat(multipart.getSize()).isZero();
+			assertThat(multipart.isEmpty()).isTrue();
+		}
+
+		@Test
+		void theSilentScanRecorderAcceptsEveryCallback() {
+			ScanRecorder.NONE.checkpoint();
+			ScanRecorder.NONE.fileGroupCreated(null);
+			ScanRecorder.NONE.fileCreated(null);
+			ScanRecorder.NONE.exportFileCreated(null);
+			assertThat(new FileTool()).isNotNull();
+			assertThat(LikePatterns.limitTokens(null)).isEmpty();
 		}
 	}
 }

@@ -1,20 +1,5 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.auth.entity.Acl;
-import fi.poltsi.vempain.auth.entity.Unit;
-import fi.poltsi.vempain.auth.repository.AclRepository;
-import fi.poltsi.vempain.auth.security.AclAuthorizationService;
-import fi.poltsi.vempain.auth.service.UserDetailsImpl;
-import fi.poltsi.vempain.file.entity.FileEntity;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -22,179 +7,191 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import fi.poltsi.vempain.auth.entity.Acl;
+import fi.poltsi.vempain.auth.entity.Unit;
+import fi.poltsi.vempain.auth.repository.AclRepository;
+import fi.poltsi.vempain.auth.security.AclAuthorizationService;
+import fi.poltsi.vempain.auth.service.UserDetailsImpl;
+import fi.poltsi.vempain.file.entity.FileEntity;
+import lombok.RequiredArgsConstructor;
+
 /**
- * Resource authorization for {@link FileEntity} rows. Files are the only ACL-linked resources in this service: every file carries an
- * {@code acl_id} and access is granted only when an ACL row for that id gives the authenticated user, or one of the user's units, the
- * requested privilege. A file whose {@code acl_id} is not positive, or whose ACL rows are missing, is denied for everyone (fail closed);
- * {@code FileAclRepairSchedule} re-creates the missing ACL for the creator once a day.
+ * Resource authorization for {@link FileEntity} rows. Files are the only ACL-linked resources in this service: every file carries an {@code acl_id} and access
+ * is granted only when an ACL row for that id gives the authenticated user, or one of the user's units, the requested privilege. A file whose {@code acl_id} is
+ * not positive, or whose ACL rows are missing, is denied for everyone (fail closed); {@code FileAclRepairSchedule} re-creates the missing ACL for the creator
+ * once a day.
  */
 @Service
 @RequiredArgsConstructor
 public class FileAclService {
-	private final AclAuthorizationService aclAuthorizationService;
-	private final AclRepository aclRepository;
 
-	/**
-	 * Specification that keeps only the files the current user may read. Used by every paged listing so that paging and counting are
-	 * evaluated in the database.
-	 */
-	public <T extends FileEntity> Specification<T> readableFiles() {
-		var access = currentAclAccess();
-		return (root, query, criteriaBuilder) ->
-		{
-			if (access.userId() == null) {
-				// No authenticated Vempain user: nothing is readable
-				return criteriaBuilder.disjunction();
-			}
+    private final AclAuthorizationService aclAuthorizationService;
+    private final AclRepository aclRepository;
 
-			var accessibleAclIds  = query.subquery(Long.class);
-			var accessibleAclRoot = accessibleAclIds.from(Acl.class);
-			accessibleAclIds.select(accessibleAclRoot.get("aclId"));
-			accessibleAclIds.where(
-					criteriaBuilder.equal(accessibleAclRoot.get("aclId"), root.get("aclId")),
-					criteriaBuilder.isTrue(accessibleAclRoot.get("readPrivilege")),
-					accessiblePrincipalPredicate(accessibleAclRoot, access, criteriaBuilder)
-			);
+    /**
+     * Specification that keeps only the files the current user may read. Used by every paged listing so that paging and counting are evaluated in the database.
+     */
+    public <T extends FileEntity> Specification<T> readableFiles() {
+        var access = currentAclAccess();
+        return (root, query, criteriaBuilder) -> {
+            if (access.userId() == null) {
+                // No authenticated Vempain user: nothing is readable
+                return criteriaBuilder.disjunction();
+            }
 
-			return criteriaBuilder.and(
-					criteriaBuilder.greaterThan(root.get("aclId"), 0L),
-					criteriaBuilder.exists(accessibleAclIds)
-			);
-		};
-	}
+            var accessibleAclIds = query.subquery(Long.class);
+            var accessibleAclRoot = accessibleAclIds.from(Acl.class);
+            accessibleAclIds.select(accessibleAclRoot.get("aclId"));
+            accessibleAclIds.where(criteriaBuilder.equal(accessibleAclRoot.get("aclId"), root.get("aclId")),
+                    criteriaBuilder.isTrue(accessibleAclRoot.get("readPrivilege")), accessiblePrincipalPredicate(accessibleAclRoot, access, criteriaBuilder));
 
-	public <T extends FileEntity> Specification<T> readableFiles(Specification<T> search) {
-		Specification<T> readable = this.readableFiles();
-		return search == null ? readable : readable.and(search);
-	}
+            return criteriaBuilder.and(criteriaBuilder.greaterThan(root.get("aclId"), 0L), criteriaBuilder.exists(accessibleAclIds));
+        };
+    }
 
-	public void requireRead(FileEntity file) {
-		require(file, AclAuthorizationService.AclPrivilege.READ);
-	}
+    public <T extends FileEntity> Specification<T> readableFiles(Specification<T> search) {
+        Specification<T> readable = this.readableFiles();
+        return search == null ? readable : readable.and(search);
+    }
 
-	public void requireModify(FileEntity file) {
-		require(file, AclAuthorizationService.AclPrivilege.MODIFY);
-	}
+    public void requireRead(FileEntity file) {
+        require(file, AclAuthorizationService.AclPrivilege.READ);
+    }
 
-	public void requireModify(Collection<? extends FileEntity> files) {
-		if (files == null) {
-			return;
-		}
+    public void requireModify(FileEntity file) {
+        require(file, AclAuthorizationService.AclPrivilege.MODIFY);
+    }
 
-		for (var file : files) {
-			requireModify(file);
-		}
-	}
+    public void requireModify(Collection<? extends FileEntity> files) {
+        if (files == null) {
+            return;
+        }
 
-	/**
-	 * Checks all files against one snapshot of the ACL table. This is used by bulk operations that must authorize a set before
-	 * submitting background work; it avoids one ACL query per file and reports every denied file in one fail-closed error.
-	 */
-	public void requireModifyBulk(Collection<? extends FileEntity> files) {
-		if (files == null || files.isEmpty()) {
-			return;
-		}
+        for (var file : files) {
+            requireModify(file);
+        }
+    }
 
-		var access       = currentAclAccess();
-		var modifyAclIds = new HashSet<Long>();
-		var requestedAclIds = files.stream()
-								   .filter(Objects::nonNull)
-								   .map(FileEntity::getAclId)
-								   .filter(aclId -> aclId > 0)
-								   .collect(Collectors.toSet());
-		if (access.userId() != null && !requestedAclIds.isEmpty()) {
-			aclRepository.findByAclIdIn(requestedAclIds)
-						 .stream()
-						 .filter(acl -> (Objects.equals(acl.getUserId(), access.userId())
-										 || (acl.getUserId() == null && acl.getUnitId() != null && access.unitIds()
-			                                                                                             .contains(acl.getUnitId())))
-										&& acl.isModifyPrivilege())
-						 .map(Acl::getAclId)
-						 .forEach(modifyAclIds::add);
-		}
+    /**
+     * Checks all files against one snapshot of the ACL table. This is used by bulk operations that must authorize a set before submitting background work; it
+     * avoids one ACL query per file and reports every denied file in one fail-closed error.
+     */
+    public void requireModifyBulk(Collection<? extends FileEntity> files) {
+        if (files == null
+            || files.isEmpty()) {
+            return;
+        }
 
-		var deniedIds = files.stream()
-							 .filter(file -> file == null || file.getAclId() <= 0 || !modifyAclIds.contains(file.getAclId()))
-							 .map(file -> file == null ? null : file.getId())
-							 .toList();
-		if (!deniedIds.isEmpty()) {
-			throw new AccessDeniedException("The current user has no modify access to files: " + deniedIds);
-		}
-	}
+        var access = currentAclAccess();
+        var modifyAclIds = new HashSet<Long>();
+        var requestedAclIds = files.stream()
+            .filter(Objects::nonNull)
+            .map(FileEntity::getAclId)
+            .filter(aclId -> aclId > 0)
+            .collect(Collectors.toSet());
+        if (access.userId() != null
+            && !requestedAclIds.isEmpty()) {
+            aclRepository.findByAclIdIn(requestedAclIds)
+                .stream()
+                .filter(acl -> (Objects.equals(acl.getUserId(), access.userId())
+                                || (acl.getUserId() == null
+                                    && acl.getUnitId() != null
+                                    && access.unitIds()
+                                        .contains(acl.getUnitId())))
+                               && acl.isModifyPrivilege())
+                .map(Acl::getAclId)
+                .forEach(modifyAclIds::add);
+        }
 
-	public void requireDelete(FileEntity file) {
-		require(file, AclAuthorizationService.AclPrivilege.DELETE);
-	}
+        var deniedIds = files.stream()
+            .filter(file -> file == null
+                            || file.getAclId() <= 0
+                            || !modifyAclIds.contains(file.getAclId()))
+            .map(file -> file == null ? null : file.getId())
+            .toList();
+        if (!deniedIds.isEmpty()) {
+            throw new AccessDeniedException("The current user has no modify access to files: " + deniedIds);
+        }
+    }
 
-	public boolean canRead(FileEntity file) {
-		return hasPrivilege(file, AclAuthorizationService.AclPrivilege.READ);
-	}
+    public void requireDelete(FileEntity file) {
+        require(file, AclAuthorizationService.AclPrivilege.DELETE);
+    }
 
-	public boolean canModify(FileEntity file) {
-		return hasPrivilege(file, AclAuthorizationService.AclPrivilege.MODIFY);
-	}
+    public boolean canRead(FileEntity file) {
+        return hasPrivilege(file, AclAuthorizationService.AclPrivilege.READ);
+    }
 
-	/**
-	 * @return {@code true} when the current user may modify every file in the collection. An empty collection is allowed because there
-	 * is nothing to protect.
-	 */
-	public boolean canModifyAll(Collection<? extends FileEntity> files) {
-		if (files == null || files.isEmpty()) {
-			return true;
-		}
+    public boolean canModify(FileEntity file) {
+        return hasPrivilege(file, AclAuthorizationService.AclPrivilege.MODIFY);
+    }
 
-		return files.stream()
-					.allMatch(this::canModify);
-	}
+    /**
+     * @return {@code true} when the current user may modify every file in the collection. An empty collection is allowed because there is nothing to protect.
+     */
+    public boolean canModifyAll(Collection<? extends FileEntity> files) {
+        if (files == null
+            || files.isEmpty()) {
+            return true;
+        }
 
-	private boolean hasPrivilege(FileEntity file, AclAuthorizationService.AclPrivilege privilege) {
-		return file != null
-			   && aclAuthorizationService.hasPrivilege(file.getAclId(), privilege, SecurityContextHolder.getContext()
-																										.getAuthentication());
-	}
+        return files.stream()
+            .allMatch(this::canModify);
+    }
 
-	private void require(FileEntity file, AclAuthorizationService.AclPrivilege privilege) {
-		if (!hasPrivilege(file, privilege)) {
-			throw new AccessDeniedException("The current user has no " + privilege.name()
-																				  .toLowerCase() + " access to the file");
-		}
-	}
+    private boolean hasPrivilege(FileEntity file, AclAuthorizationService.AclPrivilege privilege) {
+        return file != null
+               && aclAuthorizationService.hasPrivilege(file.getAclId(), privilege, SecurityContextHolder.getContext()
+                   .getAuthentication());
+    }
 
-	private Predicate accessiblePrincipalPredicate(Root<Acl> aclRoot,
-												   AclAccess access,
-												   CriteriaBuilder criteriaBuilder) {
-		var predicates = new ArrayList<Predicate>();
-		predicates.add(criteriaBuilder.equal(aclRoot.get("userId"), access.userId()));
-		if (!access.unitIds()
-		           .isEmpty()) {
-			predicates.add(criteriaBuilder.and(
-					criteriaBuilder.isNull(aclRoot.get("userId")),
-					aclRoot.get("unitId")
-					       .in(access.unitIds())
-			));
-		}
-		return criteriaBuilder.or(predicates.toArray(Predicate[]::new));
-	}
+    private void require(FileEntity file, AclAuthorizationService.AclPrivilege privilege) {
+        if (!hasPrivilege(file, privilege)) {
+            throw new AccessDeniedException("The current user has no "
+                    + privilege.name()
+                        .toLowerCase()
+                    + " access to the file");
+        }
+    }
 
-	private AclAccess currentAclAccess() {
-		var authentication = SecurityContextHolder.getContext()
-												  .getAuthentication();
-		if (authentication == null || !authentication.isAuthenticated()
-			|| !(authentication.getPrincipal() instanceof UserDetailsImpl user)
-			|| user.getId() == null) {
-			return new AclAccess(null, Set.of());
-		}
+    private Predicate accessiblePrincipalPredicate(Root<Acl> aclRoot, AclAccess access, CriteriaBuilder criteriaBuilder) {
+        var predicates = new ArrayList<Predicate>();
+        predicates.add(criteriaBuilder.equal(aclRoot.get("userId"), access.userId()));
+        if (!access.unitIds()
+            .isEmpty()) {
+            predicates.add(criteriaBuilder.and(criteriaBuilder.isNull(aclRoot.get("userId")), aclRoot.get("unitId")
+                .in(access.unitIds())));
+        }
+        return criteriaBuilder.or(predicates.toArray(Predicate[]::new));
+    }
 
-		var unitIds = user.getUnits() == null
-					  ? Set.<Long>of()
-					  : user.getUnits()
-							.stream()
-							.map(Unit::getId)
-							.filter(Objects::nonNull)
-							.collect(Collectors.toSet());
-		return new AclAccess(user.getId(), unitIds);
-	}
+    private AclAccess currentAclAccess() {
+        var authentication = SecurityContextHolder.getContext()
+            .getAuthentication();
+        if (authentication == null
+            || !authentication.isAuthenticated()
+            || !(authentication.getPrincipal() instanceof UserDetailsImpl user)
+            || user.getId() == null) {
+            return new AclAccess(null, Set.of());
+        }
 
-	private record AclAccess(Long userId, Set<Long> unitIds) {
-	}
+        var unitIds = user.getUnits() == null ? Set.<Long>of()
+                : user.getUnits()
+                    .stream()
+                    .map(Unit::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        return new AclAccess(user.getId(), unitIds);
+    }
+
+    private record AclAccess(Long userId, Set<Long> unitIds) {}
 }

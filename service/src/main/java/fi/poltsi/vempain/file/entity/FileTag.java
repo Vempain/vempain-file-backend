@@ -7,6 +7,7 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,13 +21,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @IdClass(FileTagId.class)
 public class FileTag {
-	@Id
-	@ManyToOne(optional = false, fetch = FetchType.LAZY)
-	@JoinColumn(name = "file_id", nullable = false)
-	private FileEntity file;
 
-	@Id
-	@ManyToOne(optional = false, fetch = FetchType.LAZY)
-	@JoinColumn(name = "tag_id", nullable = false)
-	private TagEntity tag;
+    @Id
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "file_id", nullable = false)
+    private FileEntity file;
+
+    @Id
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "tag_id", nullable = false)
+    private TagEntity tag;
 }

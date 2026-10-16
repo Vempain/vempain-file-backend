@@ -18,21 +18,21 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Tag(name = "FileGroupListResponse", description = "Schema for FileGroupListResponse")
 public class FileGroupListResponse {
 
-	@Schema(description = "ID of the file group", example = "123")
-	private Long id;
+    @Schema(description = "ID of the file group", example = "123")
+    private Long id;
 
-	@Schema(description = "Common path of the file group", example = "/photos/2025/holiday")
-	private String path;
+    @Schema(description = "Common path of the file group", example = "/photos/2025/holiday")
+    private String path;
 
-	@Schema(description = "Name of the file group", example = "Firenze Trip 2025")
-	private String groupName;
+    @Schema(description = "Name of the file group", example = "Firenze Trip 2025")
+    private String groupName;
 
-	@Schema(description = "Description of the file group", example = "Our trip to Firenze 2025 by car")
-	private String description;
+    @Schema(description = "Description of the file group", example = "Our trip to Firenze 2025 by car")
+    private String description;
 
-	@Schema(description = "How many files belong to this group", example = "42")
-	private long fileCount;
+    @Schema(description = "How many files belong to this group", example = "42")
+    private long fileCount;
 
-	@Schema(description = "Potential ID of the published file group as gallery", example = "123")
-	private Long galleryId;
+    @Schema(description = "Potential ID of the published file group as gallery", example = "123")
+    private Long galleryId;
 }

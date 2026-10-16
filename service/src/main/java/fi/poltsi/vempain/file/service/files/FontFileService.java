@@ -1,5 +1,11 @@
 package fi.poltsi.vempain.file.service.files;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
@@ -9,60 +15,48 @@ import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class FontFileService {
 
-	private final FontFileRepository fontFileRepository;
-	private final FileResponseEnricher fileResponseEnricher;
-	private final FileAclService fileAclService;
+    private final FontFileRepository fontFileRepository;
+    private final FileResponseEnricher fileResponseEnricher;
+    private final FileAclService fileAclService;
 
-	@Transactional(readOnly = true)
-	public PagedResponse<FontFileResponse> findAll(PagedRequest pagedRequest) {
-		var                           safePage   = Math.max(0, pagedRequest.getPage());
-		var                           safeSize   = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
-		var                           sort       = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		Specification<FontFileEntity> spec = fileAclService.readableFiles(
-				FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
-		var                           pageable   = PageRequest.of(safePage, safeSize, sort);
-		var                           pageResult = fontFileRepository.findAll(spec, pageable);
-		var content = fileResponseEnricher.<FontFileResponse>toResponses(pageResult.getContent());
-		return PagedResponse.of(
-				content,
-				pageResult.getNumber(),
-				pageResult.getSize(),
-				pageResult.getTotalElements(),
-				pageResult.getTotalPages(),
-				pageResult.isFirst(),
-				pageResult.isLast()
-		);
-	}
+    @Transactional(readOnly = true)
+    public PagedResponse<FontFileResponse> findAll(PagedRequest pagedRequest) {
+        var safePage = Math.max(0, pagedRequest.getPage());
+        var safeSize = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+        var sort = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+        Specification<FontFileEntity> spec = fileAclService
+            .readableFiles(FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
+        var pageable = PageRequest.of(safePage, safeSize, sort);
+        var pageResult = fontFileRepository.findAll(spec, pageable);
+        var content = fileResponseEnricher.<FontFileResponse>toResponses(pageResult.getContent());
+        return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(),
+                pageResult.isFirst(), pageResult.isLast());
+    }
 
-	@Transactional(readOnly = true)
-	public FontFileResponse findById(long id) {
-		var entityOpt = fontFileRepository.findById(id);
-		return entityOpt.map(entity -> {
-							fileAclService.requireRead(entity);
-							return fileResponseEnricher.<FontFileResponse>toResponse(entity);
-						})
-		                .orElse(null);
-	}
+    @Transactional(readOnly = true)
+    public FontFileResponse findById(long id) {
+        var entityOpt = fontFileRepository.findById(id);
+        return entityOpt.map(entity -> {
+            fileAclService.requireRead(entity);
+            return fileResponseEnricher.<FontFileResponse>toResponse(entity);
+        })
+            .orElse(null);
+    }
 
-	public HttpStatus delete(long id) {
-		if (!fontFileRepository.existsById(id)) {
-			log.warn("Font file with id {} not found", id);
-			return HttpStatus.NOT_FOUND;
-		}
-		fileAclService.requireDelete(fontFileRepository.findById(id)
-		                                               .orElseThrow());
-		fontFileRepository.deleteById(id);
-		return HttpStatus.OK;
-	}
+    public HttpStatus delete(long id) {
+        if (!fontFileRepository.existsById(id)) {
+            log.warn("Font file with id {} not found", id);
+            return HttpStatus.NOT_FOUND;
+        }
+        fileAclService.requireDelete(fontFileRepository.findById(id)
+            .orElseThrow());
+        fontFileRepository.deleteById(id);
+        return HttpStatus.OK;
+    }
 }

@@ -10,12 +10,12 @@ import static org.mockito.Mockito.mockStatic;
  */
 class VempainFileServiceApplicationUTC {
 
-	@Test
-	void mainDelegatesToSpringApplication() {
-		try (var spring = mockStatic(SpringApplication.class)) {
-			VempainFileServiceApplication.main(new String[]{"--spring.main.banner-mode=off"});
+    @Test
+    void mainDelegatesToSpringApplication() {
+        try (var spring = mockStatic(SpringApplication.class)) {
+            VempainFileServiceApplication.main(new String[]{ "--spring.main.banner-mode=off" });
 
-			spring.verify(() -> SpringApplication.run(VempainFileServiceApplication.class, "--spring.main.banner-mode=off"));
-		}
-	}
+            spring.verify(() -> SpringApplication.run(VempainFileServiceApplication.class, "--spring.main.banner-mode=off"));
+        }
+    }
 }

@@ -1,8 +1,9 @@
 package fi.poltsi.vempain.file.api.request;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,12 +19,11 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Schema(name = "CreateGpsTimeSeriesRequest", description = "Request to create a GPS time-series dataset from a file group")
 public class CreateGpsTimeSeriesRequest {
 
-	@Schema(description = "ID of the file group containing GPS-tagged images", example = "42", required = true)
-	@NotNull(message = "File group ID must not be null")
-	private Long fileGroupId;
+    @Schema(description = "ID of the file group containing GPS-tagged images", example = "42", required = true)
+    @NotNull(message = "File group ID must not be null")
+    private Long fileGroupId;
 
-	@Schema(description = "Name of the time-series dataset (identifier)", example = "holidays_2024", required = true)
-	@NotBlank(message = "Time series name must not be blank")
-	private String timeSeriesName;
+    @Schema(description = "Name of the time-series dataset (identifier)", example = "holidays_2024", required = true)
+    @NotBlank(message = "Time series name must not be blank")
+    private String timeSeriesName;
 }
-

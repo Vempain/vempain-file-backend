@@ -1,13 +1,14 @@
 package fi.poltsi.vempain.file.repository;
 
+import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,53 +21,51 @@ import static org.mockito.Mockito.when;
  */
 class FileGroupRepositoryImplUTC {
 
-	private final EntityManager           entityManager = mock(EntityManager.class);
-	private final Query                   query         = mock(Query.class);
-	private final FileGroupRepositoryImpl repository    = new FileGroupRepositoryImpl(entityManager);
+    private final EntityManager entityManager = mock(EntityManager.class);
+    private final Query query = mock(Query.class);
+    private final FileGroupRepositoryImpl repository = new FileGroupRepositoryImpl(entityManager);
 
-	FileGroupRepositoryImplUTC() {
-		when(entityManager.createNativeQuery(anyString())).thenReturn(query);
-		when(query.getResultList()).thenReturn(List.of());
-		when(query.getSingleResult()).thenReturn(0L);
-	}
+    FileGroupRepositoryImplUTC() {
+        when(entityManager.createNativeQuery(anyString())).thenReturn(query);
+        when(query.getResultList()).thenReturn(List.of());
+        when(query.getSingleResult()).thenReturn(0L);
+    }
 
-	@Test
-	void tokensAreBoundAsEscapedPatternsWithAnExplicitEscapeClause() {
-		repository.searchFileGroups("50% \"a_b\" Trip", false, PageRequest.of(0, 10));
+    @Test
+    void tokensAreBoundAsEscapedPatternsWithAnExplicitEscapeClause() {
+        repository.searchFileGroups("50% \"a_b\" Trip", false, PageRequest.of(0, 10));
 
-		var sql = ArgumentCaptor.forClass(String.class);
-		verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
-		assertThat(sql.getAllValues()
-					  .get(0)).contains("LOWER(fg.path) LIKE :term0 ESCAPE '\\'")
-							  .doesNotContain("50%");
-		verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%50\\%%");
-		verify(query, org.mockito.Mockito.times(2)).setParameter("term1", "%a\\_b%");
-		verify(query, org.mockito.Mockito.times(2)).setParameter("term2", "%trip%");
-	}
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
+        assertThat(sql.getAllValues()
+            .get(0)).contains("LOWER(fg.path) LIKE :term0 ESCAPE '\\'")
+            .doesNotContain("50%");
+        verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%50\\%%");
+        verify(query, org.mockito.Mockito.times(2)).setParameter("term1", "%a\\_b%");
+        verify(query, org.mockito.Mockito.times(2)).setParameter("term2", "%trip%");
+    }
 
-	@Test
-	void caseSensitiveSearchKeepsTheTextButStillEscapesIt() {
-		repository.searchFileGroups("Trip_%", true, PageRequest.of(0, 10));
+    @Test
+    void caseSensitiveSearchKeepsTheTextButStillEscapesIt() {
+        repository.searchFileGroups("Trip_%", true, PageRequest.of(0, 10));
 
-		var sql = ArgumentCaptor.forClass(String.class);
-		verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
-		assertThat(sql.getAllValues()
-					  .get(0)).contains("fg.path LIKE :term0 ESCAPE '\\'");
-		verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%Trip\\_\\%%");
-	}
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
+        assertThat(sql.getAllValues()
+            .get(0)).contains("fg.path LIKE :term0 ESCAPE '\\'");
+        verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%Trip\\_\\%%");
+    }
 
+    @Test
+    void sortColumnsAreMappedThroughTheAllowListAndJoinedInOrder() {
+        repository.searchFileGroups(null, false, PageRequest.of(0, 10, Sort.by(Sort.Order.desc("id"), Sort.Order.asc("description"),
+                Sort.Order.asc("group_name"), Sort.Order.desc("file_count"), Sort.Order.asc("bogus; DROP TABLE"))));
 
-	@Test
-	void sortColumnsAreMappedThroughTheAllowListAndJoinedInOrder() {
-		repository.searchFileGroups(null, false, PageRequest.of(0, 10, Sort.by(Sort.Order.desc("id"), Sort.Order.asc("description"),
-																			   Sort.Order.asc("group_name"), Sort.Order.desc("file_count"),
-																			   Sort.Order.asc("bogus; DROP TABLE"))));
-
-		var sql = ArgumentCaptor.forClass(String.class);
-		verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
-		assertThat(sql.getAllValues()
-					  .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, fg.path ASC")
-							  .doesNotContain("DROP TABLE")
-							  .doesNotContain(" WHERE ");
-	}
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
+        assertThat(sql.getAllValues()
+            .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, fg.path ASC")
+            .doesNotContain("DROP TABLE")
+            .doesNotContain(" WHERE ");
+    }
 }

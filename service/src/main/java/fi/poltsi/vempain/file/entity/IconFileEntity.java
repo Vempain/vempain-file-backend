@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.IconFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.IconFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -21,27 +22,27 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "icon_files")
 public class IconFileEntity extends FileEntity {
 
-	@Column(name = "width", nullable = false)
-	private int width;
+    @Column(name = "width", nullable = false)
+    private int width;
 
-	@Column(name = "height", nullable = false)
-	private int height;
+    @Column(name = "height", nullable = false)
+    private int height;
 
-	@Column(name = "is_scalable", nullable = false)
-	private Boolean isScalable; // True if the icon is vector-based
+    @Column(name = "is_scalable", nullable = false)
+    private Boolean isScalable; // True if the icon is vector-based
 
-	@Override
-	public IconFileResponse toResponse() {
-		IconFileResponse response = new IconFileResponse();
+    @Override
+    public IconFileResponse toResponse() {
+        IconFileResponse response = new IconFileResponse();
 
-		// Use the parent method to populate common fields
-		populateBaseResponse(response);
+        // Use the parent method to populate common fields
+        populateBaseResponse(response);
 
-		// Set the specific fields for this entity type
-		response.setWidth(getWidth());
-		response.setHeight(getHeight());
-		response.setIsScalable(getIsScalable());
+        // Set the specific fields for this entity type
+        response.setWidth(getWidth());
+        response.setHeight(getHeight());
+        response.setIsScalable(getIsScalable());
 
-		return response;
-	}
+        return response;
+    }
 }

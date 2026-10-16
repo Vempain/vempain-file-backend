@@ -1,5 +1,15 @@
 package fi.poltsi.vempain.file.rest.files;
 
+import jakarta.validation.Valid;
+
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.ArchiveFileResponse;
@@ -9,51 +19,41 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "Archive file API", description = "API for accessing and managing archive files")
 public interface ArchiveFileAPI {
-	String BASE_PATH = "/files/archive";
 
-	@Operation(summary = "Get all archive files", description = "Retrieve archive files with paging, sorting and search", tags = "Archive file API")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Page of archive files retrieved successfully"),
-			@ApiResponse(responseCode = "400", description = "Invalid request"),
-			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
-			@ApiResponse(responseCode = "500", description = "Internal server error")
-	})
-	@SecurityRequirement(name = "Bearer Authentication")
-	@PostMapping(path = BASE_PATH + "/paged", produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(@Valid @RequestBody PagedRequest pagedRequest);
+    String BASE_PATH = "/files/archive";
 
-	@Operation(summary = "Get archive file by ID", description = "Retrieve specific archive file by its unique identifier", tags = "Archive file API")
-	@Parameter(name = "id", description = "Archive ID to be fetched", example = "1")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Specific archive file retrieved successfully"),
-			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
-			@ApiResponse(responseCode = "404", description = "Specific archive file not found"),
-			@ApiResponse(responseCode = "500", description = "Internal server error")
-	})
-	@SecurityRequirement(name = "Bearer Authentication")
-	@GetMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-	ResponseEntity<ArchiveFileResponse> findById(@PathVariable("id") long id);
+    @Operation(summary = "Get all archive files", description = "Retrieve archive files with paging, sorting and search", tags = "Archive file API")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Page of archive files retrieved successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "403", description = "Unauthorized access"),
+        @ApiResponse(responseCode = "500", description = "Internal server error") })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @PostMapping(path = BASE_PATH + "/paged", produces = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<PagedResponse<ArchiveFileResponse>> findAll(@Valid @RequestBody PagedRequest pagedRequest);
 
-	@Operation(summary = "Remove archive file by ID", description = "Remove specific archive file by its unique identifier", tags = "Archive file API")
-	@Parameter(name = "id", description = "Archive ID to be removed", example = "1")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Specific archive file removed successfully"),
-			@ApiResponse(responseCode = "403", description = "Unauthorized access"),
-			@ApiResponse(responseCode = "404", description = "Specific archive file not found"),
-			@ApiResponse(responseCode = "500", description = "Internal server error")
-	})
-	@SecurityRequirement(name = "Bearer Authentication")
-	@DeleteMapping(BASE_PATH + "/{id}")
-	ResponseEntity<Void> delete(@PathVariable("id") long id);
+    @Operation(summary = "Get archive file by ID", description = "Retrieve specific archive file by its unique identifier", tags = "Archive file API")
+    @Parameter(name = "id", description = "Archive ID to be fetched", example = "1")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Specific archive file retrieved successfully"),
+        @ApiResponse(responseCode = "403", description = "Unauthorized access"),
+        @ApiResponse(responseCode = "404", description = "Specific archive file not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error") })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @GetMapping(path = BASE_PATH + "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<ArchiveFileResponse> findById(@PathVariable("id") long id);
+
+    @Operation(summary = "Remove archive file by ID", description = "Remove specific archive file by its unique identifier", tags = "Archive file API")
+    @Parameter(name = "id", description = "Archive ID to be removed", example = "1")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Specific archive file removed successfully"),
+        @ApiResponse(responseCode = "403", description = "Unauthorized access"),
+        @ApiResponse(responseCode = "404", description = "Specific archive file not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error") })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @DeleteMapping(BASE_PATH + "/{id}")
+    ResponseEntity<Void> delete(@PathVariable("id") long id);
 }

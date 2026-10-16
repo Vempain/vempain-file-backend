@@ -15,9 +15,9 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing a document file")
 public class DocumentFileResponse extends FileResponse {
 
-	@Schema(description = "Page count", example = "10")
-	private int pageCount;
+    @Schema(description = "Page count", example = "10")
+    private int pageCount;
 
-	@Schema(description = "Format of the document", example = "PDF")
-	private String format;
+    @Schema(description = "Format of the document", example = "PDF")
+    private String format;
 }

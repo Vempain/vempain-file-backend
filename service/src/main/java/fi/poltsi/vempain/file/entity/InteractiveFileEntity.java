@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.InteractiveFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.InteractiveFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -21,15 +22,15 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "interactive_files")
 public class InteractiveFileEntity extends FileEntity {
 
-	// e.g. FLASH, SHOCKWAVE, OTHER
-	@Column(name = "technology")
-	private String technology;
+    // e.g. FLASH, SHOCKWAVE, OTHER
+    @Column(name = "technology")
+    private String technology;
 
-	@Override
-	public InteractiveFileResponse toResponse() {
-		InteractiveFileResponse response = new InteractiveFileResponse();
-		populateBaseResponse(response);
-		response.setTechnology(getTechnology());
-		return response;
-	}
+    @Override
+    public InteractiveFileResponse toResponse() {
+        InteractiveFileResponse response = new InteractiveFileResponse();
+        populateBaseResponse(response);
+        response.setTechnology(getTechnology());
+        return response;
+    }
 }

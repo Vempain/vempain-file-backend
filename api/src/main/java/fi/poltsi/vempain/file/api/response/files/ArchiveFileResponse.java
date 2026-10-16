@@ -15,15 +15,15 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing an archive file")
 public class ArchiveFileResponse extends FileResponse {
 
-	@Schema(description = "Compression method", example = "gzip")
-	private String compressionMethod;
+    @Schema(description = "Compression method", example = "gzip")
+    private String compressionMethod;
 
-	@Schema(description = "Uncompressed size", example = "204800")
-	private Long uncompressedSize;
+    @Schema(description = "Uncompressed size", example = "204800")
+    private Long uncompressedSize;
 
-	@Schema(description = "Content count", example = "5")
-	private int contentCount;
+    @Schema(description = "Content count", example = "5")
+    private int contentCount;
 
-	@Schema(description = "Indicates if file is encrypted", example = "true")
-	private Boolean isEncrypted;
+    @Schema(description = "Indicates if file is encrypted", example = "true")
+    private Boolean isEncrypted;
 }

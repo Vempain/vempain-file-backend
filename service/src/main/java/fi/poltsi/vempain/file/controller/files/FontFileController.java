@@ -1,40 +1,41 @@
 package fi.poltsi.vempain.file.controller.files;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
+
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.response.files.FontFileResponse;
 import fi.poltsi.vempain.file.rest.files.FontFileAPI;
 import fi.poltsi.vempain.file.service.files.FontFileService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
 public class FontFileController implements FontFileAPI {
 
-	private final FontFileService fontFileService;
+    private final FontFileService fontFileService;
 
-	@Override
-	public ResponseEntity<PagedResponse<FontFileResponse>> findAll(PagedRequest pagedRequest) {
-		return ResponseEntity.ok(fontFileService.findAll(pagedRequest));
-	}
+    @Override
+    public ResponseEntity<PagedResponse<FontFileResponse>> findAll(PagedRequest pagedRequest) {
+        return ResponseEntity.ok(fontFileService.findAll(pagedRequest));
+    }
 
-	@Override
-	public ResponseEntity<FontFileResponse> findById(long id) {
-		var response = fontFileService.findById(id);
+    @Override
+    public ResponseEntity<FontFileResponse> findById(long id) {
+        var response = fontFileService.findById(id);
 
-		if (response == null) {
-			return ResponseEntity.notFound()
-			                     .build();
-		}
+        if (response == null) {
+            return ResponseEntity.notFound()
+                .build();
+        }
 
-		return ResponseEntity.ok(response);
-	}
+        return ResponseEntity.ok(response);
+    }
 
-	@Override
-	public ResponseEntity<Void> delete(long id) {
-		return ResponseEntity.status(fontFileService.delete(id))
-		                     .build();
-	}
+    @Override
+    public ResponseEntity<Void> delete(long id) {
+        return ResponseEntity.status(fontFileService.delete(id))
+            .build();
+    }
 }

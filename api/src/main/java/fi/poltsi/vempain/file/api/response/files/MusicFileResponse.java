@@ -15,31 +15,30 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing a music file with artist/album metadata")
 public class MusicFileResponse extends AudioFileResponse {
 
-	@Schema(description = "Recording artist or band", example = "The Beatles")
-	private String artist;
+    @Schema(description = "Recording artist or band", example = "The Beatles")
+    private String artist;
 
-	@Schema(description = "Album artist, useful for compilations", example = "Various Artists")
-	private String albumArtist;
+    @Schema(description = "Album artist, useful for compilations", example = "Various Artists")
+    private String albumArtist;
 
-	@Schema(description = "Album name", example = "Abbey Road")
-	private String album;
+    @Schema(description = "Album name", example = "Abbey Road")
+    private String album;
 
-	@Schema(description = "Release year", example = "1969")
-	private Integer year;
+    @Schema(description = "Release year", example = "1969")
+    private Integer year;
 
-	@Schema(description = "Track title", example = "Come Together")
-	private String trackName;
+    @Schema(description = "Track title", example = "Come Together")
+    private String trackName;
 
-	@Schema(description = "Track number within the album", example = "1")
-	private Integer trackNumber;
+    @Schema(description = "Track number within the album", example = "1")
+    private Integer trackNumber;
 
-	@Schema(description = "Total number of tracks on the album", example = "17")
-	private Integer trackTotal;
+    @Schema(description = "Total number of tracks on the album", example = "17")
+    private Integer trackTotal;
 
-	@Schema(description = "Music genre", example = "Rock")
-	private String genre;
+    @Schema(description = "Music genre", example = "Rock")
+    private String genre;
 
-	@Schema(description = "Description or comment from the audio metadata (Vorbis Description / ID3 Comment)",
-	        example = "Spookshow 2000 MIX")
-	private String description;
+    @Schema(description = "Description or comment from the audio metadata (Vorbis Description / ID3 Comment)", example = "Spookshow 2000 MIX")
+    private String description;
 }

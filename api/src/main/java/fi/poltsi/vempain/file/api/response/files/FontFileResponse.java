@@ -15,12 +15,12 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing a font file")
 public class FontFileResponse extends FileResponse {
 
-	@Schema(description = "Font family", example = "Arial")
-	private String fontFamily;
+    @Schema(description = "Font family", example = "Arial")
+    private String fontFamily;
 
-	@Schema(description = "Weight of the font", example = "Bold")
-	private String weight;
+    @Schema(description = "Weight of the font", example = "Bold")
+    private String weight;
 
-	@Schema(description = "Style of the font", example = "Italic")
-	private String style;
+    @Schema(description = "Style of the font", example = "Italic")
+    private String style;
 }

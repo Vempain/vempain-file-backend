@@ -1,8 +1,8 @@
 package fi.poltsi.vempain.file;
 
-import fi.poltsi.vempain.common.api.TaskStatusEnum;
-import fi.poltsi.vempain.common.task.TaskProgressStore;
-import fi.poltsi.vempain.file.service.PublishService;
+import java.time.Duration;
+import java.time.Instant;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,74 +14,75 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import java.time.Duration;
-import java.time.Instant;
+import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.task.TaskProgressStore;
+import fi.poltsi.vempain.file.service.PublishService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
-		"vempain.app.frontend-url=http://localhost:3000",
-		"vempain.original-root-directory=/tmp",
-		"vempain.export-root-directory=/tmp",
-		"vempain.generate-missing-thumbnails.batch-size=10",
-		"vempain.generate-missing-thumbnails.thumb-image-quality=0.5",
-		"vempain.generate-missing-thumbnails.thumb-image-size=100"
-})
+    "vempain.app.frontend-url=http://localhost:3000",
+    "vempain.original-root-directory=/tmp",
+    "vempain.export-root-directory=/tmp",
+    "vempain.generate-missing-thumbnails.batch-size=10",
+    "vempain.generate-missing-thumbnails.thumb-image-quality=0.5",
+    "vempain.generate-missing-thumbnails.thumb-image-size=100" })
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 public class PublishServiceITC {
-	@Container
-	public static PostgreSQLContainer postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"))
-			.withDatabaseName("vempain_file_db")
-			.withUsername("test")
-			.withPassword("test");
 
-	@Autowired
-	private JdbcTemplate jdbcTemplate;
+    @Container
+    public static PostgreSQLContainer postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine")).withDatabaseName("vempain_file_db")
+        .withUsername("test")
+        .withPassword("test");
 
-	@Autowired
-	private PublishService publishService;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
-	@Autowired
-	private TaskProgressStore taskProgressStore;
+    @Autowired
+    private PublishService publishService;
 
-	@BeforeEach
-	void setup() {
-		// Ensure table exists; simple schema sufficient for this integration test
-		jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS file_group (id BIGSERIAL PRIMARY KEY, path VARCHAR(255), group_name VARCHAR(255));");
-		// Clean tables that will be used in the test.
-		jdbcTemplate.update("TRUNCATE TABLE file_group RESTART IDENTITY CASCADE");
-	}
+    @Autowired
+    private TaskProgressStore taskProgressStore;
 
-	@Test
-	void publishAllRunsAsOneTaskWithAStepPerGroup_andCompletes() throws InterruptedException {
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g1", "group1");
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g2", "group2");
-		jdbcTemplate.update("INSERT INTO file_group (path, group_name) VALUES (?, ?)", "/g3", "group3");
+    @BeforeEach
+    void setup() {
+        // Ensure table exists; simple schema sufficient for this integration test
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS file_group(id BIGSERIAL PRIMARY KEY, path VARCHAR(255), group_name VARCHAR(255));");
+        // Clean tables that will be used in the test.
+        jdbcTemplate.update("TRUNCATE TABLE file_group RESTART IDENTITY CASCADE");
+    }
 
-		var task = publishService.publishAllFileGroups();
+    @Test
+    void publishAllRunsAsOneTaskWithAStepPerGroupAndCompletes() throws InterruptedException {
+        jdbcTemplate.update("INSERT INTO file_group(path, group_name) VALUES (?, ?)", "/g1", "group1");
+        jdbcTemplate.update("INSERT INTO file_group(path, group_name) VALUES (?, ?)", "/g2", "group2");
+        jdbcTemplate.update("INSERT INTO file_group(path, group_name) VALUES (?, ?)", "/g3", "group3");
 
-		assertEquals(3L, task.getTotalSteps()
-							 .get(), "publishAllFileGroups should schedule three groups");
-		assertTrue(taskProgressStore.find(task.getId())
-									.isPresent(), "the task must be registered for polling");
+        var task = publishService.publishAllFileGroups();
 
-		// Wait for the background task to finish
-		Instant deadline = Instant.now()
-								  .plus(Duration.ofSeconds(10));
-		while (!task.isFinished() && Instant.now()
-											.isBefore(deadline)) {
-			Thread.sleep(100);
-		}
+        assertEquals(3L, task.getTotalSteps()
+            .get(), "publishAllFileGroups should schedule three groups");
+        assertTrue(taskProgressStore.find(task.getId())
+            .isPresent(), "the task must be registered for polling");
 
-		assertEquals(TaskStatusEnum.COMPLETED, task.getStatus(), "The publish-all task should complete");
-		assertEquals(3L, task.getCompletedSteps()
-							 .get(), "All groups should have been processed");
-		assertEquals(0L, task.getFailedSteps()
-							 .get(), "Empty groups publish without failures");
-		assertEquals(100, task.toResponse()
-							  .getPercent());
-		taskProgressStore.remove(task.getId());
-	}
+        // Wait for the background task to finish
+        Instant deadline = Instant.now()
+            .plus(Duration.ofSeconds(10));
+        while (!task.isFinished()
+               && Instant.now()
+                   .isBefore(deadline)) {
+            Thread.sleep(100);
+        }
+
+        assertEquals(TaskStatusEnum.COMPLETED, task.getStatus(), "The publish-all task should complete");
+        assertEquals(3L, task.getCompletedSteps()
+            .get(), "All groups should have been processed");
+        assertEquals(0L, task.getFailedSteps()
+            .get(), "Empty groups publish without failures");
+        assertEquals(100, task.toResponse()
+            .getPercent());
+        taskProgressStore.remove(task.getId());
+    }
 }

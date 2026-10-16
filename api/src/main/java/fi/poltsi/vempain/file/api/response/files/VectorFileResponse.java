@@ -15,12 +15,12 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing a vector file")
 public class VectorFileResponse extends FileResponse {
 
-	@Schema(description = "Width of the vector image", example = "1024")
-	private int width;
+    @Schema(description = "Width of the vector image", example = "1024")
+    private int width;
 
-	@Schema(description = "Height of the vector image", example = "768")
-	private int height;
+    @Schema(description = "Height of the vector image", example = "768")
+    private int height;
 
-	@Schema(description = "Number of layers", example = "3")
-	private int layersCount;
+    @Schema(description = "Number of layers", example = "3")
+    private int layersCount;
 }

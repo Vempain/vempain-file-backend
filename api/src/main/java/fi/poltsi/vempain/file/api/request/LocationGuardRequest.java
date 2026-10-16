@@ -1,18 +1,19 @@
 package fi.poltsi.vempain.file.api.request;
 
+import java.math.BigDecimal;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
 import fi.poltsi.vempain.file.api.GeoCoordinate;
 import fi.poltsi.vempain.file.api.GuardTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
-
-import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -22,22 +23,22 @@ import java.math.BigDecimal;
 @Schema(description = "Request to create or update a location guard")
 public class LocationGuardRequest {
 
-	@Schema(description = "ID of the guard, null when creating")
-	private Long id;
+    @Schema(description = "ID of the guard, null when creating")
+    private Long id;
 
-	@Schema(description = "Guard type", requiredMode = Schema.RequiredMode.REQUIRED)
-	@NotNull
-	private GuardTypeEnum guardType;
+    @Schema(description = "Guard type", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull
+    private GuardTypeEnum guardType;
 
-	@Schema(description = "Primary coordinate (center for circle; one corner for square)", requiredMode = Schema.RequiredMode.REQUIRED)
-	@NotNull
-	@Valid
-	private GeoCoordinate primaryCoordinate;
+    @Schema(description = "Primary coordinate (center for circle; one corner for square)", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull
+    @Valid
+    private GeoCoordinate primaryCoordinate;
 
-	@Schema(description = "Secondary coordinate (ignored for circle; opposite corner for square)")
-	@Valid
-	private GeoCoordinate secondaryCoordinate;
+    @Schema(description = "Secondary coordinate (ignored for circle; opposite corner for square)")
+    @Valid
+    private GeoCoordinate secondaryCoordinate;
 
-	@Schema(description = "Optional radius if the guard type is circle, in meters", example = "100")
-	private BigDecimal radius;
+    @Schema(description = "Optional radius if the guard type is circle, in meters", example = "100")
+    private BigDecimal radius;
 }

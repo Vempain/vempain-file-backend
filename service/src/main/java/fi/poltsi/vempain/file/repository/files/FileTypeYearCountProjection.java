@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.repository.files;
 
 public interface FileTypeYearCountProjection {
-	String getFileType();
 
-	Integer getCreationYear();
+    String getFileType();
 
-	Long getFileCount();
+    Integer getCreationYear();
+
+    Long getFileCount();
 }

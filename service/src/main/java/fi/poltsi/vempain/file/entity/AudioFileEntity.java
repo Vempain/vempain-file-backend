@@ -1,18 +1,19 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.AudioFileResponse;
+import java.time.Duration;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.AudioFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
-
-import java.time.Duration;
 
 @SuperBuilder
 @Data
@@ -24,36 +25,36 @@ import java.time.Duration;
 @Table(name = "audio_files")
 public class AudioFileEntity extends FileEntity {
 
-	@Column(nullable = false, precision = 5)
-	@Convert(converter = DurationSecondsConverter.class)
-	private Duration duration;
+    @Column(nullable = false, precision = 5)
+    @Convert(converter = DurationSecondsConverter.class)
+    private Duration duration;
 
-	@Column(name = "bit_rate", nullable = false)
-	private int bitRate;
+    @Column(name = "bit_rate", nullable = false)
+    private int bitRate;
 
-	@Column(name = "sample_rate", nullable = false)
-	private int sampleRate;
+    @Column(name = "sample_rate", nullable = false)
+    private int sampleRate;
 
-	@Column(name = "codec", nullable = false)
-	private String codec;
+    @Column(name = "codec", nullable = false)
+    private String codec;
 
-	@Column(name = "channels", nullable = false)
-	private int channels;
+    @Column(name = "channels", nullable = false)
+    private int channels;
 
-	@Override
-	public AudioFileResponse toResponse() {
-		AudioFileResponse response = new AudioFileResponse();
+    @Override
+    public AudioFileResponse toResponse() {
+        AudioFileResponse response = new AudioFileResponse();
 
-		// Use the parent method to populate common fields
-		populateBaseResponse(response);
+        // Use the parent method to populate common fields
+        populateBaseResponse(response);
 
-		// Set the specific fields for this entity type
-		response.setDuration(getDuration());
-		response.setBitRate(getBitRate());
-		response.setSampleRate(getSampleRate());
-		response.setCodec(getCodec());
-		response.setChannels(getChannels());
+        // Set the specific fields for this entity type
+        response.setDuration(getDuration());
+        response.setBitRate(getBitRate());
+        response.setSampleRate(getSampleRate());
+        response.setCodec(getCodec());
+        response.setChannels(getChannels());
 
-		return response;
-	}
+        return response;
+    }
 }

@@ -5,7 +5,7 @@
 Two-module Gradle project. Java and Spring Boot versions are pinned in `gradle/libs.versions.toml` (`java`, `spring-boot`) and must stay aligned with the other
 Vempain backends:
 
-| Module     | Purpose                                                                             |
+|   Module   |                                       Purpose                                       |
 |------------|-------------------------------------------------------------------------------------|
 | `api/`     | REST API interfaces, request/response DTOs — published as a JAR consumed by clients |
 | `service/` | Spring Boot application: JPA entities, repositories, services, controllers          |
@@ -106,13 +106,14 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   never a gallery. The created site file is registered as a compensation (removed again on cancel); a missing export fails the task.
 - The admin and file user bases are separate: every publish logs in to the admin backend as the configured service account (`vempain.service.admin-backend-*`),
   so by default only that account is on the ACL of the created site files and gallery. A publish
-  request can grant additional admin users through `acls` (`PublishAclRequest`: `user_id` of an admin account + the four `*_privilege`
-  flags, bean-validated: user ID required and positive, at least one privilege). `PublishService.toIngestAcls` copies them into every
-  `FileIngestRequest` of the group (the admin backend validates them again before storing anything and answers `400` otherwise, which
-  fails that file's step). The grantable admin users come from `GET /api/publish/users` (`PublishUserResponse`), proxied by
-  `PublishService.listPublishUsers` -> `VempainAdminService.listIngestUsers` (`FileIngestAPI.listIngestUsers`) with the same
-  re-authentication retry as the uploads; an unreachable admin backend answers `502`. Never resolve these IDs against this backend's
-  own `user_account` table. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
+  request can grant additional admin users and units through `acls` (`PublishAclRequest`: exactly one of `user_id`/`unit_id` of an admin
+  account or unit + the four `*_privilege` flags, bean-validated: positive IDs, exactly one grantee, at least one privilege).
+  `PublishService.toIngestAcls` copies them into every `FileIngestRequest` of the group (the admin backend validates them again before
+  storing anything and answers `400` otherwise, which fails that file's step). The grantable admin users come from `GET /api/publish/users`
+  (`PublishUserResponse`) and the grantable admin units from `GET /api/publish/units` (`PublishUnitResponse`), proxied by
+  `PublishService.listPublishUsers`/`listPublishUnits` -> `VempainAdminService.listIngestUsers`/`listIngestUnits` (`FileIngestAPI`) with
+  the same failure handling as the uploads; an unreachable admin backend answers `502`. Never resolve these IDs against this backend's
+  own `user_account` or `unit` tables. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
   request itself always runs before `TaskRunner.submit`.
 - Long-running actions never block the HTTP request. They run through the shared durable task facility of `vempain-common-core`
   (`fi.poltsi.vempain.common.task`: `TaskRunner.submitDurable(type, title, totalSteps, payload, localFallback)` -> `TaskProgress`,
@@ -122,35 +123,35 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   dismisses a finished one with `DELETE`. Tasks are private to their owner, persisted in `task_record`/`task_compensation`
   (`V1009__durable_tasks.sql`, the reference schema lives in `vempain-common-core`) and kept for `vempain.tasks.retention-minutes`.
   This service's part is `fi.poltsi.vempain.file.task.FileTaskCommandExecutor` (the `TaskCommandExecutor` bean that maps `TaskTypeEnum`
-    + JSON payload to service calls and replays `TAG_REVERT_MUTATION` compensations) and `fi.poltsi.vempain.file.api.TaskTypeEnum`:
-      publish single file / file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
-      `DataResponse`), the tag remove/replace/rename-across-all-files operations and the metadata value rewrite (`METADATA_UPDATE_VALUE`). Rules: validate and
-      authorize synchronously before
-      submitting; report one step per unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy
-      (`applicationContext.getBean(...)`) because the task body runs outside the request transaction; a task submitted inside a transaction
-      starts after that transaction commits. Cancellation is cooperative and reverting (saga style): call `progress.checkpoint()` before every
-      unit of work and register the undo of every change with `progress.registerCompensation(description, () -> ...)` (or
-      `registerDurableCompensation` for a replayable command) right after making it; on cancel or failure the runner runs the compensations
-      most recent first. Current undo paths: publish removes the site files it created in the admin backend (`FileIngestAPI.deleteSiteFile`) and
-      restores the file group's gallery link; a replaced site file cannot be restored. Scans remove the files, export files and file groups they
-      created (`ScanRecorder`); refreshed files keep their refreshed state. Data set publishing deletes a created data set (`DataAPI.deleteDataSet`) or re-sends
-      the previous content of a replaced one. Tag tasks apply the inverse metadata operation to every
-      rewritten file and rename the tag back. Any new action that transfers files or data to another service, walks the filesystem or rewrites
-      many files must use this facility; a new task type is added to `TaskTypeEnum` and `FileTaskCommandExecutor`.
-      Wiring: `VempainFileServiceApplication` scans `fi.poltsi.vempain.common`, its repositories and entities; `WebSecurityConfig` permits
-      `/tasks/**` for authenticated users; `vempain.tasks.*` in `application.yaml` configures workers, polling, leases and retention.
+  + JSON payload to service calls and replays `TAG_REVERT_MUTATION` compensations) and `fi.poltsi.vempain.file.api.TaskTypeEnum`:
+    publish single file / file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
+    `DataResponse`), the tag remove/replace/rename-across-all-files operations and the metadata value rewrite (`METADATA_UPDATE_VALUE`). Rules: validate and
+    authorize synchronously before
+    submitting; report one step per unit of work (`progress.advance`/`advanceFailed`); run transactional work through the Spring proxy
+    (`applicationContext.getBean(...)`) because the task body runs outside the request transaction; a task submitted inside a transaction
+    starts after that transaction commits. Cancellation is cooperative and reverting (saga style): call `progress.checkpoint()` before every
+    unit of work and register the undo of every change with `progress.registerCompensation(description, () -> ...)` (or
+    `registerDurableCompensation` for a replayable command) right after making it; on cancel or failure the runner runs the compensations
+    most recent first. Current undo paths: publish removes the site files it created in the admin backend (`FileIngestAPI.deleteSiteFile`) and
+    restores the file group's gallery link; a replaced site file cannot be restored. Scans remove the files, export files and file groups they
+    created (`ScanRecorder`); refreshed files keep their refreshed state. Data set publishing deletes a created data set (`DataAPI.deleteDataSet`) or re-sends
+    the previous content of a replaced one. Tag tasks apply the inverse metadata operation to every
+    rewritten file and rename the tag back. Any new action that transfers files or data to another service, walks the filesystem or rewrites
+    many files must use this facility; a new task type is added to `TaskTypeEnum` and `FileTaskCommandExecutor`.
+    Wiring: `VempainFileServiceApplication` scans `fi.poltsi.vempain.common`, its repositories and entities; `WebSecurityConfig` permits
+    `/tasks/**` for authenticated users; `vempain.tasks.*` in `application.yaml` configures workers, polling, leases and retention.
 - ACL behaviour is covered by `FileAclServiceITC`, `FileAclControllerCTC`, `FileAclPagedITC` and `FileAclRepairScheduleUTC`; keep positive and
   negative cases for every new ACL-dependent path and keep `FileAclService` at 95%+ line coverage.
 - Prefer Jackson v3 `tools.jackson.databind.*` naming/mapper APIs for JSON configuration; keep non-`tools.jackson` annotations only when there is no
   `tools.jackson` replacement available in current dependencies.
 - Test suffixes are meaningful and shared across the Vempain Java repos: `UTC` = unit test (Mockito), `CTC` = controller test (`AbstractControllerCTC`
-    + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`).
-      The task facility itself is tested in `vempain-common`; here `TaskControllerCTC` covers the hosted `/tasks` API and
-      `FileTaskCommandExecutorUTC` the command dispatch. Services that submit tasks are unit tested with
-      `new TaskRunner(new TaskProgressStore(), Runnable::run)` so the task body runs synchronously, or with a runner on a capturing
-      executor (`queued::add`) when the test needs to cancel before the work runs; `TaskProgress.unmanaged(...)` builds a detached task.
-      `AbstractControllerCTC` sets `vempain.tasks.poll-interval-ms`/`heartbeat-interval-ms` to one hour so the periodic worker poll cannot
-      claim task rows a CTC creates and drives by hand; submitted tasks still run through the after-commit poll of `TaskRunner`.
+  + MockMvc), `ITC` = integration test (Spring Boot + Testcontainers), `JTC` = JSON contract test (`RequestContractJTC`, `ResponseContractJTC`).
+    The task facility itself is tested in `vempain-common`; here `TaskControllerCTC` covers the hosted `/tasks` API and
+    `FileTaskCommandExecutorUTC` the command dispatch. Services that submit tasks are unit tested with
+    `new TaskRunner(new TaskProgressStore(), Runnable::run)` so the task body runs synchronously, or with a runner on a capturing
+    executor (`queued::add`) when the test needs to cancel before the work runs; `TaskProgress.unmanaged(...)` builds a detached task.
+    `AbstractControllerCTC` sets `vempain.tasks.poll-interval-ms`/`heartbeat-interval-ms` to one hour so the periodic worker poll cannot
+    claim task rows a CTC creates and drives by hand; submitted tasks still run through the after-commit poll of `TaskRunner`.
 - After every code modification, run relevant tests for touched modules and report the results in the response
 - Schema managed by Flyway; migrations under `service/src/main/resources/db/migration/`
 - `FileGroupRepositoryImpl` uses raw native SQL — keep column names in sync with Flyway scripts
@@ -161,9 +162,9 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `PathCompletionServiceUTC`/`ITC` cover the non-ASCII ordering.
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
 - Data dataset publication flows:
-    - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
-    - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and
-      publishes that dataset for the selected file group.
+  - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
+  - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and
+    publishes that dataset for the selected file group.
 
 ## Operational details
 
@@ -178,6 +179,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - In the `prod` profile `SetupVerification.verifyProductionSettings` refuses to start unless the admin backend URL is HTTPS and
   `spring.datasource.url` requires TLS (`sslmode=require`, `verify-ca` or `verify-full`, or `ssl` without an `sslmode`); `prefer`/`allow` do
   not count because they fall back to plaintext. The `vempain-cluster` databases also reject plaintext connections.
+- Every `FileIngestRequest` built by `PublishService.uploadFile` carries `file_id` = the `files.id` of the published entity (admin API releases after 1.0.64
+  require it and store it as `site_file.file_id`); keep it set in every publish path (single file, group, republish).
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
   as a background task with one step per file, also for publish-all (groups processed sequentially, an empty group counts as one step and a
   group that fails as a whole marks its remaining file steps as failed). The totals are computed when the task is submitted
@@ -190,7 +193,6 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `file_group_id` plus `time_series_name`, with identifiers normalized to Admin-safe snake_case.
 - Runtime API traffic uses `/api` on port 8080; actuator and Swagger are exposed on port 8081. Local runs require PostgreSQL, valid `vempain.*`
   settings, existing source/export roots, and `exiftool`.
-
 - A file's `description` column comes from `MetadataTool.extractDescription` (scan and refresh): `XMP-dc:Description`, then
   `IFD0:ImageDescription`, then the legacy `IPTC:Caption-Abstract`, using the family 1 group names of the scanner's `exiftool -g1 -J`
   output (there is no `XMP` group in it). Thumbnails (`ThumbnailGenerationService`) carry the description of the file they were made
@@ -215,7 +217,6 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   as in `FileGroupRepositoryImpl` and `MetadataRepositoryImpl` (native SQL, `ESCAPE_CLAUSE`), `FileSearchHelper`, `MetadataService.findFiles` and
   `TagService` tag search (Criteria API, `ESCAPE_CHAR`). Request text
   never acts as wildcard syntax (OWASP A05).
-
 - Security findings and their mitigations are recorded in `security/OWASP-2025-audit-report.md`; keep it current when changing authorization,
   query building, filesystem handling or input validation.
 

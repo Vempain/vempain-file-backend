@@ -15,12 +15,12 @@ import lombok.experimental.SuperBuilder;
 @Schema(description = "Response DTO representing an icon file")
 public class IconFileResponse extends FileResponse {
 
-	@Schema(description = "Width of the icon", example = "64")
-	private int width;
+    @Schema(description = "Width of the icon", example = "64")
+    private int width;
 
-	@Schema(description = "Height of the icon", example = "64")
-	private int height;
+    @Schema(description = "Height of the icon", example = "64")
+    private int height;
 
-	@Schema(description = "Indicates if icon is scalable", example = "true")
-	private Boolean isScalable;
+    @Schema(description = "Indicates if icon is scalable", example = "true")
+    private Boolean isScalable;
 }

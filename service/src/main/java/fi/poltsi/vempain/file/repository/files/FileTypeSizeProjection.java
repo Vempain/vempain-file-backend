@@ -3,9 +3,10 @@ package fi.poltsi.vempain.file.repository.files;
 import java.math.BigDecimal;
 
 public interface FileTypeSizeProjection {
-	String getFileType();
 
-	Long getLargestFileSize();
+    String getFileType();
 
-	BigDecimal getAverageFileSize();
+    Long getLargestFileSize();
+
+    BigDecimal getAverageFileSize();
 }

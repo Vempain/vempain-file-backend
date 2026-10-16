@@ -1,115 +1,117 @@
 package fi.poltsi.vempain.file.schedule;
 
-import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
-import fi.poltsi.vempain.file.processing.FileQueueProcessorFactory;
-import fi.poltsi.vempain.file.service.FileProcessingQueueService;
+import java.util.ArrayList;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
+import fi.poltsi.vempain.file.processing.FileQueueProcessorFactory;
+import fi.poltsi.vempain.file.service.FileProcessingQueueService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FileProcessingQueueSchedule {
-	private final FileProcessingQueueService queueService;
-	private final FileQueueProcessorFactory  processorFactory;
 
-	@Value("${vempain.file-processing.enabled:true}")
-	private boolean enabled;
-	@Value("${vempain.file-processing.batch-size:100}")
-	private int     batchSize;
-	@Value("${vempain.file-processing.worker-count:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}")
-	private int     workerCount;
-	@Value("${vempain.scheduling.enabled:true}")
-	private boolean schedulingEnabled = true;
+    private final FileProcessingQueueService queueService;
+    private final FileQueueProcessorFactory processorFactory;
 
-	private final AtomicBoolean          running = new AtomicBoolean();
-	private       ThreadPoolTaskExecutor executor;
+    @Value("${vempain.file-processing.enabled:true}")
+    private boolean enabled;
+    @Value("${vempain.file-processing.batch-size:100}")
+    private int batchSize;
+    @Value("${vempain.file-processing.worker-count:#{T(java.lang.Runtime).getRuntime().availableProcessors()}}")
+    private int workerCount;
+    @Value("${vempain.scheduling.enabled:true}")
+    private boolean schedulingEnabled = true;
 
-	@PostConstruct
-	void initializeExecutor() {
-		if (executor != null) {
-			return;
-		}
-		executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(workerCount);
-		executor.setMaxPoolSize(workerCount);
-		executor.setQueueCapacity(batchSize);
-		executor.setThreadNamePrefix("file-processor-");
-		executor.initialize();
-	}
+    private final AtomicBoolean running = new AtomicBoolean();
+    private ThreadPoolTaskExecutor executor;
 
-	@PreDestroy
-	void shutdownExecutor() {
-		if (executor != null) {
-			executor.shutdown();
-		}
-	}
+    @PostConstruct
+    void initializeExecutor() {
+        if (executor != null) {
+            return;
+        }
+        executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(workerCount);
+        executor.setMaxPoolSize(workerCount);
+        executor.setQueueCapacity(batchSize);
+        executor.setThreadNamePrefix("file-processor-");
+        executor.initialize();
+    }
 
-	@Scheduled(cron = "${vempain.file-processing.cron:0 */15 * * * *}")
-	public void processQueueScheduled() {
-		if (schedulingEnabled && enabled) {
-			log.debug("Scheduled file processing queue triggered");
-			processQueue();
-		}
-	}
+    @PreDestroy
+    void shutdownExecutor() {
+        if (executor != null) {
+            executor.shutdown();
+        }
+    }
 
-	public void processQueue() {
-		if (!running.compareAndSet(false, true)) {
-			log.warn("Skipping file processing because a previous invocation is still running");
-			return;
-		}
+    @Scheduled(cron = "${vempain.file-processing.cron:0 */15 * * * *}")
+    public void processQueueScheduled() {
+        if (schedulingEnabled
+            && enabled) {
+            log.debug("Scheduled file processing queue triggered");
+            processQueue();
+        }
+    }
 
-		try {
-			initializeExecutor();
-			var items = queueService.claimQueued(batchSize);
-			var jobs  = new ArrayList<QueueJob>(items.size());
+    public void processQueue() {
+        if (!running.compareAndSet(false, true)) {
+            log.warn("Skipping file processing because a previous invocation is still running");
+            return;
+        }
 
-			for (var item : items) {
-				jobs.add(new QueueJob(item, executor.submit(() -> process(item))));
-			}
+        try {
+            initializeExecutor();
+            var items = queueService.claimQueued(batchSize);
+            var jobs = new ArrayList<QueueJob>(items.size());
 
-			for (var job : jobs) {
-				try {
-					job.future()
-					   .get();
-				} catch (InterruptedException e) {
-					Thread.currentThread()
-						  .interrupt();
-					queueService.fail(job.item(), e);
-				} catch (Exception e) {
-					queueService.fail(job.item(), e.getCause() instanceof Exception cause ? cause : e);
-				}
-			}
-		} finally {
-			running.set(false);
-		}
-	}
+            for (var item : items) {
+                jobs.add(new QueueJob(item, executor.submit(() -> process(item))));
+            }
 
-	private void process(FileProcessingQueueEntity item) {
-		log.debug("Processing file queue item {} of type {}", item.getId(), item.getFileType());
+            for (var job : jobs) {
+                try {
+                    job.future()
+                        .get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread()
+                        .interrupt();
+                    queueService.fail(job.item(), e);
+                } catch (Exception e) {
+                    queueService.fail(job.item(), e.getCause() instanceof Exception cause ? cause : e);
+                }
+            }
+        } finally {
+            running.set(false);
+        }
+    }
 
-		try {
-			processorFactory.processorFor(item.getFileType())
-							.process(item);
-			queueService.complete(item);
-		} catch (Exception e) {
-			log.error("Failed to process file queue item id={} fileId={} type={}",
-					  item.getId(), item.getFile()
-										.getId(), item.getFileType(), e);
-			throw new RuntimeException(e);
-		}
-	}
+    private void process(FileProcessingQueueEntity item) {
+        log.debug("Processing file queue item {} of type {}", item.getId(), item.getFileType());
 
-	private record QueueJob(FileProcessingQueueEntity item, Future<?> future) {
-	}
+        try {
+            processorFactory.processorFor(item.getFileType())
+                .process(item);
+            queueService.complete(item);
+        } catch (Exception e) {
+            log.error("Failed to process file queue item id={} fileId={} type={}", item.getId(), item.getFile()
+                .getId(), item.getFileType(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private record QueueJob(FileProcessingQueueEntity item, Future<?> future) {}
 }

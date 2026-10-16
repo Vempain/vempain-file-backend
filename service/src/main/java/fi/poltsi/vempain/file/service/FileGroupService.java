@@ -1,5 +1,17 @@
 package fi.poltsi.vempain.file.service;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.EntityNotFoundException;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.file.api.request.FileGroupRequest;
@@ -9,141 +21,133 @@ import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FileGroupService {
 
-	private final FileGroupRepository fileGroupRepository;
-	private final FileRepository fileRepository;
-	private final FileResponseEnricher fileResponseEnricher;
-	private final FileAclService fileAclService;
+    private final FileGroupRepository fileGroupRepository;
+    private final FileRepository fileRepository;
+    private final FileResponseEnricher fileResponseEnricher;
+    private final FileAclService fileAclService;
 
-	@Transactional(readOnly = true)
-	public PagedResponse<FileGroupListResponse> getAll(PagedRequest pagedRequest) {
-		log.debug("Got paged request: {}", pagedRequest);
-		var safePage = Math.max(0, pagedRequest.getPage());
-		var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
-		var sortSpec = buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
-		log.debug("Page number: {}, size: {}, sort: {}", safePage, safeSize, sortSpec);
-		var pageable = PageRequest.of(safePage, safeSize, sortSpec);
-		log.debug("Pageable parameter is: {}", pageable);
-		var pageResult = fileGroupRepository.searchFileGroups(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()), pageable);
-		var content = pageResult.getContent()
-		                        .stream()
-		                        .map(row -> FileGroupListResponse.builder()
-		                                                         .id(row.id())
-		                                                         .path(row.path())
-		                                                         .groupName(row.groupName())
-		                                                         .description(row.description())
-		                                                         .fileCount(row.fileCount())
-		                                                         .galleryId(row.galleryId())
-		                                                         .build())
-		                        .toList();
+    @Transactional(readOnly = true)
+    public PagedResponse<FileGroupListResponse> getAll(PagedRequest pagedRequest) {
+        log.debug("Got paged request: {}", pagedRequest);
+        var safePage = Math.max(0, pagedRequest.getPage());
+        var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
+        var sortSpec = buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
+        log.debug("Page number: {}, size: {}, sort: {}", safePage, safeSize, sortSpec);
+        var pageable = PageRequest.of(safePage, safeSize, sortSpec);
+        log.debug("Pageable parameter is: {}", pageable);
+        var pageResult = fileGroupRepository.searchFileGroups(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive()), pageable);
+        var content = pageResult.getContent()
+            .stream()
+            .map(row -> FileGroupListResponse.builder()
+                .id(row.id())
+                .path(row.path())
+                .groupName(row.groupName())
+                .description(row.description())
+                .fileCount(row.fileCount())
+                .galleryId(row.galleryId())
+                .build())
+            .toList();
 
-		return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(), pageResult.isFirst(), pageResult.isLast());
-	}
+        return PagedResponse.of(content, pageResult.getNumber(), pageResult.getSize(), pageResult.getTotalElements(), pageResult.getTotalPages(),
+                pageResult.isFirst(), pageResult.isLast());
+    }
 
-	private Sort buildSort(String sort, Sort.Direction direction) {
-		String property = switch (sort == null ? "path" : sort.toLowerCase()) {
-			case "id" -> "id";
-			case "groupname", "group_name" -> "groupName";
-			case "description" -> "description";
-			case "filecount", "file_count" -> "file_count";
-			default -> "path";
-		};
+    private Sort buildSort(String sort, Sort.Direction direction) {
+        String property = switch (sort == null ? "path" : sort.toLowerCase()) {
+            case "id" -> "id";
+            case "groupname", "group_name" -> "groupName";
+            case "description" -> "description";
+            case "filecount", "file_count" -> "file_count";
+            default -> "path";
+        };
 
-		Sort.Direction dir = direction == null ? Sort.Direction.ASC : direction;
-		return Sort.by(dir, property);
-	}
+        Sort.Direction dir = direction == null ? Sort.Direction.ASC : direction;
+        return Sort.by(dir, property);
+    }
 
-	@Transactional(readOnly = true)
-	public FileGroupResponse getById(Long id) {
-		FileGroupEntity entity = fileGroupRepository.findById(id)
-		                                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
-		var response = entity.toResponse();
-		response.setFiles(entity.getFiles()
-		                        .stream()
-								.filter(fileAclService::canRead)
-								.map(file -> file.toResponse(false))
-								.toList());
-		fileResponseEnricher.enrichAll(response.getFiles());
-		return response;
-	}
+    @Transactional(readOnly = true)
+    public FileGroupResponse getById(Long id) {
+        FileGroupEntity entity = fileGroupRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group not found"));
+        var response = entity.toResponse();
+        response.setFiles(entity.getFiles()
+            .stream()
+            .filter(fileAclService::canRead)
+            .map(file -> file.toResponse(false))
+            .toList());
+        fileResponseEnricher.enrichAll(response.getFiles());
+        return response;
+    }
 
-	@Transactional
-	public FileGroupResponse addFileGroup(FileGroupRequest request) {
-		var fileGroupEntity = new FileGroupEntity();
-		fileGroupEntity.setPath(request.getPath());              // ensure path persisted
-		fileGroupEntity.setGroupName(request.getGroupName());
-		fileGroupEntity.setDescription(request.getDescription());
-		if (request.getFileIds() != null) {
-			List<FileEntity> files = fileRepository.findAllById(request.getFileIds());
-			requireModify(files);
-			fileGroupEntity.replaceFiles(files);                 // mutate managed collection + inverse
-		}
-		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
-		var response = saved.toResponse();
-		response.setFiles(saved.getFiles()
-		                       .stream()
-							   .filter(fileAclService::canRead)
-							   .map(file -> file.toResponse(false))
-							   .toList());
-		fileResponseEnricher.enrichAll(response.getFiles());
-		return response;
-	}
+    @Transactional
+    public FileGroupResponse addFileGroup(FileGroupRequest request) {
+        var fileGroupEntity = new FileGroupEntity();
+        fileGroupEntity.setPath(request.getPath());              // ensure path persisted
+        fileGroupEntity.setGroupName(request.getGroupName());
+        fileGroupEntity.setDescription(request.getDescription());
+        if (request.getFileIds() != null) {
+            List<FileEntity> files = fileRepository.findAllById(request.getFileIds());
+            requireModify(files);
+            fileGroupEntity.replaceFiles(files);                 // mutate managed collection + inverse
+        }
+        FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
+        var response = saved.toResponse();
+        response.setFiles(saved.getFiles()
+            .stream()
+            .filter(fileAclService::canRead)
+            .map(file -> file.toResponse(false))
+            .toList());
+        fileResponseEnricher.enrichAll(response.getFiles());
+        return response;
+    }
 
-	@Transactional
-	public FileGroupResponse updateFileGroup(FileGroupRequest fileGroupRequest) {
-		FileGroupEntity fileGroupEntity = fileGroupRepository.findById(fileGroupRequest.getId())
-		                                                     .orElseThrow(() -> new EntityNotFoundException("FileGroup not found: " + fileGroupRequest.getId()));
-		fileGroupEntity.setPath(fileGroupRequest.getPath());     // allow path update if needed
-		fileGroupEntity.setGroupName(fileGroupRequest.getGroupName());
-		fileGroupEntity.setDescription(fileGroupRequest.getDescription());
+    @Transactional
+    public FileGroupResponse updateFileGroup(FileGroupRequest fileGroupRequest) {
+        FileGroupEntity fileGroupEntity = fileGroupRepository.findById(fileGroupRequest.getId())
+            .orElseThrow(() -> new EntityNotFoundException("FileGroup not found: " + fileGroupRequest.getId()));
+        fileGroupEntity.setPath(fileGroupRequest.getPath());     // allow path update if needed
+        fileGroupEntity.setGroupName(fileGroupRequest.getGroupName());
+        fileGroupEntity.setDescription(fileGroupRequest.getDescription());
 
-		if (fileGroupRequest.getFileIds() != null) {
-			List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
-			requireModify(newFiles);
+        if (fileGroupRequest.getFileIds() != null) {
+            List<FileEntity> newFiles = fileRepository.findAllById(fileGroupRequest.getFileIds());
+            requireModify(newFiles);
 
-			// Enforce: a file must always belong to at least one group
-			var current = new ArrayList<>(fileGroupEntity.getFiles());
-			var newList = new ArrayList<>(newFiles);
-			current.removeAll(newList); // these would be removed from this group
+            // Enforce: a file must always belong to at least one group
+            var current = new ArrayList<>(fileGroupEntity.getFiles());
+            var newList = new ArrayList<>(newFiles);
+            current.removeAll(newList); // these would be removed from this group
 
-			for (FileEntity f : current) {
-				if (f.getFileGroups() == null || f.getFileGroups()
-				                                  .size() <= 1) {
-					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove file " + f.getId() + " from its last group");
-				}
-			}
+            for (FileEntity f : current) {
+                if (f.getFileGroups() == null
+                    || f.getFileGroups()
+                        .size() <= 1) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove file " + f.getId() + " from its last group");
+                }
+            }
 
-			fileGroupEntity.replaceFiles(newFiles);                 // mutate managed collection + inverse
-		}
-		FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
-		var response = saved.toResponse();
-		response.setFiles(saved.getFiles()
-		                       .stream()
-							   .filter(fileAclService::canRead)
-							   .map(file -> file.toResponse(false))
-							   .toList());
-		fileResponseEnricher.enrichAll(response.getFiles());
-		return response;
-	}
+            fileGroupEntity.replaceFiles(newFiles);                 // mutate managed collection + inverse
+        }
+        FileGroupEntity saved = fileGroupRepository.save(fileGroupEntity);
+        var response = saved.toResponse();
+        response.setFiles(saved.getFiles()
+            .stream()
+            .filter(fileAclService::canRead)
+            .map(file -> file.toResponse(false))
+            .toList());
+        fileResponseEnricher.enrichAll(response.getFiles());
+        return response;
+    }
 
-	private void requireModify(List<FileEntity> files) {
-		files.forEach(fileAclService::requireModify);
-	}
+    private void requireModify(List<FileEntity> files) {
+        files.forEach(fileAclService::requireModify);
+    }
 }

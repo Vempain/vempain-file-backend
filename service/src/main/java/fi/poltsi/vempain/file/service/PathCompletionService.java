@@ -1,12 +1,5 @@
 package fi.poltsi.vempain.file.service;
 
-import fi.poltsi.vempain.file.api.request.PathCompletionRequest;
-import fi.poltsi.vempain.file.api.response.PathCompletionResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -18,119 +11,140 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import fi.poltsi.vempain.file.api.request.PathCompletionRequest;
+import fi.poltsi.vempain.file.api.response.PathCompletionResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import static fi.poltsi.vempain.file.api.PathCompletionEnum.ORIGINAL;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("checkstyle:CyclomaticComplexity")
 public class PathCompletionService {
 
-	@Value("${vempain.original-root-directory}")
-	private String originalRootDirectory;
+    @Value("${vempain.original-root-directory}")
+    private String originalRootDirectory;
 
-	@Value("${vempain.export-root-directory}")
-	private String exportedRootDirectory;
+    @Value("${vempain.export-root-directory}")
+    private String exportedRootDirectory;
 
-	/**
-	 * Language tag of the collation used to order the completions. The filesystem returns directory entries in an undefined order (in
-	 * practice often by modification time), which made the lists jump around; the completions are therefore always sorted
-	 * alphabetically with a locale-aware collator so that letters such as å, ä and ö land where the configured alphabet puts them
-	 * (after z for the default Finnish/Swedish ordering, not among a and o as a plain code point sort would).
-	 */
-	@Value("${vempain.path-completion.collation-locale:fi}")
-	private String collationLocale;
+    /**
+     * Language tag of the collation used to order the completions. The filesystem returns directory entries in an undefined order (in practice often by
+     * modification time), which made the lists jump around; the completions are therefore always sorted alphabetically with a locale-aware collator so that
+     * letters such as å, ä and ö land where the configured alphabet puts them (after z for the default Finnish/Swedish ordering, not among a and o as a plain
+     * code point sort would).
+     */
+    @Value("${vempain.path-completion.collation-locale:fi}")
+    private String collationLocale;
 
-	/**
-	 * Alphabetical, locale-aware and case-insensitive order of the completions (the case only breaks ties).
-	 */
-	Comparator<String> completionOrder() {
-		var locale   = collationLocale == null || collationLocale.isBlank() ? Locale.of("fi") : Locale.forLanguageTag(collationLocale);
-		var collator = Collator.getInstance(locale);
-		collator.setStrength(Collator.TERTIARY);
-		return collator::compare;
-	}
+    /**
+     * Alphabetical, locale-aware and case-insensitive order of the completions (the case only breaks ties).
+     */
+    Comparator<String> completionOrder() {
+        var locale = collationLocale == null
+                     || collationLocale.isBlank() ? Locale.of("fi") : Locale.forLanguageTag(collationLocale);
+        var collator = Collator.getInstance(locale);
+        collator.setStrength(Collator.TERTIARY);
+        return collator::compare;
+    }
 
-	/**
-	 * Returns the completions in a stable alphabetical order regardless of the order the filesystem produced them in.
-	 */
-	List<String> sortCompletions(List<String> completions) {
-		var sorted = new ArrayList<>(completions);
-		sorted.sort(completionOrder());
-		return sorted;
-	}
+    /**
+     * Returns the completions in a stable alphabetical order regardless of the order the filesystem produced them in.
+     */
+    List<String> sortCompletions(List<String> completions) {
+        var sorted = new ArrayList<>(completions);
+        sorted.sort(completionOrder());
+        return sorted;
+    }
 
-	public PathCompletionResponse completePath(PathCompletionRequest request) {
-		// Normalize request path: expected to start with '/'
-		var requestPath = request.getPath();
-		if (requestPath == null || requestPath.isEmpty()) {
-			requestPath = "/";
-		}
+    public PathCompletionResponse completePath(PathCompletionRequest request) {
+        // Normalize request path: expected to start with '/'
+        var requestPath = request.getPath();
+        if (requestPath == null
+            || requestPath.isEmpty()) {
+            requestPath = "/";
+        }
 
-		var completions = new ArrayList<String>();
+        var completions = new ArrayList<String>();
 
-		var rootDirectory = request.getType()
-		                           .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
+        var rootDirectory = request.getType()
+            .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
 
-		try {
-			var rootPath = Paths.get(rootDirectory)
-			                    .toRealPath();
-			var sanitizedRequestPath = requestPath.replaceFirst("^[\\\\/]+", "");
-			// Resolve user path against root and ensure it cannot escape the configured root directory.
-			var fullPath = rootPath.resolve(sanitizedRequestPath)
-			                       .normalize();
-			if (!fullPath.startsWith(rootPath)) {
-				log.warn("Rejected path completion request outside configured root: {}", requestPath);
-				return new PathCompletionResponse(List.of());
-			}
+        try {
+            var rootPath = Paths.get(rootDirectory)
+                .toRealPath();
+            var sanitizedRequestPath = requestPath.replaceFirst("^[\\\\/]+", "");
+            // Resolve user path against root and ensure it cannot escape the configured root directory.
+            var fullPath = rootPath.resolve(sanitizedRequestPath)
+                .normalize();
+            if (!fullPath.startsWith(rootPath)) {
+                log.warn("Rejected path completion request outside configured root: {}", requestPath);
+                return new PathCompletionResponse(List.of());
+            }
 
-			if (Files.exists(fullPath) && Files.isDirectory(fullPath) && !Files.isSymbolicLink(fullPath)
-			    && fullPath.toRealPath()
-			               .startsWith(rootPath)) {
-				// If an exact directory exists, list its immediate subdirectories.
-				try (DirectoryStream<Path> stream = Files.newDirectoryStream(fullPath)) {
-					for (var entry : stream) {
-						if (Files.isDirectory(entry) && !Files.isSymbolicLink(entry) && !entry.getFileName()
-						                                      .toString()
-						                                      .startsWith(".")) {
-							// Construct completion as the relative path starting with a '/'
-							var relative = "/" + fullPath.relativize(entry)
-							                             .toString()
-							                             .replace("\\", "/");
-							// Prepend the current request path if not '/'
-							if (!requestPath.equals("/")) {
-								String prefix = requestPath.endsWith("/") ? requestPath.substring(0, requestPath.length() - 1) : requestPath;
-								relative = prefix + relative;
-							}
-							completions.add(relative);
-						}
-					}
-				}
-			} else {
-				// Else, perform prefix matching in the parent directory.
-				var parentPath = fullPath.getParent();
-				if (parentPath != null && parentPath.startsWith(rootPath) && Files.exists(parentPath)
-				    && parentPath.toRealPath()
-				                 .startsWith(rootPath)) {
-					var prefix = fullPath.getFileName()
-					                     .toString();
-					try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath)) {
-						for (var entry : stream) {
-							if (Files.isDirectory(entry) && !Files.isSymbolicLink(entry) && entry.getFileName()
-							                                     .toString()
-							                                     .startsWith(prefix)) {
-								String candidate = "/" + parentPath.relativize(entry)
-								                                   .toString()
-								                                   .replace("\\", "/");
-								completions.add(candidate);
-							}
-						}
-					}
-				}
-			}
-		} catch (IOException e) {
-			log.error("Received exception when scanning directories", e);
-		}
+            if (Files.exists(fullPath)
+                && Files.isDirectory(fullPath)
+                && !Files.isSymbolicLink(fullPath)
+                && fullPath.toRealPath()
+                    .startsWith(rootPath)) {
+                // If an exact directory exists, list its immediate subdirectories.
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(fullPath)) {
+                    for (var entry : stream) {
+                        if (Files.isDirectory(entry)
+                            && !Files.isSymbolicLink(entry)
+                            && !entry.getFileName()
+                                .toString()
+                                .startsWith(".")) {
+                            // Construct completion as the relative path starting with a '/'
+                            var relative = "/"
+                                    + fullPath.relativize(entry)
+                                        .toString()
+                                        .replace("\\", "/");
+                            // Prepend the current request path if not '/'
+                            if (!requestPath.equals("/")) {
+                                String prefix = requestPath.endsWith("/") ? requestPath.substring(0, requestPath.length() - 1) : requestPath;
+                                relative = prefix + relative;
+                            }
+                            completions.add(relative);
+                        }
+                    }
+                }
+            } else {
+                // Else, perform prefix matching in the parent directory.
+                var parentPath = fullPath.getParent();
+                if (parentPath != null
+                    && parentPath.startsWith(rootPath)
+                    && Files.exists(parentPath)
+                    && parentPath.toRealPath()
+                        .startsWith(rootPath)) {
+                    var prefix = fullPath.getFileName()
+                        .toString();
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath)) {
+                        for (var entry : stream) {
+                            if (Files.isDirectory(entry)
+                                && !Files.isSymbolicLink(entry)
+                                && entry.getFileName()
+                                    .toString()
+                                    .startsWith(prefix)) {
+                                String candidate = "/"
+                                        + parentPath.relativize(entry)
+                                            .toString()
+                                            .replace("\\", "/");
+                                completions.add(candidate);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.error("Received exception when scanning directories", e);
+        }
 
-		return new PathCompletionResponse(sortCompletions(completions));
-	}
+        return new PathCompletionResponse(sortCompletions(completions));
+    }
 }

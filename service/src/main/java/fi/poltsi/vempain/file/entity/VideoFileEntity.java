@@ -1,18 +1,19 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
+import java.time.Duration;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.VideoFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
-
-import java.time.Duration;
 
 @SuperBuilder
 @Data
@@ -24,36 +25,36 @@ import java.time.Duration;
 @Table(name = "video_files")
 public class VideoFileEntity extends FileEntity {
 
-	@Column(name = "width", nullable = false)
-	private int width;
+    @Column(name = "width", nullable = false)
+    private int width;
 
-	@Column(name = "height", nullable = false)
-	private int height;
+    @Column(name = "height", nullable = false)
+    private int height;
 
-	@Column(name = "frame_rate", precision = 5, nullable = false)
-	private double frameRate;
+    @Column(name = "frame_rate", precision = 5, nullable = false)
+    private double frameRate;
 
-	@Column(name = "duration", precision = 5, nullable = false)
-	@Convert(converter = DurationSecondsConverter.class)
-	private Duration duration;
+    @Column(name = "duration", precision = 5, nullable = false)
+    @Convert(converter = DurationSecondsConverter.class)
+    private Duration duration;
 
-	@Column(name = "codec", nullable = false)
-	private String codec;
+    @Column(name = "codec", nullable = false)
+    private String codec;
 
-	@Override
-	public VideoFileResponse toResponse() {
-		VideoFileResponse response = new VideoFileResponse();
+    @Override
+    public VideoFileResponse toResponse() {
+        VideoFileResponse response = new VideoFileResponse();
 
-		// Use the parent method to populate common fields
-		populateBaseResponse(response);
+        // Use the parent method to populate common fields
+        populateBaseResponse(response);
 
-		// Set the specific fields for this entity type
-		response.setWidth(getWidth());
-		response.setHeight(getHeight());
-		response.setFrameRate(getFrameRate());
-		response.setDuration(getDuration());
-		response.setCodec(getCodec());
+        // Set the specific fields for this entity type
+        response.setWidth(getWidth());
+        response.setHeight(getHeight());
+        response.setFrameRate(getFrameRate());
+        response.setDuration(getDuration());
+        response.setCodec(getCodec());
 
-		return response;
-	}
+        return response;
+    }
 }

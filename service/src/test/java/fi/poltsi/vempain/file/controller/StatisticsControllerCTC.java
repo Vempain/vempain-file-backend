@@ -12,11 +12,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class StatisticsControllerCTC extends AbstractControllerCTC {
 
-	@Test
-	void getStatistics_answersTheCountsAsJson() throws Exception {
-		doGet("/statistics")
-				.andExpect(status().isOk())
-				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-				.andExpect(jsonPath("$").isMap());
-	}
+    @Test
+    void getStatisticsAnswersTheCountsAsJson() throws Exception {
+        doGet("/statistics").andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$").isMap());
+    }
 }

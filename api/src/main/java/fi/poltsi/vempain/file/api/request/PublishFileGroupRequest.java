@@ -1,16 +1,17 @@
 package fi.poltsi.vempain.file.api.request;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
+
 import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
-
-import java.util.List;
 
 @Data
 @Builder
@@ -19,21 +20,21 @@ import java.util.List;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 @Schema(description = "Request DTO for publishing a file group in Vempain Admin, possibly also create a new gallery")
 public class PublishFileGroupRequest {
-	@Schema(description = "ID of the file group to publish", example = "12345", requiredMode = Schema.RequiredMode.REQUIRED)
-	private long fileGroupId;
 
-	@Nullable
-	@Schema(description = "Optional gallery name", example = "Some gallery", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-	private String galleryName;
+    @Schema(description = "ID of the file group to publish", example = "12345", requiredMode = Schema.RequiredMode.REQUIRED)
+    private long fileGroupId;
 
-	@Nullable
-	@Schema(description = "Optional gallery description", example = "This is a description of the gallery", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-	private String galleryDescription;
+    @Nullable
+    @Schema(description = "Optional gallery name", example = "Some gallery", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String galleryName;
 
-	@Nullable
-	@Valid
-	@Schema(description = "Additional admin users (see GET /publish/users) granted privileges on the published site files and the gallery; "
-						  + "the publishing service account always keeps every privilege",
-			requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-	private List<PublishAclRequest> acls;
+    @Nullable
+    @Schema(description = "Optional gallery description", example = "This is a description of the gallery", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String galleryDescription;
+
+    @Nullable
+    @Valid
+    @Schema(description = "Additional admin users (see GET /publish/users) granted privileges on the published site files and the gallery; "
+            + "the publishing service account always keeps every privilege", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private List<PublishAclRequest> acls;
 }

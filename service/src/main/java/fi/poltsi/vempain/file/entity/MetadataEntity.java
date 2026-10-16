@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,20 +23,20 @@ import lombok.NoArgsConstructor;
 @Table(name = "metadata")
 public class MetadataEntity {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@ManyToOne(optional = false, fetch = FetchType.LAZY)
-	@JoinColumn(name = "file_id", nullable = false)
-	private FileEntity file;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "file_id", nullable = false)
+    private FileEntity file;
 
-	@Column(name = "metadata_group", nullable = false, length = 128)
-	private String metadataGroup;
+    @Column(name = "metadata_group", nullable = false, length = 128)
+    private String metadataGroup;
 
-	@Column(name = "metadata_key", nullable = false, length = 128)
-	private String metadataKey;
+    @Column(name = "metadata_key", nullable = false, length = 128)
+    private String metadataKey;
 
-	@Column(name = "metadata_value", nullable = false, columnDefinition = "TEXT")
-	private String metadataValue;
+    @Column(name = "metadata_value", nullable = false, columnDefinition = "TEXT")
+    private String metadataValue;
 }

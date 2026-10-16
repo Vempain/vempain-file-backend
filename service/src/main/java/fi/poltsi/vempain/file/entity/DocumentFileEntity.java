@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.DocumentFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.DocumentFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -21,23 +22,23 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "document_files")
 public class DocumentFileEntity extends FileEntity {
 
-	@Column(name = "page_count", nullable = false)
-	private int pageCount; // Number of pages in the document
+    @Column(name = "page_count", nullable = false)
+    private int pageCount; // Number of pages in the document
 
-	@Column(name = "format", nullable = false)
-	private String format; // Document format (e.g., PDF, DOCX)
+    @Column(name = "format", nullable = false)
+    private String format; // Document format (e.g., PDF, DOCX)
 
-	@Override
-	public DocumentFileResponse toResponse() {
-		DocumentFileResponse response = new DocumentFileResponse();
+    @Override
+    public DocumentFileResponse toResponse() {
+        DocumentFileResponse response = new DocumentFileResponse();
 
-		// Use the parent method to populate common fields
-		populateBaseResponse(response);
+        // Use the parent method to populate common fields
+        populateBaseResponse(response);
 
-		// Set the specific fields for this entity type
-		response.setPageCount(getPageCount());
-		response.setFormat(getFormat());
+        // Set the specific fields for this entity type
+        response.setPageCount(getPageCount());
+        response.setFormat(getFormat());
 
-		return response;
-	}
+        return response;
+    }
 }

@@ -1,13 +1,13 @@
 package fi.poltsi.vempain.file.api.response;
 
+import java.util.List;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
-
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -16,6 +16,6 @@ import java.util.List;
 @Schema(description = "Response DTO containing path completions")
 public class PathCompletionResponse {
 
-	@Schema(description = "List of completed paths", example = "[\"/one\",\"/two\",\"/three\"]")
-	private List<String> completions;
+    @Schema(description = "List of completed paths", example = "[\"/one\",\"/two\",\"/three\"]")
+    private List<String> completions;
 }

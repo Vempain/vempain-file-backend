@@ -7,19 +7,14 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@EnableJpaRepositories(basePackages = {"fi.poltsi.vempain.auth.repository", "fi.poltsi.vempain.common.task.repository", "fi.poltsi.vempain.file.repository"})
-@EntityScan(basePackages = {"fi.poltsi.vempain.auth.entity", "fi.poltsi.vempain.common.task.entity", "fi.poltsi.vempain.file.entity"})
-@SpringBootApplication(scanBasePackages = {
-		"fi.poltsi.vempain.file",
-		"fi.poltsi.vempain.auth",
-		"fi.poltsi.vempain.common",
-})
+@EnableJpaRepositories(basePackages = { "fi.poltsi.vempain.auth.repository", "fi.poltsi.vempain.common.task.repository", "fi.poltsi.vempain.file.repository" })
+@EntityScan(basePackages = { "fi.poltsi.vempain.auth.entity", "fi.poltsi.vempain.common.task.entity", "fi.poltsi.vempain.file.entity" })
+@SpringBootApplication(scanBasePackages = { "fi.poltsi.vempain.file", "fi.poltsi.vempain.auth", "fi.poltsi.vempain.common", })
 @EnableFeignClients(basePackages = "fi.poltsi.vempain.file.feign")
 @EnableScheduling
 public class VempainFileServiceApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(VempainFileServiceApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(VempainFileServiceApplication.class, args);
+    }
 }

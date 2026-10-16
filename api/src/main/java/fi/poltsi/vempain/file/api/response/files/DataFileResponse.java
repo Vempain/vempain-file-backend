@@ -1,7 +1,8 @@
 package fi.poltsi.vempain.file.api.response.files;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -19,8 +20,7 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Schema(description = "Response DTO representing a data file")
 public class DataFileResponse extends FileResponse {
 
-	@Schema(description = "Structure of the data (e.g. JSON, XML, CSV, BINARY, OTHER)", example = "JSON")
-	@Size(max = 50)
-	private String dataStructure;
+    @Schema(description = "Structure of the data (e.g. JSON, XML, CSV, BINARY, OTHER)", example = "JSON")
+    @Size(max = 50)
+    private String dataStructure;
 }
-

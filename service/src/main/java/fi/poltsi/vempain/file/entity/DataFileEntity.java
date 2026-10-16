@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.files.DataFileResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -21,15 +22,15 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "data_files")
 public class DataFileEntity extends FileEntity {
 
-	// e.g. JSON, XML, CSV, NDJSON, YAML, BINARY, OTHER
-	@Column(name = "data_structure")
-	private String dataStructure;
+    // e.g. JSON, XML, CSV, NDJSON, YAML, BINARY, OTHER
+    @Column(name = "data_structure")
+    private String dataStructure;
 
-	@Override
-	public DataFileResponse toResponse() {
-		DataFileResponse response = new DataFileResponse();
-		populateBaseResponse(response);
-		response.setDataStructure(getDataStructure());
-		return response;
-	}
+    @Override
+    public DataFileResponse toResponse() {
+        DataFileResponse response = new DataFileResponse();
+        populateBaseResponse(response);
+        response.setDataStructure(getDataStructure());
+        return response;
+    }
 }

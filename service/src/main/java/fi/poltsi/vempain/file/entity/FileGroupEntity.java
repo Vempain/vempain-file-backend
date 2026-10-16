@@ -1,6 +1,8 @@
 package fi.poltsi.vempain.file.entity;
 
-import fi.poltsi.vempain.file.api.response.FileGroupResponse;
+import java.util.ArrayList;
+import java.util.List;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,15 +15,14 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+
+import fi.poltsi.vempain.file.api.response.FileGroupResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Builder
 @Data
@@ -33,76 +34,73 @@ import java.util.List;
 @ToString(onlyExplicitlyIncluded = true)
 public class FileGroupEntity {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@EqualsAndHashCode.Include
-	@ToString.Include
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
+    @ToString.Include
+    private Long id;
 
-	@Column(nullable = false)
-	@ToString.Include
-	private String path;
+    @Column(nullable = false)
+    @ToString.Include
+    private String path;
 
-	@Column(name = "group_name", nullable = false)
-	@ToString.Include
-	private String groupName;
+    @Column(name = "group_name", nullable = false)
+    @ToString.Include
+    private String groupName;
 
-	@Column(name = "description", nullable = false)
-	@ToString.Include
-	private String description;
+    @Column(name = "description", nullable = false)
+    @ToString.Include
+    private String description;
 
-	@ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
-	@JoinTable(
-			name = "file_group_files",
-			joinColumns = @JoinColumn(name = "file_group_id"),
-			inverseJoinColumns = @JoinColumn(name = "file_id")
-	)
-	@OrderBy("filename ASC")
-	@Builder.Default
-	private List<FileEntity> files = new ArrayList<>();
+    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.MERGE, CascadeType.PERSIST })
+    @JoinTable(name = "file_group_files", joinColumns = @JoinColumn(name = "file_group_id"), inverseJoinColumns = @JoinColumn(name = "file_id"))
+    @OrderBy("filename ASC")
+    @Builder.Default
+    private List<FileEntity> files = new ArrayList<>();
 
-	@Column(name = "gallery_id")
-	private Long galleryId;
+    @Column(name = "gallery_id")
+    private Long galleryId;
 
-	public FileGroupResponse toResponse() {
-		return FileGroupResponse.builder()
-		                        .id(id)
-		                        .path(path)
-		                        .groupName(groupName)
-		                        .description(description)
-		                        .files(files != null ? files.stream()
-		                                                    .map(file -> file.toResponse(false))
-		                                                    .toList() : List.of())
-		                        .build();
-	}
+    public FileGroupResponse toResponse() {
+        return FileGroupResponse.builder()
+            .id(id)
+            .path(path)
+            .groupName(groupName)
+            .description(description)
+            .files(files != null ? files.stream()
+                .map(file -> file.toResponse(false))
+                .toList() : List.of())
+            .build();
+    }
 
-	public void replaceFiles(List<FileEntity> newFiles) {
-		final List<FileEntity> newList = newFiles == null ? List.of() : new ArrayList<>(newFiles);
+    public void replaceFiles(List<FileEntity> newFiles) {
+        final List<FileEntity> newList = newFiles == null ? List.of() : new ArrayList<>(newFiles);
 
-		// Remove unselected files and update inverse side
-		if (files != null && !files.isEmpty()) {
-			var toRemove = new ArrayList<>(files);
-			newList.forEach(toRemove::remove);
-			for (FileEntity f : toRemove) {
-				files.remove(f);
-				if (f.getFileGroups() != null) {
-					f.getFileGroups()
-					 .remove(this);
-				}
-			}
-		}
+        // Remove unselected files and update inverse side
+        if (files != null
+            && !files.isEmpty()) {
+            var toRemove = new ArrayList<>(files);
+            newList.forEach(toRemove::remove);
+            for (FileEntity f : toRemove) {
+                files.remove(f);
+                if (f.getFileGroups() != null) {
+                    f.getFileGroups()
+                        .remove(this);
+                }
+            }
+        }
 
-		// Add new files and update inverse side
-		for (FileEntity f : newList) {
-			assert files != null;
+        // Add new files and update inverse side
+        for (FileEntity f : newList) {
+            assert files != null;
 
-			if (!files.contains(f)) {
-				files.add(f);
-				if (f.getFileGroups() != null) {
-					f.getFileGroups()
-					 .add(this);
-				}
-			}
-		}
-	}
+            if (!files.contains(f)) {
+                files.add(f);
+                if (f.getFileGroups() != null) {
+                    f.getFileGroups()
+                        .add(this);
+                }
+            }
+        }
+    }
 }

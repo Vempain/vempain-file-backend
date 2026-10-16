@@ -15,8 +15,9 @@ import tools.jackson.databind.annotation.JsonNaming;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 @Schema(description = "Response DTO for directory scan results, including original and/or exported files")
 public class ScanResponses {
-	@Schema(description = "Result if the original files were scanned", example = "ScanResponse")
-	private ScanOriginalResponse scanOriginalResponse;
-	@Schema(description = "Result if the exported files were scanned", example = "ScanResponse")
-	private ScanExportResponse   scanExportResponse;
+
+    @Schema(description = "Result if the original files were scanned", example = "ScanResponse")
+    private ScanOriginalResponse scanOriginalResponse;
+    @Schema(description = "Result if the exported files were scanned", example = "ScanResponse")
+    private ScanExportResponse scanExportResponse;
 }

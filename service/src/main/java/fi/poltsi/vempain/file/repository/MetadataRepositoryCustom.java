@@ -8,13 +8,11 @@ import org.springframework.data.domain.Pageable;
  */
 public interface MetadataRepositoryCustom {
 
-	/**
-	 * Distinct group, key and value combinations with the number of files carrying each one. Every filter is an optional
-	 * contains-match on its column; sorting accepts {@code metadata_group}, {@code metadata_key}, {@code metadata_value} and
-	 * {@code file_count}.
-	 */
-	Page<MetadataSummaryRow> searchSummaries(String groupFilter, String keyFilter, String valueFilter, boolean caseSensitive, Pageable pageable);
+    /**
+     * Distinct group, key and value combinations with the number of files carrying each one. Every filter is an optional contains-match on its column; sorting
+     * accepts {@code metadata_group}, {@code metadata_key}, {@code metadata_value} and {@code file_count}.
+     */
+    Page<MetadataSummaryRow> searchSummaries(String groupFilter, String keyFilter, String valueFilter, boolean caseSensitive, Pageable pageable);
 
-	record MetadataSummaryRow(String metadataGroup, String metadataKey, String metadataValue, long fileCount) {
-	}
+    record MetadataSummaryRow(String metadataGroup, String metadataKey, String metadataValue, long fileCount) {}
 }

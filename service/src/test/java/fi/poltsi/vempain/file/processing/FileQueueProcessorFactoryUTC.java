@@ -1,9 +1,10 @@
 package fi.poltsi.vempain.file.processing;
 
-import fi.poltsi.vempain.common.api.FileTypeEnum;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import fi.poltsi.vempain.common.api.FileTypeEnum;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -11,20 +12,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class FileQueueProcessorFactoryUTC {
-	@Test
-	void returnsProcessorForRegisteredType() {
-		var processor = mock(FileQueueProcessor.class);
-		when(processor.supportedType()).thenReturn(FileTypeEnum.VIDEO);
 
-		var factory = new FileQueueProcessorFactory(List.of(processor));
+    @Test
+    void returnsProcessorForRegisteredType() {
+        var processor = mock(FileQueueProcessor.class);
+        when(processor.supportedType()).thenReturn(FileTypeEnum.VIDEO);
 
-		assertThat(factory.processorFor(FileTypeEnum.VIDEO)).isSameAs(processor);
-	}
+        var factory = new FileQueueProcessorFactory(List.of(processor));
 
-	@Test
-	void rejectsUnsupportedType() {
-		var factory = new FileQueueProcessorFactory(List.of());
+        assertThat(factory.processorFor(FileTypeEnum.VIDEO)).isSameAs(processor);
+    }
 
-		assertThatIllegalArgumentException().isThrownBy(() -> factory.processorFor(FileTypeEnum.IMAGE));
-	}
+    @Test
+    void rejectsUnsupportedType() {
+        var factory = new FileQueueProcessorFactory(List.of());
+
+        assertThatIllegalArgumentException().isThrownBy(() -> factory.processorFor(FileTypeEnum.IMAGE));
+    }
 }

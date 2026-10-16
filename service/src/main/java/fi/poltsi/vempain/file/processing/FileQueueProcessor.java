@@ -4,7 +4,8 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
 
 public interface FileQueueProcessor {
-	FileTypeEnum supportedType();
 
-	void process(FileProcessingQueueEntity queueItem) throws Exception;
+    FileTypeEnum supportedType();
+
+    void process(FileProcessingQueueEntity queueItem) throws Exception;
 }

@@ -1,5 +1,8 @@
 package fi.poltsi.vempain.file.api.response.files;
 
+import java.time.Instant;
+import java.util.List;
+
 import fi.poltsi.vempain.auth.api.response.AbstractResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.response.LocationResponse;
@@ -12,9 +15,6 @@ import lombok.experimental.SuperBuilder;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
 
-import java.time.Instant;
-import java.util.List;
-
 @EqualsAndHashCode(callSuper = true)
 @Data
 @SuperBuilder
@@ -24,72 +24,72 @@ import java.util.List;
 @Schema(description = "Response DTO representing a file based on FileEntity")
 public class FileResponse extends AbstractResponse {
 
-	@Schema(description = "Name of the file", example = "image.png")
-	private String filename;
+    @Schema(description = "Name of the file", example = "image.png")
+    private String filename;
 
-	@Schema(description = "Path of the file, relative to the root directory", example = "/some/path")
-	private String filePath;
+    @Schema(description = "Path of the file, relative to the root directory", example = "/some/path")
+    private String filePath;
 
-	@Schema(description = "Thumbnail file ID", example = "123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-	private Long thumbnailId;
+    @Schema(description = "Thumbnail file ID", example = "123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Long thumbnailId;
 
-	@Schema(description = "External file identifier", example = "ext12345")
-	private String externalFileId;
+    @Schema(description = "External file identifier", example = "ext12345")
+    private String externalFileId;
 
-	@Schema(description = "MIME type of the file", example = "image/png")
-	private String mimetype;
+    @Schema(description = "MIME type of the file", example = "image/png")
+    private String mimetype;
 
-	@Schema(description = "Size of the file in bytes", example = "102400")
-	private long filesize;
+    @Schema(description = "Size of the file in bytes", example = "102400")
+    private long filesize;
 
-	@Schema(description = "SHA-256 checksum of the file", example = "abc123def456...")
-	private String sha256sum;
+    @Schema(description = "SHA-256 checksum of the file", example = "abc123def456...")
+    private String sha256sum;
 
-	@Schema(description = "Original datetime of the file", example = "2025-09-01T12:34:56Z")
-	private Instant originalDatetime;
+    @Schema(description = "Original datetime of the file", example = "2025-09-01T12:34:56Z")
+    private Instant originalDatetime;
 
-	@Schema(description = "Original second fraction", example = "123")
-	private Integer originalSecondFraction;
+    @Schema(description = "Original second fraction", example = "123")
+    private Integer originalSecondFraction;
 
-	@Schema(description = "Original document identifier", example = "doc98765")
-	private String originalDocumentId;
+    @Schema(description = "Original document identifier", example = "doc98765")
+    private String originalDocumentId;
 
-	@Schema(description = "Description of the file", example = "File description")
-	private String description;
+    @Schema(description = "Description of the file", example = "File description")
+    private String description;
 
-	@Schema(description = "File type", example = "IMAGE")
-	private FileTypeEnum fileType;
+    @Schema(description = "File type", example = "IMAGE")
+    private FileTypeEnum fileType;
 
-	@Schema(description = "Raw metadata as a JSON string", example = "{\"key\":\"value\"}")
-	private String metadataRaw;
+    @Schema(description = "Raw metadata as a JSON string", example = "{\"key\":\"value\"}")
+    private String metadataRaw;
 
-	@Schema(description = "Rights holder", example = "Rights Holder")
-	private String rightsHolder;
+    @Schema(description = "Rights holder", example = "Rights Holder")
+    private String rightsHolder;
 
-	@Schema(description = "Rights terms", example = "All rights reserved")
-	private String rightsTerms;
+    @Schema(description = "Rights terms", example = "All rights reserved")
+    private String rightsTerms;
 
-	@Schema(description = "Rights URL", example = "https://rights.example.com")
-	private String rightsUrl;
+    @Schema(description = "Rights URL", example = "https://rights.example.com")
+    private String rightsUrl;
 
-	@Schema(description = "Creator name", example = "Creator Name")
-	private String creatorName;
+    @Schema(description = "Creator name", example = "Creator Name")
+    private String creatorName;
 
-	@Schema(description = "Creator email", example = "creator@creator.example.com")
-	private String creatorEmail;
+    @Schema(description = "Creator email", example = "creator@creator.example.com")
+    private String creatorEmail;
 
-	@Schema(description = "Creator country", example = "FI")
-	private String creatorCountry;
+    @Schema(description = "Creator country", example = "FI")
+    private String creatorCountry;
 
-	@Schema(description = "Creator URL", example = "https://creator.example.com")
-	private String creatorUrl;
+    @Schema(description = "Creator URL", example = "https://creator.example.com")
+    private String creatorUrl;
 
-	@Schema(description = "If there is a related GPS coordinate, then this is the extracted GPS timestamp which is in UTC", example = "2025-09-01T12:34:56Z")
-	private Instant gpsTimestamp;
+    @Schema(description = "If there is a related GPS coordinate, then this is the extracted GPS timestamp which is in UTC", example = "2025-09-01T12:34:56Z")
+    private Instant gpsTimestamp;
 
-	@Schema(description = "Location information extracted from the file, if available")
-	private LocationResponse location;
+    @Schema(description = "Location information extracted from the file, if available")
+    private LocationResponse location;
 
-	@Schema(description = "List of file tags")
-	private List<String> tags;
+    @Schema(description = "List of file tags")
+    private List<String> tags;
 }

@@ -108,7 +108,11 @@ public class VempainAdminService {
 
         fileIngestRequestString = objectMapper.writeValueAsString(fileIngestRequest);
 
-        log.debug("Uploading file {} to Vempain Admin service", exportedFile.getAbsolutePath());
+        log.debug("Uploading file {} to Vempain Admin service: fileId={}, metadataPresent={}, metadataLength={}", exportedFile.getAbsolutePath(),
+                fileIngestRequest.getFileId(), fileIngestRequest.getMetadata() != null, fileIngestRequest.getMetadata() != null
+                        ? fileIngestRequest.getMetadata()
+                            .length()
+                        : null);
 
         try {
             var responseEntity = vempainAdminFileIngestClient.ingest(fileIngestRequestString, multiPartFile);

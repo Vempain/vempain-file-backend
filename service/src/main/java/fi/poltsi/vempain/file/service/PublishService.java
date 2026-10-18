@@ -48,6 +48,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
+import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
 
 /**
  * Publishes file groups to the admin backend. Publishing runs as background tasks ({@link TaskRunner}); the caller gets the task id back immediately and
@@ -71,6 +72,7 @@ public class PublishService {
     private final ImageTool imageTool;
     private final ApplicationContext applicationContext;
     private final TaskRunner taskRunner;
+    private final MetadataService metadataService;
 
     @Value("${vempain.site-image-size:1200}")
     private int siteImageSize;
@@ -416,17 +418,20 @@ public class PublishService {
     }
 
     /**
-     * Resizes images, fills the ingest request from the file entity and uploads the file to the admin backend.
+     * Resizes images, fills the ingest request from the file entity, and uploads the file to the admin backend.
      */
     private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
             FileIngestRequest.FileIngestRequestBuilder builder, String tempPrefix) throws IOException {
-        var metadataJson = fileEntity.getMetadataRaw();
+        var metadataEntries = metadataService.getFileMetadata(fileEntity.getId());
+        var metadataJson = collectStandardMetadataAsJson(metadataEntries, fileEntity);
+
         if (metadataJson == null
             || metadataJson.isBlank()) {
             metadataJson = "[]";
         }
+
         var siteFileName = fileEntity.getFilename();
-        Path uploadPath = exportFilePath;
+        var uploadPath = exportFilePath;
         Path tempPathToDelete = null;
 
         try {

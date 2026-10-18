@@ -29,4 +29,6 @@ public interface MetadataRepository extends JpaRepository<MetadataEntity, Long>,
             @Param("metadataValue") String metadataValue);
 
     Optional<MetadataEntity> findFirstByFileIdAndMetadataGroupAndMetadataKey(long fileId, String metadataGroup, String metadataKey);
+
+    List<MetadataEntity> findByFileId(long fileId);
 }

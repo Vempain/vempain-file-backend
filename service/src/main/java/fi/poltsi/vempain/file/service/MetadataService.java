@@ -78,6 +78,14 @@ public class MetadataService {
     private float thumbnailQuality;
 
     /**
+     * Fetch all metadata rows for a given file ID.
+     */
+    @Transactional(readOnly = true)
+    public List<MetadataEntity> getFileMetadata(long fileId) {
+        return metadataRepository.findByFileId(fileId);
+    }
+
+    /**
      * Distinct group, key and value rows with their file counts. The counts are system wide (metadata has no ACL); only the file lists of {@link #findFiles}
      * are ACL filtered.
      */

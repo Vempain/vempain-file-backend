@@ -9,12 +9,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import fi.poltsi.vempain.file.entity.FileEntity;
-import fi.poltsi.vempain.file.entity.MetadataEntity;
 
+import static fi.poltsi.vempain.file.util.MetadataUtil.generateMetadataEntities;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
 
 /**
  * Extended unit tests (UTC) for {@link MetadataTool} JSON-based extraction methods.
@@ -549,20 +550,13 @@ class MetadataToolExtendedUTC {
         @Test
         void withFileEntityRightsAndCreatorIncludesInOutput() {
             var mockFile = Mockito.mock(FileEntity.class);
-            Mockito.when(mockFile.getCreatorName())
-                .thenReturn("Test Creator");
-            Mockito.when(mockFile.getRightsHolder())
-                .thenReturn("© 2024");
-            Mockito.when(mockFile.getRightsUrl())
-                .thenReturn("https://license.example.com");
-            Mockito.when(mockFile.getRightsTerms())
-                .thenReturn("All rights reserved");
-            Mockito.when(mockFile.getCreatorEmail())
-                .thenReturn("creator@example.com");
-            Mockito.when(mockFile.getCreatorCountry())
-                .thenReturn("FI");
-            Mockito.when(mockFile.getCreatorUrl())
-                .thenReturn("https://creator.example.com");
+            when(mockFile.getCreatorName()).thenReturn("Test Creator");
+            when(mockFile.getRightsHolder()).thenReturn("© 2024");
+            when(mockFile.getRightsUrl()).thenReturn("https://license.example.com");
+            when(mockFile.getRightsTerms()).thenReturn("All rights reserved");
+            when(mockFile.getCreatorEmail()).thenReturn("creator@example.com");
+            when(mockFile.getCreatorCountry()).thenReturn("FI");
+            when(mockFile.getCreatorUrl()).thenReturn("https://creator.example.com");
 
             var result = MetadataTool.collectStandardMetadataAsJson(List.of(), mockFile);
             assertThat(result).contains("Test Creator");
@@ -572,116 +566,19 @@ class MetadataToolExtendedUTC {
         @Test
         void withMetadataEntitiesExtractsFields() {
             var mockFile = Mockito.mock(FileEntity.class);
-            Mockito.when(mockFile.getCreatorName())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsHolder())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsUrl())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsTerms())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorEmail())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorCountry())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorUrl())
-                .thenReturn(null);
+            when(mockFile.getCreatorName()).thenReturn(null);
+            when(mockFile.getRightsHolder()).thenReturn(null);
+            when(mockFile.getRightsUrl()).thenReturn(null);
+            when(mockFile.getRightsTerms()).thenReturn(null);
+            when(mockFile.getCreatorEmail()).thenReturn(null);
+            when(mockFile.getCreatorCountry()).thenReturn(null);
+            when(mockFile.getCreatorUrl()).thenReturn(null);
 
-            var me1 = MetadataEntity.builder()
-                .metadataGroup("IFD0")
-                .metadataKey("Artist")
-                .metadataValue("John Smith")
-                .build();
-            var me2 = MetadataEntity.builder()
-                .metadataGroup("ExifIFD")
-                .metadataKey("FNumber")
-                .metadataValue("2.8")
-                .build();
-            var me3 = MetadataEntity.builder()
-                .metadataGroup("ExifIFD")
-                .metadataKey("ExposureTime")
-                .metadataValue("1/200")
-                .build();
-            var me4 = MetadataEntity.builder()
-                .metadataGroup("IFD0")
-                .metadataKey("Make")
-                .metadataValue("Canon")
-                .build();
-
-            var result = MetadataTool.collectStandardMetadataAsJson(List.of(me1, me2, me3, me4), mockFile);
+            var result = MetadataTool.collectStandardMetadataAsJson(generateMetadataEntities(), mockFile);
             assertThat(result).contains("John Smith");
             assertThat(result).contains("Canon");
-        }
-
-        @Test
-        void withIsoAndBitsPerSampleParsesNumeric() {
-            var mockFile = Mockito.mock(FileEntity.class);
-            Mockito.when(mockFile.getCreatorName())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsHolder())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsUrl())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsTerms())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorEmail())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorCountry())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorUrl())
-                .thenReturn(null);
-
-            var isoMe = MetadataEntity.builder()
-                .metadataGroup("ExifIFD")
-                .metadataKey("ISO")
-                .metadataValue("400")
-                .build();
-            var bpsMe = MetadataEntity.builder()
-                .metadataGroup("File")
-                .metadataKey("BitsPerSample")
-                .metadataValue("8")
-                .build();
-            var megapixelsMe = MetadataEntity.builder()
-                .metadataGroup("Composite")
-                .metadataKey("Megapixels")
-                .metadataValue("24.2")
-                .build();
-
-            var result = MetadataTool.collectStandardMetadataAsJson(List.of(isoMe, bpsMe, megapixelsMe), mockFile);
             assertThat(result).contains("400");
             assertThat(result).contains("8");
-        }
-
-        @Test
-        void withImageSizeFromWidthAndHeight() {
-            var mockFile = Mockito.mock(FileEntity.class);
-            Mockito.when(mockFile.getCreatorName())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsHolder())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsUrl())
-                .thenReturn(null);
-            Mockito.when(mockFile.getRightsTerms())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorEmail())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorCountry())
-                .thenReturn(null);
-            Mockito.when(mockFile.getCreatorUrl())
-                .thenReturn(null);
-
-            var widthMe = MetadataEntity.builder()
-                .metadataGroup("File")
-                .metadataKey("ImageWidth")
-                .metadataValue("1920")
-                .build();
-            var heightMe = MetadataEntity.builder()
-                .metadataGroup("File")
-                .metadataKey("ImageHeight")
-                .metadataValue("1080")
-                .build();
-
-            var result = MetadataTool.collectStandardMetadataAsJson(List.of(widthMe, heightMe), mockFile);
             assertThat(result).contains("1920x1080");
         }
     }

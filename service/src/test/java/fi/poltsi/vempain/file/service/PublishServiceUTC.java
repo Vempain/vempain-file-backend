@@ -44,6 +44,8 @@ import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSumm
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 
+import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
+import static fi.poltsi.vempain.file.util.MetadataUtil.generateMetadataEntities;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,6 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -81,6 +85,8 @@ class PublishServiceUTC {
     private FileAclService fileAclService;
     @Mock
     private ImageTool imageTool;
+    @Mock
+    private MetadataService metadataService;
     @Mock
     private ApplicationContext applicationContext;
     /**
@@ -249,6 +255,8 @@ class PublishServiceUTC {
         ReflectionTestUtils.setField(publishService, "exportRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(publishService, "exportFileType", "jpeg");
         ReflectionTestUtils.setField(publishService, "siteImageSize", 1200);
+        lenient().when(metadataService.getFileMetadata(anyLong()))
+            .thenReturn(List.of());
     }
 
     // ------------------------------------------------------------------
@@ -661,7 +669,7 @@ class PublishServiceUTC {
             when(mockDocEntity.getDescription()).thenReturn(null);
             when(mockDocEntity.getGpsLocation()).thenReturn(null);
             when(mockDocEntity.getPageCount()).thenReturn(5);
-            when(mockDocEntity.getMetadataRaw()).thenReturn("[{\"IFD0\":{\"Make\":\"NIKON CORPORATION\",\"Model\":\"NIKON D750\"}}]");
+            when(metadataService.getFileMetadata(55L)).thenReturn(generateMetadataEntities());
             when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
             var group = FileGroupEntity.builder()
                 .id(9L)
@@ -684,7 +692,7 @@ class PublishServiceUTC {
             verify(vempainAdminService).uploadAsSiteFile(any(), captor.capture());
             var ingest = captor.getValue();
             assertEquals("Docs", ingest.getGalleryName());
-            assertEquals("[{\"IFD0\":{\"Make\":\"NIKON CORPORATION\",\"Model\":\"NIKON D750\"}}]", ingest.getMetadata());
+            assertEquals(collectStandardMetadataAsJson(generateMetadataEntities(), mockDocEntity), ingest.getMetadata());
             assertEquals(1, ingest.getAcls()
                 .size());
             assertEquals(5L, ingest.getAcls()

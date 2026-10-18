@@ -181,6 +181,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   not count because they fall back to plaintext. The `vempain-cluster` databases also reject plaintext connections.
 - Every `FileIngestRequest` built by `PublishService.uploadFile` carries `file_id` = the `files.id` of the published entity (admin API releases after 1.0.64
   require it and store it as `site_file.file_id`); keep it set in every publish path (single file, group, republish).
+- **IMPERATIVE:** When a file is published in `PublishService`, the `metadata` field of the `FileIngestRequest` DTO MUST contain only the metadata defined by
+  `MetadataTool.collectStandardMetadataAsJson(...)`, built from the file's `metadata` rows and `FileEntity`. Never send the raw metadata rows, the full
+  `exiftool -json` output, or any other metadata set in `FileIngestRequest.metadata`. The same standard JSON is the only metadata passed to
+  `ImageTool.resizeImage`. Any change to the published metadata must be made in `MetadataTool.collectStandardMetadataAsJson`, not in the publish path.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
   as a background task with one step per file, also for publish-all (groups processed sequentially, an empty group counts as one step and a
   group that fails as a whole marks its remaining file steps as failed). The totals are computed when the task is submitted

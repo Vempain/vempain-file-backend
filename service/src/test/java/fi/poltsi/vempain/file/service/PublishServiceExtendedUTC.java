@@ -52,8 +52,11 @@ import fi.poltsi.vempain.file.tools.SampleFiles;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +68,8 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PublishServiceExtendedUTC {
 
+    private static final int MAX_IMAGE_SIZE = 1200;
+
     @TempDir
     Path exportDir;
     @Mock
@@ -75,6 +80,8 @@ class PublishServiceExtendedUTC {
     private ExportFileRepository exportFileRepository;
     @Mock
     private VempainAdminService vempainAdminService;
+    @Mock
+    private MetadataService metadataService;
     @Mock
     private TagService tagService;
     @Mock
@@ -94,7 +101,7 @@ class PublishServiceExtendedUTC {
     void setUp() {
         ReflectionTestUtils.setField(publishService, "exportRootDirectory", exportDir.toString());
         ReflectionTestUtils.setField(publishService, "exportFileType", "jpeg");
-        ReflectionTestUtils.setField(publishService, "siteImageSize", 1200);
+        ReflectionTestUtils.setField(publishService, "siteImageSize", MAX_IMAGE_SIZE);
         when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
         when(tagService.getTagRequestsByFileId(any(Long.class))).thenReturn(List.of());
         when(exportFileRepository.findByFileId(any())).thenReturn(Optional.empty());
@@ -127,12 +134,18 @@ class PublishServiceExtendedUTC {
     @Test
     void publishFilesResizesImagesAndReportsFilesWithoutExportAsFailedSteps() throws Exception {
         var image = exported(new ImageFileEntity(), 1L, FileTypeEnum.IMAGE, "a.jpg", "/image/holiday");
-        when(fileRepository.findById(2L)).thenReturn(Optional.of(new ImageFileEntity()));
-        when(imageTool.resizeImage(any(), any(), eq(1200), eq(0.7f), eq("[]"))).thenAnswer(invocation -> {
+        when(fileRepository.findById(2L)).thenReturn(Optional.of(ImageFileEntity.builder()
+            .id(2L)
+            .fileType(FileTypeEnum.IMAGE)
+            .filename("b.jpg")
+            .filePath("/image/holiday")
+            .build()));
+        when(imageTool.resizeImage(any(), any(), eq(MAX_IMAGE_SIZE), eq(0.7f), anyString())).thenAnswer(invocation -> {
             Files.copy(invocation.getArgument(0, Path.class), invocation.getArgument(1, Path.class), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            return new Dimension(1200, 800);
+            return new Dimension(MAX_IMAGE_SIZE, 800);
         });
         when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(created(10L, null));
+        when(metadataService.getFileMetadata(anyLong())).thenReturn(List.of());
 
         var task = publishService.publishFiles(PublishFilesRequest.builder()
             .fileIds(List.of(1L, 2L))
@@ -151,7 +164,7 @@ class PublishServiceExtendedUTC {
         assertThat(ingest.getFileId()).isEqualTo(1L);
         assertThat(ingest.getFileName()).isEqualTo("a.jpeg");
         assertThat(ingest.getFilePath()).isEqualTo("holiday");
-        assertThat(ingest.getWidth()).isEqualTo(1200);
+        assertThat(ingest.getWidth()).isEqualTo(MAX_IMAGE_SIZE);
         assertThat(ingest.getHeight()).isEqualTo(800);
         assertThat(ingest.getMimeType()).isEqualTo("image/jpeg");
         assertThat(ingest.getComment()).isEmpty();
@@ -186,7 +199,7 @@ class PublishServiceExtendedUTC {
             .build(), null);
 
         var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
-        verify(vempainAdminService, org.mockito.Mockito.times(2)).uploadAsSiteFile(any(), captor.capture());
+        verify(vempainAdminService, times(2)).uploadAsSiteFile(any(), captor.capture());
         var videoIngest = captor.getAllValues()
             .get(0);
         assertThat(videoIngest.getFileId()).isEqualTo(3L);
@@ -257,7 +270,7 @@ class PublishServiceExtendedUTC {
         assertThat(group.getGalleryId()).as("the gallery link was restored to its previous value")
             .isNull();
         verify(vempainAdminService).deleteSiteFile(500L);
-        verify(fileGroupRepository, org.mockito.Mockito.times(2)).save(group);
+        verify(fileGroupRepository, times(2)).save(group);
     }
 
     @Test
@@ -319,7 +332,7 @@ class PublishServiceExtendedUTC {
         publishService.republishSiteFile(plain);
 
         var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
-        verify(vempainAdminService, org.mockito.Mockito.times(2)).uploadAsSiteFile(any(), captor.capture());
+        verify(vempainAdminService, times(2)).uploadAsSiteFile(any(), captor.capture());
         assertThat(captor.getAllValues()).extracting(FileIngestRequest::getFilePath)
             .containsExactly("2024/trip", "other/2024");
     }

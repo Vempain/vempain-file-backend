@@ -53,7 +53,7 @@ class FileGroupServiceUTC {
         var pageable = ArgumentCaptor.forClass(Pageable.class);
         when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), pageable.capture())).thenReturn(new PageImpl<>(List.of()));
 
-        for (var sortBy : List.of("id", "group_name", "description", "file_count", "bogus")) {
+        for (var sortBy : List.of("id", "group_name", "description", "file_count", "exported_file_count", "bogus")) {
             service.getAll(new PagedRequest(0, 10, sortBy, Sort.Direction.DESC, null, null));
         }
         service.getAll(new PagedRequest(0, 10, null, null, null, null));
@@ -64,7 +64,7 @@ class FileGroupServiceUTC {
                 .iterator()
                 .next()
                 .getProperty())
-            .toList()).containsExactly("id", "groupName", "description", "file_count", "path", "path");
+            .toList()).containsExactly("id", "groupName", "description", "file_count", "exported_file_count", "path", "path");
     }
 
     @Test

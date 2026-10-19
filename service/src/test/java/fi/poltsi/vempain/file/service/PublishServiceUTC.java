@@ -38,6 +38,7 @@ import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
@@ -94,6 +95,8 @@ class PublishServiceUTC {
      */
     @Spy
     private TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private PublishService publishService;
 
@@ -260,22 +263,22 @@ class PublishServiceUTC {
     }
 
     // ------------------------------------------------------------------
-    // countFilesInGroup
+    // countExportedFilesInGroup
     // ------------------------------------------------------------------
     @Nested
-    @DisplayName("countFilesInGroup")
-    class CountFilesInGroup {
+    @DisplayName("countExportedFilesInGroup")
+    class CountExportedFilesInGroup {
 
         @Test
         void returnsCount() {
-            when(fileGroupRepository.countFilesById(5L)).thenReturn(3L);
-            assertThat(publishService.countFilesInGroup(5L)).isEqualTo(3L);
+            when(fileGroupRepository.countExportedFilesById(5L)).thenReturn(3L);
+            assertThat(publishService.countExportedFilesInGroup(5L)).isEqualTo(3L);
         }
 
         @Test
         void returnsZeroWhenNoFiles() {
-            when(fileGroupRepository.countFilesById(99L)).thenReturn(0L);
-            assertThat(publishService.countFilesInGroup(99L)).isEqualTo(0L);
+            when(fileGroupRepository.countExportedFilesById(99L)).thenReturn(0L);
+            assertThat(publishService.countExportedFilesInGroup(99L)).isEqualTo(0L);
         }
 
         @Test
@@ -420,7 +423,7 @@ class PublishServiceUTC {
         }
 
         @Test
-        void publishFileGroupReportsFilesWithoutExportAsFailedSteps() {
+        void publishFileGroupWithoutExportedFilesCompletesWithoutPublishing() {
             var group = FileGroupEntity.builder()
                 .id(406L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()
@@ -429,7 +432,7 @@ class PublishServiceUTC {
                     .build()))
                 .build();
             when(fileGroupRepository.findById(406L)).thenReturn(Optional.of(group));
-            when(fileGroupRepository.countFilesById(406L)).thenReturn(1L);
+            when(fileGroupRepository.countExportedFilesById(406L)).thenReturn(0L);
             when(exportFileRepository.findByFileId(60L)).thenReturn(Optional.empty());
             when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
@@ -438,18 +441,110 @@ class PublishServiceUTC {
                 .build());
 
             assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+            // A group without exported files is still one step so that the task reports it
             verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_FILE_GROUP"), org.mockito.ArgumentMatchers.anyString(),
                     org.mockito.ArgumentMatchers.eq(1L), any(), any());
             assertThat(task.getTotalSteps()
                 .get()).isEqualTo(1);
-            assertThat(task.getFailedSteps()
+            assertThat(task.getCompletedSteps()
                 .get()).isEqualTo(1);
-            assertThat(task.getMessage()).isEqualTo("No export file for a.jpg");
+            assertThat(task.getFailedSteps()
+                .get()).isZero();
+            assertThat(task.getMessage()).isEqualTo("File group has no exported files to publish");
+            verify(vempainAdminService, never()).uploadAsSiteFile(any(), any());
+            verify(fileGroupRepository, never()).save(any());
         }
 
         @Test
-        void publishAllFileGroupsCountsEveryFileAsAStep() {
-            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+        void publishFileGroupCountsOnlyTheExportedFilesAsSteps() throws IOException {
+            var subDir = tempDir.resolve("group");
+            Files.createDirectories(subDir);
+            Files.write(subDir.resolve("exported.jpg"), getMinimalJpegBytes());
+            var exported = ImageFileEntity.builder()
+                .id(61L)
+                .fileType(FileTypeEnum.BINARY)
+                .filename("exported.jpg")
+                .filePath("/group")
+                .build();
+            var notExported = ImageFileEntity.builder()
+                .id(62L)
+                .filename("original-only.jpg")
+                .build();
+            var group = FileGroupEntity.builder()
+                .id(407L)
+                .files(List.<FileEntity>of(exported, notExported))
+                .build();
+            when(fileGroupRepository.findById(407L)).thenReturn(Optional.of(group));
+            when(fileGroupRepository.countExportedFilesById(407L)).thenReturn(1L);
+            when(exportFileRepository.findByFileId(61L)).thenReturn(Optional.of(ExportFileEntity.builder()
+                .id(610L)
+                .filePath("/group")
+                .filename("exported.jpg")
+                .build()));
+            when(exportFileRepository.findByFileId(62L)).thenReturn(Optional.empty());
+            when(tagService.getTagRequestsByFileId(61L)).thenReturn(List.of());
+            when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+                .siteFileId(500L)
+                .galleryId(77L)
+                .build());
+            when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+            var task = publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+                .fileGroupId(407L)
+                .galleryName("Mixed")
+                .build());
+
+            assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+            // The file without an export is not transferred, so it is no step of the task: the total is the one exported file
+            verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_FILE_GROUP"), org.mockito.ArgumentMatchers.anyString(),
+                    org.mockito.ArgumentMatchers.eq(1L), any(), any());
+            assertThat(task.getTotalSteps()
+                .get()).isEqualTo(1);
+            assertThat(task.getCompletedSteps()
+                .get()).isEqualTo(1);
+            assertThat(task.getFailedSteps()
+                .get()).isZero();
+            assertThat(task.getMessage()).isEqualTo("Published exported.jpg");
+            verify(vempainAdminService).uploadAsSiteFile(any(), any());
+            assertEquals(77L, group.getGalleryId());
+        }
+
+        @Test
+        void publishFileGroupReportsAnExportMissingOnDiskAsAFailedStep() {
+            var group = FileGroupEntity.builder()
+                .id(408L)
+                .files(List.<FileEntity>of(ImageFileEntity.builder()
+                    .id(63L)
+                    .filename("a.jpg")
+                    .build()))
+                .build();
+            when(fileGroupRepository.findById(408L)).thenReturn(Optional.of(group));
+            when(fileGroupRepository.countExportedFilesById(408L)).thenReturn(1L);
+            when(exportFileRepository.findByFileId(63L)).thenReturn(Optional.of(ExportFileEntity.builder()
+                .id(630L)
+                .filePath("/nowhere")
+                .filename("a.jpg")
+                .build()));
+            when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+
+            var task = publishService.publishFileGroup(fi.poltsi.vempain.file.api.request.PublishFileGroupRequest.builder()
+                .fileGroupId(408L)
+                .build());
+
+            assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
+            // The export is registered, so the file was counted as a step; its missing content makes the step a failed one
+            assertThat(task.getTotalSteps()
+                .get()).isEqualTo(1);
+            assertThat(task.getFailedSteps()
+                .get()).isEqualTo(1);
+            assertThat(task.getMessage()).isEqualTo("Export file missing on disk for a.jpg");
+            verify(vempainAdminService, never()).uploadAsSiteFile(any(), any());
+        }
+
+        @Test
+        void publishAllFileGroupsCountsEveryExportedFileAsAStep() {
+            // Two files in the group, one of them exported: the publish sizes itself by the exported one
+            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, 1, null);
             var group = FileGroupEntity.builder()
                 .id(7L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()
@@ -464,32 +559,37 @@ class PublishServiceUTC {
                             .build()))
                 .build();
             when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
-            when(fileGroupRepository.countFilesById(7L)).thenReturn(2L);
+            when(fileGroupRepository.countExportedFilesById(7L)).thenReturn(1L);
             when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
             when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any())).thenReturn(new PageImpl<>(List.of(projection)));
-            when(exportFileRepository.findByFileId(any())).thenReturn(Optional.empty());
+            when(exportFileRepository.findByFileId(70L)).thenReturn(Optional.of(ExportFileEntity.builder()
+                .id(700L)
+                .filePath("/nowhere")
+                .filename("a.jpg")
+                .build()));
+            when(exportFileRepository.findByFileId(71L)).thenReturn(Optional.empty());
             when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
 
             var task = publishService.publishAllFileGroups();
 
             assertThat(task.getType()).isEqualTo("PUBLISH_ALL_FILE_GROUPS");
-            // The total is the number of files of the publishable groups, known when the task is submitted
+            // The total is the number of exported files of the publishable groups, known when the task is submitted
             verify(taskRunner).submitDurable(org.mockito.ArgumentMatchers.eq("PUBLISH_ALL_FILE_GROUPS"), org.mockito.ArgumentMatchers.anyString(),
-                    org.mockito.ArgumentMatchers.eq(2L), any(), any());
+                    org.mockito.ArgumentMatchers.eq(1L), any(), any());
             assertThat(task.getTotalSteps()
-                .get()).isEqualTo(2);
+                .get()).isEqualTo(1);
             assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
-            // Both files lack an export: every file is one (failed) step of the task
+            // The exported file is missing on disk, so its step failed; the file without an export was never a step
             assertThat(task.getCompletedSteps()
-                .get()).isEqualTo(2);
+                .get()).isEqualTo(1);
             assertThat(task.getFailedSteps()
-                .get()).isEqualTo(2);
+                .get()).isEqualTo(1);
             assertThat(task.getMessage()).isEqualTo("Published Photos");
         }
 
         @Test
         void publishAllFileGroupsFailsTheRemainingStepsOfAGroupThatThrows() {
-            var projection = new FileGroupSummaryRow(9L, "/broken", "Broken", "", 3, null);
+            var projection = new FileGroupSummaryRow(9L, "/broken", "Broken", "", 3, 3, null);
             var group = FileGroupEntity.builder()
                 .id(9L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()
@@ -499,7 +599,7 @@ class PublishServiceUTC {
                 .build();
             when(fileGroupRepository.findById(9L)).thenReturn(Optional.of(group))
                 .thenThrow(new IllegalStateException("database gone"));
-            when(fileGroupRepository.countFilesById(9L)).thenReturn(3L);
+            when(fileGroupRepository.countExportedFilesById(9L)).thenReturn(3L);
             when(fileAclService.canModifyAll(group.getFiles())).thenReturn(true);
             when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any())).thenReturn(new PageImpl<>(List.of(projection)));
             when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
@@ -516,7 +616,7 @@ class PublishServiceUTC {
 
         @Test
         void publishAllFileGroupsSkipsGroupsTheUserCannotModify() {
-            var projection = new FileGroupSummaryRow(8L, "/private", "Private", "Not mine", 1, null);
+            var projection = new FileGroupSummaryRow(8L, "/private", "Private", "Not mine", 1, 1, null);
             var group = FileGroupEntity.builder()
                 .id(8L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()
@@ -540,7 +640,7 @@ class PublishServiceUTC {
 
         @Test
         void publishAllCancelledBeforeStartPublishesNothing() {
-            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, 2, null);
             var group = FileGroupEntity.builder()
                 .id(7L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()
@@ -712,7 +812,7 @@ class PublishServiceUTC {
 
         @Test
         void publishAllFileGroupsCarriesTheAclsIntoEveryGroupRequest() {
-            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, null);
+            var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, 2, null);
             var group = FileGroupEntity.builder()
                 .id(7L)
                 .files(List.<FileEntity>of(ImageFileEntity.builder()

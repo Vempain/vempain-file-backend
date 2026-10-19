@@ -7,5 +7,9 @@ public interface FileGroupRepositoryCustom {
 
     Page<FileGroupSummaryRow> searchFileGroups(String searchTerm, boolean caseSensitive, Pageable pageable);
 
-    record FileGroupSummaryRow(Long id, String path, String groupName, String description, long fileCount, Long galleryId) {}
+    /**
+     * One row of the file group list: {@code fileCount} is the number of files in the group, {@code exportedFileCount} how many of them have an exported file
+     * (the files a publish actually transfers).
+     */
+    record FileGroupSummaryRow(Long id, String path, String groupName, String description, long fileCount, long exportedFileCount, Long galleryId) {}
 }

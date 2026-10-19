@@ -18,6 +18,8 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: override-me
     password: override-me
+    hikari:
+      pool-name: file
   jpa:
     show-sql: false
     open-in-view: false
@@ -35,6 +37,10 @@ server:
   forward-headers-strategy: native
   servlet:
     context-path: /api
+  tomcat:
+    # Exposes the tomcat.* thread pool and connection metrics
+    mbeanregistry:
+      enabled: true
 
 actuator:
   enabled: true
@@ -62,12 +68,23 @@ management:
   metrics:
     tags:
       application: vempain-file-backend
-  prometheus:
+      # api for the HTTP replicas, scheduler for the scheduler task of the swarm stack
+      role: ${VEMPAIN_METRICS_ROLE:api}
+      instance: ${HOSTNAME:local}
+  otlp:
     metrics:
       export:
-        enabled: ${ENV_PROMETHEUS_ENABLED:true}
-        step: ${ENV_PROMETHEUS_STEP:1m}
-        descriptions: true
+        # Pushed as OTLP/HTTP to the monitoring Prometheus; url, auth and TLS come from vempain.metrics.* (vempain-common post-processor)
+        enabled: ${vempain.metrics.enabled}
+        base-time-unit: seconds
+  tracing:
+    # W3C traceparent is consumed from Traefik and the SPA and produced towards the admin backend; the spans are pushed to the monitoring
+    # Tempo when vempain.tracing.enabled is true (endpoint, auth and TLS come from vempain.tracing.* / vempain.metrics.* through the
+    # vempain-common post-processor). Off by default, so local runs and tests never export. export.enabled is the switch Boot's tracing
+    # conditions evaluate (propagation, the [app,traceId,spanId] log correlation block, the exporter), enabled the general one.
+    enabled: ${vempain.tracing.enabled}
+    export:
+      enabled: ${vempain.tracing.enabled}
 
 springdoc:
   show-login-endpoint: true
@@ -90,6 +107,23 @@ vempain:
   name: @projectName@
   scheduling:
     enabled: ${VEMPAIN_SCHEDULING_ENABLED:true}
+  metrics:
+    # Push of the application metrics to the monitoring stack; disabled unless the endpoint is configured
+    enabled: ${VEMPAIN_METRICS_ENABLED:false}
+    url: ${VEMPAIN_METRICS_URL:}
+    username: ${VEMPAIN_METRICS_USERNAME:}
+    password: ${VEMPAIN_METRICS_PASSWORD:}
+    # PEM certificate (or CA) of the endpoint when it is self-signed; empty trusts the JVM defaults
+    certificate: ${VEMPAIN_METRICS_CERTIFICATE:}
+    step: ${VEMPAIN_METRICS_STEP:1m}
+    # How often the database backed gauges (queue, inventory, thumbnail backlog) are refreshed
+    gauge-refresh-ms: 60000
+  tracing:
+    # Push of the request traces to the monitoring Tempo; credentials and certificate are the vempain.metrics ones
+    enabled: ${VEMPAIN_TRACING_ENABLED:false}
+    url: ${VEMPAIN_TRACING_URL:}
+    # Share of the traces that are sampled (0..1)
+    sampling: ${VEMPAIN_TRACING_SAMPLING:1.0}
   developer:
     name: "Paul-Erik Törrönen"
     url: "https://poltsi.fi/"

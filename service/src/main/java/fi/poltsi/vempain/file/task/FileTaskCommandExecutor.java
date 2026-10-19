@@ -68,7 +68,7 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
                 var fileGroupId = payload.path("file_group_id")
                     .asLong();
                 var name = payload.path("time_series_name")
-                    .asText();
+                    .asString();
                 yield applicationContext.getBean(DataService.class)
                     .publishGpsTimeSeriesNow(fileGroupId, name, progress);
             }
@@ -79,7 +79,7 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
                     .map(value -> ((Number) value).longValue())
                     .toList();
                 var operation = payload.path("operation")
-                    .asText();
+                    .asString();
                 var deleteUnused = payload.path("delete_unused_tag")
                     .asBoolean();
                 applicationContext.getBean(TagService.class)
@@ -104,20 +104,20 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
                 .revertTagMutation(payload.path("file_id")
                     .asLong(),
                         payload.path("old_tag")
-                            .asText(null),
+                            .asString(null),
                         payload.path("new_tag")
-                            .asText(null),
+                            .asString(null),
                         payload.path("operation")
-                            .asText());
+                            .asString());
             case "METADATA_REVERT_VALUE" -> applicationContext.getBean(MetadataService.class)
                 .revertValue(payload.path("file_id")
                     .asLong(),
                         payload.path("metadata_group")
-                            .asText(null),
+                            .asString(null),
                         payload.path("metadata_key")
-                            .asText(null),
+                            .asString(null),
                         payload.path("old_value")
-                            .asText(""));
+                            .asString(""));
             default -> throw new IllegalArgumentException("Unknown task compensation command: " + compensation.getCommandType());
         }
     }

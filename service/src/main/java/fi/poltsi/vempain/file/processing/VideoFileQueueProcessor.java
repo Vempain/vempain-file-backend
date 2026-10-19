@@ -15,6 +15,7 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.configuration.VideoExportProperties;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
+import fi.poltsi.vempain.file.metrics.ToolMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +58,10 @@ public class VideoFileQueueProcessor implements FileQueueProcessor {
         var temporaryOutput = output.resolveSibling(output.getFileName() + ".tmp");
         Files.deleteIfExists(temporaryOutput);
         try {
-            encode(source, temporaryOutput);
+            ToolMetrics.time(ToolMetrics.FFMPEG, () -> {
+                encode(source, temporaryOutput);
+                return null;
+            });
             Files.move(temporaryOutput, output, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             var export = ExportFileEntity.builder()
                 .file(queueItem.getFile())

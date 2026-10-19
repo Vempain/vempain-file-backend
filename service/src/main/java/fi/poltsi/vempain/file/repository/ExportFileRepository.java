@@ -31,4 +31,19 @@ public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Lo
             ORDER BY RANDOM()
             """, nativeQuery = true)
     List<ExportFileEntity> findImagesMissingThumbnails(Pageable pageable);
+
+    /**
+     * Size of the backlog {@link #findImagesMissingThumbnails} works through, for the metrics gauge.
+     */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM export_files e
+            WHERE (e.mimetype LIKE 'image/%' OR e.mimetype LIKE 'video/%')
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM thumb_files t
+                  WHERE t.target_file_id = e.file_id
+              )
+            """, nativeQuery = true)
+    long countImagesMissingThumbnails();
 }

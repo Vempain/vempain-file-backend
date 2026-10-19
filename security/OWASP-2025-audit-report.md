@@ -16,11 +16,15 @@ These endpoints are implemented by `*API` interfaces under
 `service/src/main/java/.../controller`. No endpoint is intentionally anonymous;
 authentication and the administrator policy are supplied by the shared auth
 security configuration. The management server is on port 8081 and exposes
-health/info by default; Swagger is disabled in `prod.yaml`.
+health/info by default; Swagger is disabled in `prod.yaml`. Metrics are never
+served on the management port (`/actuator/prometheus` stays unexposed because
+Traefik routes `/actuator` publicly); they are pushed as OTLP/HTTP to the
+monitoring Prometheus with basic auth over TLS (`VEMPAIN_METRICS_*`).
 
 Trust boundaries are browser → Spring Security/API, API → PostgreSQL/Flyway,
 API → configured original/export filesystem and `exiftool`, API → Admin
-OpenFeign/JWT, and CI → GitHub Packages/container registry. Sensitive data
+OpenFeign/JWT, API → monitoring Prometheus (outbound OTLP push, basic auth,
+TLS), and CI → GitHub Packages/container registry. Sensitive data
 includes JWTs, Admin credentials, GPS coordinates/location guards, file
 metadata, and filesystem contents. Runtime roots and credentials are
 configuration values; `SetupVerification` fails closed on missing

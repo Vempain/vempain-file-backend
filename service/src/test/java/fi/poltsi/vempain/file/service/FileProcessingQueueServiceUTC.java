@@ -14,6 +14,7 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
 import fi.poltsi.vempain.file.entity.FileProcessingStatus;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileProcessingQueueRepository;
 
@@ -34,6 +35,8 @@ class FileProcessingQueueServiceUTC {
     private FileProcessingQueueRepository queueRepository;
     @Mock
     private ExportFileRepository exportFileRepository;
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private FileProcessingQueueService service;
 

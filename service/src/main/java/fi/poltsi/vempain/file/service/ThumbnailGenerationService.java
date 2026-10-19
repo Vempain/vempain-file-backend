@@ -21,6 +21,8 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.ThumbFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
+import fi.poltsi.vempain.file.metrics.ToolMetrics;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ public class ThumbnailGenerationService {
     private final ThumbFileRepository thumbFileRepository;
     private final ImageTool imageTool;
     private final AclService aclService;
+    private final FileMetrics fileMetrics;
 
     @Transactional
     public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory, int thumbnailMinimumSize,
@@ -63,6 +66,7 @@ public class ThumbnailGenerationService {
         Path videoFramePath = null;
         Path temporaryPath = Files.createTempFile(thumbnail.destinationPath()
             .getParent(), "." + thumbnail.filename() + ".", ".tmp.jpeg");
+        var generated = false;
         try {
             if (targetFile.getFileType() == FileTypeEnum.VIDEO) {
                 videoFramePath = Files.createTempFile("video-thumbnail-frame-", ".jpeg");
@@ -75,8 +79,10 @@ public class ThumbnailGenerationService {
             var acl = aclService.createUniqueAcl(targetFile.getCreator(), null, true, true, true, true);
             var thumbnailFile = createThumbnailEntity(targetFile, acl, thumbnail);
             thumbFileRepository.saveAndFlush(thumbnailFile);
+            generated = true;
             log.info("Generated thumbnail for file id={} at {}", targetFile.getId(), thumbnail.relativePath());
         } finally {
+            fileMetrics.thumbnailGenerated(generated);
             Files.deleteIfExists(temporaryPath);
             if (videoFramePath != null) {
                 Files.deleteIfExists(videoFramePath);
@@ -90,6 +96,13 @@ public class ThumbnailGenerationService {
             throw new IllegalArgumentException("Video capture percentage must be between 0 and 1");
         }
 
+        ToolMetrics.time(ToolMetrics.FFMPEG, () -> {
+            grabFrame(sourcePath, targetPath, capturePercentage);
+            return null;
+        });
+    }
+
+    private void grabFrame(Path sourcePath, Path targetPath, float capturePercentage) throws IOException {
         try (var grabber = new FFmpegFrameGrabber(sourcePath.toFile()); var converter = new Java2DFrameConverter()) {
             grabber.setImageMode(org.bytedeco.javacv.FrameGrabber.ImageMode.COLOR);
             grabber.start();

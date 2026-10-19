@@ -21,9 +21,11 @@ import fi.poltsi.vempain.file.api.response.ScanResponses;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,7 +38,7 @@ class FileScannerServiceUTC {
     @Test
     void returnsResponseForEmptyScanRequest() {
         var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class),
-                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", "/tmp");
         ReflectionTestUtils.setField(service, "exportRootDirectory", "/tmp");
 
@@ -48,7 +50,7 @@ class FileScannerServiceUTC {
     @Test
     void rejectsScanDirectoryOutsideConfiguredRoot() {
         var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class),
-                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", "/tmp");
         ReflectionTestUtils.setField(service, "exportRootDirectory", "/tmp");
         var request = new ScanRequest();
@@ -66,7 +68,7 @@ class FileScannerServiceUTC {
             return;
         }
         var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class),
-                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
         var request = new ScanRequest();
@@ -80,7 +82,7 @@ class FileScannerServiceUTC {
     void scanAsTaskValidatesDirectoriesBeforeSubmitting(@TempDir Path root) {
         var runner = mock(TaskRunner.class);
         var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), runner, mock(FileRepository.class),
-                mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
         var request = new ScanRequest();
@@ -97,7 +99,7 @@ class FileScannerServiceUTC {
         var processor = mock(DirectoryProcessorService.class);
         when(processor.processOriginalDirectory(any(), any(), any(), any(), any(ScanRecorder.class))).thenReturn(java.util.List.of(2L, 2L));
         var service = new FileScannerService(processor, mock(FileResponseEnricher.class), new TaskRunner(new TaskProgressStore(), Runnable::run),
-                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
         var request = new ScanRequest();
@@ -146,7 +148,7 @@ class FileScannerServiceUTC {
             throw new TaskCancelledException();
         });
         var service = new FileScannerService(processor, mock(FileResponseEnricher.class), new TaskRunner(new TaskProgressStore(), Runnable::run), files,
-                exports, groups);
+                exports, groups, metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
         var request = new ScanRequest();
@@ -169,14 +171,14 @@ class FileScannerServiceUTC {
     @Test
     void recorderWithoutATaskDoesNothing() {
         var service = new FileScannerService(mock(DirectoryProcessorService.class), mock(FileResponseEnricher.class), mock(TaskRunner.class),
-                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
 
         assertThat(service.recorderFor(null)).isSameAs(ScanRecorder.NONE);
     }
 
     private FileScannerService serviceWithRoots(DirectoryProcessorService processor, String originalRoot, String exportRoot) {
         var service = new FileScannerService(processor, mock(FileResponseEnricher.class), mock(TaskRunner.class), mock(FileRepository.class),
-                mock(ExportFileRepository.class), mock(FileGroupRepository.class));
+                mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", originalRoot);
         ReflectionTestUtils.setField(service, "exportRootDirectory", exportRoot);
         return service;
@@ -241,5 +243,9 @@ class FileScannerServiceUTC {
 
         assertThat(recorder).isNotSameAs(ScanRecorder.NONE);
         assertThat(progress.isCancelRequested()).isFalse();
+    }
+
+    private static FileMetrics metrics() {
+        return new FileMetrics(new SimpleMeterRegistry());
     }
 }

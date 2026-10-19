@@ -31,6 +31,7 @@ import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.feign.VempainAdminFileClient;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,6 +56,8 @@ class VempainAdminServiceUTC {
     @Mock
     private ObjectMapper objectMapper;
 
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private VempainAdminService vempainAdminService;
 

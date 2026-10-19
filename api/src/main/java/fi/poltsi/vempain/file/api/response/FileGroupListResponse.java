@@ -33,6 +33,9 @@ public class FileGroupListResponse {
     @Schema(description = "How many files belong to this group", example = "42")
     private long fileCount;
 
+    @Schema(description = "How many files of this group have an exported file; only these are transferred when the group is published", example = "40")
+    private long exportedFileCount;
+
     @Schema(description = "Potential ID of the published file group as gallery", example = "123")
     private Long galleryId;
 }

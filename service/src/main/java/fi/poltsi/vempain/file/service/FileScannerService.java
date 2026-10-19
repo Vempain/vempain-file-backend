@@ -20,6 +20,7 @@ import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
@@ -31,12 +32,16 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FileScannerService {
 
+    static final String SCAN_ORIGINAL = "original";
+    static final String SCAN_EXPORT = "export";
+
     private final DirectoryProcessorService directoryProcessorService;
     private final FileResponseEnricher fileResponseEnricher;
     private final TaskRunner taskRunner;
     private final FileRepository fileRepository;
     private final ExportFileRepository exportFileRepository;
     private final FileGroupRepository fileGroupRepository;
+    private final FileMetrics fileMetrics;
 
     @Value("${vempain.original-root-directory}")
     private String originalRootDirectory;
@@ -130,6 +135,7 @@ public class FileScannerService {
         var successfulFileResponses = new ArrayList<FileResponse>();
         var leafDirectories = new ArrayList<Path>();
         var scanDirectory = resolveScanDirectory(originalRootDirectory, selectedDirectory);
+        var timing = fileMetrics.scanStarted();
 
         success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
         addSteps(progress, leafDirectories.size());
@@ -144,6 +150,8 @@ public class FileScannerService {
                       && scannedFilesCount == newFilesCount;
         }
         fileResponseEnricher.enrichAll(successfulFileResponses);
+        fileMetrics.scanned(SCAN_ORIGINAL, scannedFilesCount, newFilesCount);
+        fileMetrics.scanFinished(timing, SCAN_ORIGINAL, success);
 
         return ScanOriginalResponse.builder()
             .success(success)
@@ -164,10 +172,12 @@ public class FileScannerService {
         var successfulFileResponses = new ArrayList<ExportFileResponse>();
         var leafDirectories = new ArrayList<Path>();
         var scanDirectory = resolveScanDirectory(exportRootDirectory, exportedDirectory);
+        var timing = fileMetrics.scanStarted();
 
         success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
 
         if (!success) {
+            fileMetrics.scanFinished(timing, SCAN_EXPORT, false);
             return ScanExportResponse.builder()
                 .success(false)
                 .errorMessage(errorMessage.toString())
@@ -175,11 +185,19 @@ public class FileScannerService {
         }
 
         addSteps(progress, leafDirectories.size());
+        // The response has always reported zero counts for the export scan (pinned by DirectoryProcessorServiceITC); only the metrics use the
+        // processor's counts
+        var exportsScanned = 0L;
+        var exportsNew = 0L;
         for (Path leafDir : leafDirectories) {
             var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses, recorder);
-            log.debug("Processed {} in export directory", processed.size());
+            log.debug("Processed {} in export directory", processed);
+            exportsScanned += processed.isEmpty() ? 0L : processed.get(0);
+            exportsNew += processed.size() < 2 ? 0L : processed.get(1);
             step(progress, scanDirectory, leafDir);
         }
+        fileMetrics.scanned(SCAN_EXPORT, exportsScanned, exportsNew);
+        fileMetrics.scanFinished(timing, SCAN_EXPORT, success);
 
         return ScanExportResponse.builder()
             .success(success)

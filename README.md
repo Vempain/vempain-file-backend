@@ -146,6 +146,41 @@ read) carrying one combination, filtered by `filename` and `file_type` and sorta
 `METADATA_UPDATE_VALUE`, one step per file; an empty `new_value` removes the entry); the caller needs the modify privilege on all of those
 files, and the `ExifTool`, `File`, `System` and `Composite` groups are read-only.
 
+## Metrics
+
+The backend pushes its metrics as OTLP/HTTP to the Prometheus of the monitoring stack (`vempain-cluster/monitoring`); nothing is scraped and
+`/actuator/prometheus` is not exposed. The push is off unless these environment variables are set:
+
+|           Variable            |                                                  Meaning                                                  |
+|-------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `VEMPAIN_METRICS_ENABLED`     | `true` turns the export on (default `false`)                                                              |
+| `VEMPAIN_METRICS_URL`         | OTLP metrics endpoint, e.g. `https://grafana.intra.poltsi.fi/prometheus/api/v1/otlp/v1/metrics`           |
+| `VEMPAIN_METRICS_USERNAME`    | Basic auth user of the endpoint                                                                           |
+| `VEMPAIN_METRICS_PASSWORD`    | Basic auth password                                                                                       |
+| `VEMPAIN_METRICS_CERTIFICATE` | Path of the PEM certificate (or CA) of the endpoint when it is self-signed; empty trusts the JVM defaults |
+| `VEMPAIN_METRICS_STEP`        | Export interval, default `1m`                                                                             |
+| `VEMPAIN_METRICS_ROLE`        | `api` (default) or `scheduler`; a tag that separates the swarm scheduler task from the HTTP replicas      |
+
+Besides the Spring Boot meters (JVM, `http.server.requests`, Hikari pool `file`, Tomcat, Logback, Spring Security, `@Scheduled` executions,
+Feign `http.client.requests`, the shared `vempain.tasks.*` of the task facility) the backend reports scans, the video processing queue, exiftool and
+FFmpeg run times, thumbnail generation, publishing to the admin backend, API token rejections, the ACL repair, the updated file refresh and an
+inventory of files, exports and groups; the names are listed in [AGENTS.md](AGENTS.md).
+
+## Tracing
+
+Every request carries a W3C trace context: the backend continues the `traceparent` header it receives from Traefik or the SPA, puts the
+trace and span ids into every log line (`[vempain-file-backend,<traceId>,<spanId>]`), forwards the context on its Feign calls to the admin
+backend and runs every background task in a span of its own (`task <type>`, with `taskId` in the log context). The spans are pushed as
+OTLP/HTTP to the Tempo of the monitoring stack with the metrics credentials and certificate; the push is off unless these variables are set:
+
+|          Variable          |                                   Meaning                                    |
+|----------------------------|------------------------------------------------------------------------------|
+| `VEMPAIN_TRACING_ENABLED`  | `true` turns tracing and its export on (default `false`)                     |
+| `VEMPAIN_TRACING_URL`      | OTLP traces endpoint, e.g. `https://grafana.intra.poltsi.fi/tempo/v1/traces` |
+| `VEMPAIN_TRACING_SAMPLING` | Share of the traces that are sampled, `0`..`1` (default `1.0`)               |
+
+The basic-auth user and the certificate are `VEMPAIN_METRICS_USERNAME`/`VEMPAIN_METRICS_PASSWORD` and `VEMPAIN_METRICS_CERTIFICATE`.
+
 ## How to build
 
 In order to build the project, you need to have Java 21 and Git installed on your machine. Begin with cloning the repository. After that run the following

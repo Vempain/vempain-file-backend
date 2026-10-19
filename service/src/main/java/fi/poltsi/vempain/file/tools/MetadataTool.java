@@ -37,6 +37,7 @@ import org.json.JSONObject;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
+import fi.poltsi.vempain.file.metrics.ToolMetrics;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
@@ -1244,6 +1245,8 @@ public class MetadataTool {
 
         log.debug("Running exiftool copy with command: {}", command);
 
+        var started = System.nanoTime();
+        var result = ToolMetrics.RESULT_FAILURE;
         var processBuilder = new ProcessBuilder(command);
         var process = processBuilder.start();
 
@@ -1253,6 +1256,7 @@ public class MetadataTool {
                 if (exitCode != 0) {
                     log.error("Exiftool copy process exited with code: {}", exitCode);
                 } else {
+                    result = ToolMetrics.RESULT_SUCCESS;
                     log.debug("Exiftool copy process completed successfully.");
                 }
             } catch (InterruptedException e) {
@@ -1263,6 +1267,7 @@ public class MetadataTool {
         } else {
             log.error("Exiftool copy process failed to start.");
         }
+        ToolMetrics.record(ToolMetrics.EXIFTOOL, result, System.nanoTime() - started);
     }
 
     public static void writeSubjects(File file, List<String> subjects) throws IOException {
@@ -1369,20 +1374,23 @@ public class MetadataTool {
     }
 
     private static void runWriteCommand(List<String> command, File file) throws IOException {
-        var process = new ProcessBuilder(command).redirectErrorStream(true)
-            .start();
-        try {
-            var output = new String(process.getInputStream()
-                .readAllBytes(), StandardCharsets.UTF_8);
-            var exit = process.waitFor();
-            if (exit != 0) {
-                throw new IOException("ExifTool failed for " + file.getAbsolutePath() + ": " + output);
+        ToolMetrics.time(ToolMetrics.EXIFTOOL, () -> {
+            var process = new ProcessBuilder(command).redirectErrorStream(true)
+                .start();
+            try {
+                var output = new String(process.getInputStream()
+                    .readAllBytes(), StandardCharsets.UTF_8);
+                var exit = process.waitFor();
+                if (exit != 0) {
+                    throw new IOException("ExifTool failed for " + file.getAbsolutePath() + ": " + output);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+                throw new IOException("ExifTool was interrupted for " + file.getAbsolutePath(), e);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread()
-                .interrupt();
-            throw new IOException("ExifTool was interrupted for " + file.getAbsolutePath(), e);
-        }
+            return null;
+        });
     }
 
     public static void writeMetadataFromJson(File file, String metadataJson) {
@@ -1409,8 +1417,7 @@ public class MetadataTool {
             importCmd.add(file.getAbsolutePath());
 
             log.debug("Importing metadata with command: {}", importCmd);
-            var process = new ProcessBuilder(importCmd).start();
-            int exit = process.waitFor();
+            int exit = runAndWait(importCmd);
             if (exit != 0) {
                 log.error("Exiftool import (-json=) exited with code {} for file {}", exit, file.getAbsolutePath());
             } else {
@@ -1439,10 +1446,24 @@ public class MetadataTool {
         wipeCmd.add(file.getAbsolutePath());
 
         log.debug("Wiping metadata with command: {}", wipeCmd);
-        var process = new ProcessBuilder(wipeCmd).start();
-        int exit = process.waitFor();
+        int exit = runAndWait(wipeCmd);
         if (exit != 0) {
             log.error("Exiftool wipe (-all=) exited with code {} for file {}", exit, file.getAbsolutePath());
+        }
+    }
+
+    /**
+     * Runs an exiftool command to completion and records its duration; a non-zero exit is a failed run of the tool.
+     */
+    private static int runAndWait(List<String> command) throws IOException, InterruptedException {
+        var started = System.nanoTime();
+        var exit = -1;
+        try {
+            exit = new ProcessBuilder(command).start()
+                .waitFor();
+            return exit;
+        } finally {
+            ToolMetrics.record(ToolMetrics.EXIFTOOL, exit == 0 ? ToolMetrics.RESULT_SUCCESS : ToolMetrics.RESULT_FAILURE, System.nanoTime() - started);
         }
     }
 
@@ -1557,11 +1578,13 @@ public class MetadataTool {
 
         log.debug("Running exiftool with command: {}", command);
 
-        var processBuilder = new ProcessBuilder(command);
-        var process = processBuilder.start();
+        return ToolMetrics.time(ToolMetrics.EXIFTOOL, () -> {
+            var processBuilder = new ProcessBuilder(command);
+            var process = processBuilder.start();
 
-        var scanner = new Scanner(process.getInputStream()).useDelimiter("\\A");
-        return scanner.hasNext() ? scanner.next() : "";
+            var scanner = new Scanner(process.getInputStream()).useDelimiter("\\A");
+            return scanner.hasNext() ? scanner.next() : "";
+        });
     }
 
     private static String getTagValue(String jsonOutput, String tag) {

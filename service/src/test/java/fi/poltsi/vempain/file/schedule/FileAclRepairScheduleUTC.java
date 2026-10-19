@@ -13,6 +13,7 @@ import fi.poltsi.vempain.auth.entity.Acl;
 import fi.poltsi.vempain.auth.exception.VempainAclException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +34,8 @@ class FileAclRepairScheduleUTC {
     @Mock
     private AclService aclService;
 
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private FileAclRepairSchedule schedule;
 

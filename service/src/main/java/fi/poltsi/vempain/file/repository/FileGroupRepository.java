@@ -15,10 +15,16 @@ public interface FileGroupRepository extends JpaRepository<FileGroupEntity, Long
     long countById(Long fileGroupId);
 
     /**
-     * Number of files in the group without loading the collection; 0 for an unknown group.
+     * Number of files in the group that have an exported file, without loading the collection; 0 for an unknown group. Only these files are transferred when
+     * the group is published, so this is the count a publish works with.
      */
-    @Query("SELECT COUNT(f) FROM FileGroupEntity g JOIN g.files f WHERE g.id = :fileGroupId")
-    long countFilesById(@Param("fileGroupId") long fileGroupId);
+    @Query("SELECT COUNT(e) FROM ExportFileEntity e JOIN e.file f JOIN f.fileGroups g WHERE g.id = :fileGroupId")
+    long countExportedFilesById(@Param("fileGroupId") long fileGroupId);
 
     Optional<FileGroupEntity> findByPathAndGroupName(String relativeDirectory, String groupName);
+
+    /**
+     * Groups that have been published as a gallery, for the inventory metrics.
+     */
+    long countByGalleryIdIsNotNull();
 }

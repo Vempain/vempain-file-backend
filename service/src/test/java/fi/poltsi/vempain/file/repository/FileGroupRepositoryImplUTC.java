@@ -57,14 +57,33 @@ class FileGroupRepositoryImplUTC {
     }
 
     @Test
-    void sortColumnsAreMappedThroughTheAllowListAndJoinedInOrder() {
-        repository.searchFileGroups(null, false, PageRequest.of(0, 10, Sort.by(Sort.Order.desc("id"), Sort.Order.asc("description"),
-                Sort.Order.asc("group_name"), Sort.Order.desc("file_count"), Sort.Order.asc("bogus; DROP TABLE"))));
+    void rowsCarryTheNumberOfFilesAndOfExportedFiles() {
+        when(query.getResultList()).thenReturn(List.<Object[]>of(new Object[]{ 7L, "/photos", "Photos", "A gallery", 5L, 3L, 42L }));
+
+        var page = repository.searchFileGroups(null, false, PageRequest.of(0, 10));
 
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, fg.path ASC")
+            .get(0)).contains("COUNT(f.id) AS file_count, COUNT(e.id) AS exported_file_count")
+            .contains("LEFT JOIN export_files e ON e.file_id = f.id");
+        var row = page.getContent()
+            .getFirst();
+        assertThat(row.id()).isEqualTo(7L);
+        assertThat(row.fileCount()).isEqualTo(5L);
+        assertThat(row.exportedFileCount()).isEqualTo(3L);
+        assertThat(row.galleryId()).isEqualTo(42L);
+    }
+
+    @Test
+    void sortColumnsAreMappedThroughTheAllowListAndJoinedInOrder() {
+        repository.searchFileGroups(null, false, PageRequest.of(0, 10, Sort.by(Sort.Order.desc("id"), Sort.Order.asc("description"),
+                Sort.Order.asc("group_name"), Sort.Order.desc("file_count"), Sort.Order.asc("exported_file_count"), Sort.Order.asc("bogus; DROP TABLE"))));
+
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
+        assertThat(sql.getAllValues()
+            .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, exported_file_count ASC, fg.path ASC")
             .doesNotContain("DROP TABLE")
             .doesNotContain(" WHERE ");
     }

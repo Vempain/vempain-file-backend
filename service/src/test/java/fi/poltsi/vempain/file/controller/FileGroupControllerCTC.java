@@ -73,7 +73,39 @@ class FileGroupControllerCTC extends AbstractControllerCTC {
 
         doPost("/file-groups/paged", "{\"page\":0,\"size\":10,\"sort_by\":\"file_count\",\"direction\":\"DESC\"}").andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].group_name", is("File Group")))
-            .andExpect(jsonPath("$.content[0].file_count", is(1)));
+            .andExpect(jsonPath("$.content[0].file_count", is(1)))
+            .andExpect(jsonPath("$.content[0].exported_file_count", is(0)));
+    }
+
+    @Test
+    void getFileGroupsCountsTheExportedFilesSeparately() throws Exception {
+        seedFileRow(901L, "IMAGE", "image/jpeg", "exported.jpg", "/images");
+        seedFileRow(902L, "IMAGE", "image/jpeg", "original-only.jpg", "/images");
+        try {
+            jdbcTemplate.update("INSERT INTO file_group(path, group_name, description) VALUES (?, ?, ?)", "/a-partly-exported", "Partly Exported", "");
+            jdbcTemplate.update("INSERT INTO file_group(path, group_name, description) VALUES (?, ?, ?)", "/b-not-exported", "Not Exported", "");
+            Long partlyExportedId = jdbcTemplate.queryForObject("SELECT id FROM file_group WHERE path = '/a-partly-exported'", Long.class);
+            Long notExportedId = jdbcTemplate.queryForObject("SELECT id FROM file_group WHERE path = '/b-not-exported'", Long.class);
+            jdbcTemplate.update("INSERT INTO file_group_files(file_group_id, file_id) VALUES (?, ?)", partlyExportedId, 901L);
+            jdbcTemplate.update("INSERT INTO file_group_files(file_group_id, file_id) VALUES (?, ?)", partlyExportedId, 902L);
+            jdbcTemplate.update("INSERT INTO file_group_files(file_group_id, file_id) VALUES (?, ?)", notExportedId, 902L);
+            jdbcTemplate.update(
+                    "INSERT INTO export_files(file_id, filename, file_path, mimetype, filesize, sha256sum, created)" + " VALUES (?, ?, ?, ?, ?, ?, NOW())",
+                    901L, "exported.jpg", "/images", "image/jpeg", 10L, "0".repeat(64));
+
+            // Only files with an exported file are transferred by a publish, so the exported count is what sizes it
+            doPost("/file-groups/paged", "{\"page\":0,\"size\":10,\"sort_by\":\"exported_file_count\",\"direction\":\"DESC\"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].group_name", is("Partly Exported")))
+                .andExpect(jsonPath("$.content[0].file_count", is(2)))
+                .andExpect(jsonPath("$.content[0].exported_file_count", is(1)))
+                .andExpect(jsonPath("$.content[1].group_name", is("Not Exported")))
+                .andExpect(jsonPath("$.content[1].file_count", is(1)))
+                .andExpect(jsonPath("$.content[1].exported_file_count", is(0)));
+        } finally {
+            // The export row goes with the file (ON DELETE CASCADE)
+            deleteFileRow(901L);
+            deleteFileRow(902L);
+        }
     }
 
     // -----------------------------------------------------------------------

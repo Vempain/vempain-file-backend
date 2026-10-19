@@ -476,12 +476,7 @@ public class PublishService {
     private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
             FileIngestRequest.FileIngestRequestBuilder builder, String tempPrefix) throws IOException {
         var metadataEntries = metadataService.getFileMetadata(fileEntity.getId());
-        var metadataJson = collectStandardMetadataAsJson(metadataEntries, fileEntity);
-
-        if (metadataJson == null
-            || metadataJson.isBlank()) {
-            metadataJson = "[]";
-        }
+        var metadataJson = resolveMetadataJson(collectStandardMetadataAsJson(metadataEntries, fileEntity));
 
         var siteFileName = fileEntity.getFilename();
         var uploadPath = exportFilePath;
@@ -515,17 +510,7 @@ public class PublishService {
                 .rightsTerms(fileEntity.getRightsTerms())
                 .rightsUrl(fileEntity.getRightsUrl())
                 .build();
-            LocationResponse locationResponse = null;
-            if (fileEntity.getGpsLocation() != null) {
-                // Add location only if the location is outside guarded areas
-                if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
-                    locationResponse = fileEntity.getGpsLocation()
-                        .toResponse();
-                    log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
-                } else {
-                    log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
-                }
-            }
+            var locationResponse = resolveSiteLocation(fileEntity);
 
             var fileIngestRequest = builder.fileId(fileEntity.getId())
                 .fileName(siteFileName)
@@ -545,16 +530,7 @@ public class PublishService {
                 fileIngestRequest.setHeight(imageVideoDimensions.height);
             }
 
-            if (fileEntity.getFileType()
-                .equals(FileTypeEnum.VIDEO)) {
-                fileIngestRequest.setLength(((VideoFileEntity) fileEntity).getDuration());
-            } else if (fileEntity.getFileType()
-                .equals(FileTypeEnum.AUDIO)) {
-                fileIngestRequest.setLength(((AudioFileEntity) fileEntity).getDuration());
-            } else if (fileEntity.getFileType()
-                .equals(FileTypeEnum.DOCUMENT)) {
-                fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
-            }
+            applyTypeSpecificFields(fileIngestRequest, fileEntity);
 
             // The admin backend authenticates the call with the configured API token; a refusal is final (no login to retry)
             var uploadSize = Files.size(uploadPath);
@@ -571,6 +547,47 @@ public class PublishService {
                     log.warn("Failed to delete temp file {}", tempPathToDelete, ioe);
                 }
             }
+        }
+    }
+
+    /**
+     * Metadata sent with the upload; an empty set is sent as an empty JSON array.
+     */
+    private static String resolveMetadataJson(String metadataJson) {
+        if (metadataJson == null
+            || metadataJson.isBlank()) {
+            return "[]";
+        }
+        return metadataJson;
+    }
+
+    /**
+     * The GPS location of the file, or null when the file has none or the location lies inside a guarded area.
+     */
+    private LocationResponse resolveSiteLocation(FileEntity fileEntity) {
+        if (fileEntity.getGpsLocation() == null) {
+            return null;
+        }
+        // Add location only if the location is outside guarded areas
+        if (!locationService.isGuardedLocation(fileEntity.getGpsLocation())) {
+            log.debug("File {} location is outside guarded areas, adding location data", fileEntity.getFilename());
+            return fileEntity.getGpsLocation()
+                .toResponse();
+        }
+        log.debug("File {} location is inside guarded areas, not publishing location data", fileEntity.getFilename());
+        return null;
+    }
+
+    private static void applyTypeSpecificFields(FileIngestRequest fileIngestRequest, FileEntity fileEntity) {
+        if (fileEntity.getFileType()
+            .equals(FileTypeEnum.VIDEO)) {
+            fileIngestRequest.setLength(((VideoFileEntity) fileEntity).getDuration());
+        } else if (fileEntity.getFileType()
+            .equals(FileTypeEnum.AUDIO)) {
+            fileIngestRequest.setLength(((AudioFileEntity) fileEntity).getDuration());
+        } else if (fileEntity.getFileType()
+            .equals(FileTypeEnum.DOCUMENT)) {
+            fileIngestRequest.setPages(((DocumentFileEntity) fileEntity).getPageCount());
         }
     }
 

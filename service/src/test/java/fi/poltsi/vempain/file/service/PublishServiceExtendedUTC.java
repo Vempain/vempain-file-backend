@@ -42,6 +42,7 @@ import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.GpsLocationEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSummaryRow;
@@ -94,6 +95,8 @@ class PublishServiceExtendedUTC {
     private ApplicationContext applicationContext;
     @Spy
     private TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private PublishService publishService;
 
@@ -250,7 +253,7 @@ class PublishServiceExtendedUTC {
             .files(new ArrayList<>(List.of(good, bad)))
             .build();
         when(fileGroupRepository.findById(7L)).thenReturn(Optional.of(group));
-        when(fileGroupRepository.countFilesById(7L)).thenReturn(2L);
+        when(fileGroupRepository.countExportedFilesById(7L)).thenReturn(2L);
         when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(created(500L, 55L))
             .thenThrow(new IllegalStateException("admin refused"));
         when(fileGroupRepository.save(group)).thenThrow(new IllegalStateException("database gone"))
@@ -287,11 +290,11 @@ class PublishServiceExtendedUTC {
             .groupName("B")
             .files(new ArrayList<>(List.of(second)))
             .build();
-        when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any()))
-            .thenReturn(new PageImpl<>(List.of(new FileGroupSummaryRow(1L, "/a", "A", "", 1, null), new FileGroupSummaryRow(2L, "/b", "B", "", 1, null))));
+        when(fileGroupRepository.searchFileGroups(any(), anyBoolean(), any())).thenReturn(
+                new PageImpl<>(List.of(new FileGroupSummaryRow(1L, "/a", "A", "", 1, 1, null), new FileGroupSummaryRow(2L, "/b", "B", "", 1, 1, null))));
         when(fileGroupRepository.findById(1L)).thenReturn(Optional.of(groupA));
         when(fileGroupRepository.findById(2L)).thenReturn(Optional.of(groupB));
-        when(fileGroupRepository.countFilesById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(1L);
+        when(fileGroupRepository.countExportedFilesById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(1L);
         when(fileAclService.canModifyAll(any())).thenReturn(true);
         var queued = new ArrayList<Runnable>();
         var runner = new TaskRunner(new TaskProgressStore(), queued::add);

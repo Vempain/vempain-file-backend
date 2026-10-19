@@ -23,6 +23,7 @@ import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.feign.VempainAdminFileClient;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
@@ -35,6 +36,7 @@ public class VempainAdminService {
     private final VempainAdminFileIngestClient vempainAdminFileIngestClient;
     private final VempainAdminFileClient vempainAdminFileClient;
     private final ObjectMapper objectMapper;
+    private final FileMetrics fileMetrics;
 
     /**
      * Removes a site file that an earlier {@link #uploadAsSiteFile} created; used to revert a cancelled publish.
@@ -50,6 +52,7 @@ public class VempainAdminService {
             }
             if (e.status() == 401
                 || e.status() == 403) {
+                fileMetrics.adminBackendRejected(e.status());
                 throw new VempainAuthenticationException();
             }
             throw e;
@@ -91,6 +94,7 @@ public class VempainAdminService {
                 || e.status() == 403) {
                 log.error("The admin backend refused the API token while listing {}s (status {}); check vempain.service.admin-backend-api-token", what,
                         e.status());
+                fileMetrics.adminBackendRejected(e.status());
                 throw new VempainAuthenticationException();
             }
 
@@ -128,6 +132,7 @@ public class VempainAdminService {
             if (e.status() == 401
                 || e.status() == 403) {
                 log.error("The admin backend refused the API token while uploading (status {}); check vempain.service.admin-backend-api-token", e.status());
+                fileMetrics.adminBackendRejected(e.status());
                 throw new VempainAuthenticationException();
             }
 

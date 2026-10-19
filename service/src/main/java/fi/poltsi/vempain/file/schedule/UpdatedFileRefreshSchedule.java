@@ -17,6 +17,7 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
@@ -43,6 +44,7 @@ public class UpdatedFileRefreshSchedule {
     private final DirectoryProcessorService directoryProcessorService;
     private final PublishService publishService;
     private final VempainAdminService vempainAdminService;
+    private final FileMetrics fileMetrics;
 
     @Value("${vempain.refresh-updated-files.enabled:true}")
     private boolean schedulerEnabled;
@@ -85,6 +87,7 @@ public class UpdatedFileRefreshSchedule {
             .taskName(TASK_NAME)
             .lastChecked(runStartedAt)
             .build());
+        fileMetrics.setRefreshCheckpointAgeSeconds(0);
         log.info("Updated file refresh finished. New checkpoint={}", runStartedAt);
     }
 
@@ -113,6 +116,7 @@ public class UpdatedFileRefreshSchedule {
             fileRepository.save(fileEntity);
         }
 
+        fileMetrics.refreshVerified();
         var currentSha = computeSha256(sourcePath.toFile());
         if (currentSha == null
             || Objects.equals(currentSha, fileEntity.getSha256sum())) {
@@ -129,7 +133,9 @@ public class UpdatedFileRefreshSchedule {
             if (Boolean.TRUE.equals(sitePublished)) {
                 var refreshedEntity = fileRepository.findById(fileEntity.getId())
                     .orElse(fileEntity);
-                publishService.republishSiteFile(refreshedEntity);
+                if (publishService.republishSiteFile(refreshedEntity)) {
+                    fileMetrics.refreshRepublished();
+                }
             }
         } catch (Exception e) {
             log.error("Failed to refresh updated file id={} path={}", fileEntity.getId(), sourcePath, e);

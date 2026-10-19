@@ -52,6 +52,7 @@ public class FileGroupService {
                 .groupName(row.groupName())
                 .description(row.description())
                 .fileCount(row.fileCount())
+                .exportedFileCount(row.exportedFileCount())
                 .galleryId(row.galleryId())
                 .build())
             .toList();
@@ -66,6 +67,7 @@ public class FileGroupService {
             case "groupname", "group_name" -> "groupName";
             case "description" -> "description";
             case "filecount", "file_count" -> "file_count";
+            case "exportedfilecount", "exported_file_count" -> "exported_file_count";
             default -> "path";
         };
 

@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import fi.poltsi.vempain.auth.exception.VempainAclException;
 import fi.poltsi.vempain.auth.service.AclService;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class FileAclRepairSchedule {
 
     private final FileRepository fileRepository;
     private final AclService aclService;
+    private final FileMetrics fileMetrics;
 
     @Value("${vempain.acl-repair.enabled:true}")
     private boolean schedulerEnabled;
@@ -71,6 +73,7 @@ public class FileAclRepairSchedule {
             }
         }
 
+        fileMetrics.aclRepaired(repaired);
         return repaired;
     }
 }

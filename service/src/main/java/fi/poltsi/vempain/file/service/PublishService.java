@@ -39,6 +39,8 @@ import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
+import fi.poltsi.vempain.file.metrics.FileMetrics.PublishResult;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
@@ -73,6 +75,7 @@ public class PublishService {
     private final ApplicationContext applicationContext;
     private final TaskRunner taskRunner;
     private final MetadataService metadataService;
+    private final FileMetrics fileMetrics;
 
     @Value("${vempain.site-image-size:1200}")
     private int siteImageSize;
@@ -242,8 +245,12 @@ public class PublishService {
             .orElseThrow(() -> new IllegalStateException("File " + request.getFileId() + " not found"));
         var exportFilePath = resolveExportedPath(fileEntity.getId());
 
-        if (exportFilePath == null
-            || !Files.exists(exportFilePath)) {
+        if (exportFilePath == null) {
+            fileMetrics.published(PublishResult.SKIPPED_NO_EXPORT);
+            throw new IllegalStateException("No export file for " + fileEntity.getFilename());
+        }
+        if (!Files.exists(exportFilePath)) {
+            fileMetrics.published(PublishResult.MISSING_ON_DISK);
             throw new IllegalStateException("No export file for " + fileEntity.getFilename());
         }
 
@@ -261,13 +268,17 @@ public class PublishService {
             }
             log.debug("Published file {} as site file {}", fileEntity.getFilename(), response == null ? null : response.getSiteFileId());
         } catch (IOException e) {
+            fileMetrics.published(PublishResult.FAILED);
             throw new IllegalStateException("Failed to publish " + fileEntity.getFilename() + ": " + e.getMessage(), e);
+        } catch (RuntimeException e) {
+            fileMetrics.published(PublishResult.FAILED);
+            throw e;
         }
     }
 
     /**
-     * Starts a background task that publishes one file group. One step per file; the total is known from the start so that the progress is right from the first
-     * poll (an empty group is one step that reports it has nothing to publish).
+     * Starts a background task that publishes one file group. One step per exported file, because only the exported files are transferred; the total is known
+     * from the start so that the progress is right from the first poll (a group without exported files is one step that reports it has nothing to publish).
      */
     public TaskProgress publishFileGroup(PublishFileGroupRequest request) {
         var proxy = applicationContext.getBean(PublishService.class);
@@ -279,17 +290,18 @@ public class PublishService {
     }
 
     /**
-     * Steps a file group contributes to a task: one per file, and one for a group without files so that it is still reported.
+     * Steps a file group contributes to a task: one per exported file, and one for a group without exported files so that it is still reported.
      */
     private long groupSteps(long fileGroupId) {
-        return Math.max(1L, countFilesInGroup(fileGroupId));
+        return Math.max(1L, countExportedFilesInGroup(fileGroupId));
     }
 
     /**
-     * Publishes one file group in the calling thread.
+     * Publishes one file group in the calling thread. Only the files of the group that have an exported file are transferred, so they alone make up the steps
+     * of the task; a file without an export is not published and is not counted.
      *
      * @param progress        task to check for cancellation and to register undo actions with; null when not running as a task
-     * @param reportFileSteps whether every file is reported as a step of {@code progress} (the publish-all task counts groups instead)
+     * @param reportFileSteps whether every exported file is reported as a step of {@code progress} (the publish-all task counts groups instead)
      * @throws IllegalStateException when the group does not exist
      */
     @Transactional
@@ -308,13 +320,23 @@ public class PublishService {
             return;
         }
 
-        if (progress != null
-            && reportFileSteps) {
-            progress.setTotalSteps(fileGroup.getFiles()
-                .size());
+        var exportedFiles = collectExportedFiles(fileGroup);
+
+        if (exportedFiles.isEmpty()) {
+            log.debug("File group {} has no exported files to publish", request.getFileGroupId());
+            if (progress != null
+                && reportFileSteps) {
+                progress.advance("File group has no exported files to publish");
+            }
+            return;
         }
 
-        var galleryId = publishFiles(fileGroup, request, progress, reportFileSteps);
+        if (progress != null
+            && reportFileSteps) {
+            progress.setTotalSteps(exportedFiles.size());
+        }
+
+        var galleryId = publishFiles(fileGroup, exportedFiles, request, progress, reportFileSteps);
 
         if (galleryId != null) {
             var previousGalleryId = fileGroup.getGalleryId();
@@ -345,22 +367,52 @@ public class PublishService {
             });
     }
 
-    private Long publishFiles(FileGroupEntity fileGroup, PublishFileGroupRequest request, TaskProgress progress, boolean reportFileSteps) {
+    /**
+     * A file of a group together with the path of its exported file.
+     */
+    private record ExportedFile(FileEntity file, Path exportPath) {}
+
+    /**
+     * The files of the group that have an exported file, in the order of the group. Files without an export are left out: they are never transferred, so they
+     * are no steps of the publish.
+     */
+    private List<ExportedFile> collectExportedFiles(FileGroupEntity fileGroup) {
+        var exportedFiles = new ArrayList<ExportedFile>();
+
+        for (var fileEntity : fileGroup.getFiles()) {
+            var exportFilePath = resolveExportedPath(fileEntity.getId());
+
+            if (exportFilePath == null) {
+                log.debug("File {} of group {} has no export file, not publishing it", fileEntity.getFilename(), fileGroup.getId());
+                fileMetrics.published(PublishResult.SKIPPED_NO_EXPORT);
+                continue;
+            }
+
+            exportedFiles.add(new ExportedFile(fileEntity, exportFilePath));
+        }
+
+        return exportedFiles;
+    }
+
+    private Long publishFiles(FileGroupEntity fileGroup, List<ExportedFile> exportedFiles, PublishFileGroupRequest request, TaskProgress progress,
+            boolean reportFileSteps) {
         Long galleryId = null;
         // The order of the file group files should be by file name ascending so we use a simple counter here
         long sortOrder = 0L;
 
-        for (var fileEntity : fileGroup.getFiles()) {
+        for (var exportedFile : exportedFiles) {
             if (progress != null) {
                 // Stop here when the user cancelled; nothing of this file has been sent yet
                 progress.checkpoint();
             }
-            var exportFilePath = resolveExportedPath(fileEntity.getId());
+            var fileEntity = exportedFile.file();
+            var exportFilePath = exportedFile.exportPath();
 
-            if (exportFilePath == null
-                || !Files.exists(exportFilePath)) {
-                log.debug("Export file does not exist, skipping: {}", exportFilePath);
-                reportFailure(reportFileSteps ? progress : null, "No export file for " + fileEntity.getFilename());
+            if (!Files.exists(exportFilePath)) {
+                // The export is registered but missing on disk: the file was counted as a step, so it is reported as a failed one
+                log.warn("Export file of {} does not exist on disk, skipping: {}", fileEntity.getFilename(), exportFilePath);
+                fileMetrics.published(PublishResult.MISSING_ON_DISK);
+                reportFailure(reportFileSteps ? progress : null, "Export file missing on disk for " + fileEntity.getFilename());
                 continue;
             }
 
@@ -377,6 +429,7 @@ public class PublishService {
                 }
             } catch (Exception ex) {
                 log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
+                fileMetrics.published(PublishResult.FAILED);
                 reportFailure(reportFileSteps ? progress : null, "Failed to publish " + fileEntity.getFilename() + ": " + ex.getMessage());
             }
         }
@@ -504,7 +557,12 @@ public class PublishService {
             }
 
             // The admin backend authenticates the call with the configured API token; a refusal is final (no login to retry)
-            return vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+            var uploadSize = Files.size(uploadPath);
+            var response = vempainAdminService.uploadAsSiteFile(uploadPath.toFile(), fileIngestRequest);
+            fileMetrics.published(response != null
+                                  && response.isUpdated() ? PublishResult.UPDATED : PublishResult.UPLOADED);
+            fileMetrics.publishedBytes(uploadSize);
+            return response;
         } finally {
             if (tempPathToDelete != null) {
                 try {
@@ -517,10 +575,11 @@ public class PublishService {
     }
 
     /**
-     * Count files in a group without loading the full collection.
+     * Number of files in a group that have an exported file, without loading the collection. A publish transfers exactly these files, so this is the count the
+     * publish tasks are sized with.
      */
-    public long countFilesInGroup(long fileGroupId) {
-        return fileGroupRepository.countFilesById(fileGroupId);
+    public long countExportedFilesInGroup(long fileGroupId) {
+        return fileGroupRepository.countExportedFilesById(fileGroupId);
     }
 
     public boolean fileGroupExists(long fileGroupId) {
@@ -556,9 +615,9 @@ public class PublishService {
     }
 
     /**
-     * Starts one background task that publishes every file group the caller may fully modify, one step per file (an empty group counts as one step). Groups
-     * with files the caller cannot modify are skipped. The ACL entries of the request, if any, are granted on every published group. Returns the task;
-     * {@code total_steps} is the number of files it will publish.
+     * Starts one background task that publishes every file group the caller may fully modify, one step per exported file (a group without exported files counts
+     * as one step). Groups with files the caller cannot modify are skipped. The ACL entries of the request, if any, are granted on every published group.
+     * Returns the task; {@code total_steps} is the number of files it will transfer.
      */
     // Read-only transaction so that the lazily loaded file collections can be checked against the caller's ACL privileges
     @Transactional(readOnly = true)
@@ -588,8 +647,8 @@ public class PublishService {
     }
 
     /**
-     * Publishes the groups one after the other, every file as one step of the task. A group that fails as a whole marks the steps of its remaining files as
-     * failed, so that the task still ends at its total.
+     * Publishes the groups one after the other, every exported file as one step of the task. A group that fails as a whole marks the steps of its remaining
+     * files as failed, so that the task still ends at its total.
      */
     private void publishGroupsAsSteps(List<PublishFileGroupRequest> requests, TaskProgress progress, PublishService target) {
         for (var request : requests) {
@@ -615,7 +674,7 @@ public class PublishService {
     }
 
     /**
-     * The groups the caller may publish and the number of task steps they add up to (one per file, one for an empty group).
+     * The groups the caller may publish and the number of task steps they add up to (one per exported file, one for a group without exported files).
      */
     private record PublishableGroups(List<PublishFileGroupRequest> requests, long totalSteps) {}
 
@@ -652,7 +711,7 @@ public class PublishService {
                     .acls(acls == null
                           || acls.isEmpty() ? null : acls)
                     .build());
-                totalSteps += Math.max(1L, projection.fileCount());
+                totalSteps += Math.max(1L, projection.exportedFileCount());
             }
 
             page++;

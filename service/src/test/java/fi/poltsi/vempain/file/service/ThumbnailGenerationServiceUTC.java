@@ -23,6 +23,7 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 
@@ -44,6 +45,8 @@ class ThumbnailGenerationServiceUTC {
     private ImageTool imageTool;
     @Mock
     private AclService aclService;
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private ThumbnailGenerationService thumbnailGenerationService;
 

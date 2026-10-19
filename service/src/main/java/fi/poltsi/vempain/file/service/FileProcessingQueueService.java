@@ -11,6 +11,7 @@ import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileProcessingQueueEntity;
 import fi.poltsi.vempain.file.entity.FileProcessingStatus;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileProcessingQueueRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class FileProcessingQueueService {
 
     private final FileProcessingQueueRepository queueRepository;
     private final ExportFileRepository exportFileRepository;
+    private final FileMetrics fileMetrics;
 
     @Transactional
     public void enqueueIfNotExported(FileEntity file) {
@@ -78,5 +80,6 @@ public class FileProcessingQueueService {
         item.setCompleted(status == FileProcessingStatus.COMPLETED ? Instant.now() : null);
         item.setErrorMessage(error);
         queueRepository.save(item);
+        fileMetrics.fileProcessingFinished(status, item.getFileType(), item.getAttempts());
     }
 }

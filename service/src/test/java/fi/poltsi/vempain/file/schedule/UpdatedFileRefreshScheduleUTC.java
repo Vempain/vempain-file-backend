@@ -19,6 +19,7 @@ import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
+import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
@@ -51,6 +52,8 @@ class UpdatedFileRefreshScheduleUTC {
     private PublishService publishService;
     @Mock
     private VempainAdminService vempainAdminService;
+    @Mock
+    private FileMetrics fileMetrics;
     @InjectMocks
     private UpdatedFileRefreshSchedule updatedFileRefreshSchedule;
 

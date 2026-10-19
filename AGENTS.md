@@ -186,10 +186,12 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `exiftool -json` output, or any other metadata set in `FileIngestRequest.metadata`. The same standard JSON is the only metadata passed to
   `ImageTool.resizeImage`. Any change to the published metadata must be made in `MetadataTool.collectStandardMetadataAsJson`, not in the publish path.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
-  as a background task with one step per file, also for publish-all (groups processed sequentially, an empty group counts as one step and a
-  group that fails as a whole marks its remaining file steps as failed). The totals are computed when the task is submitted
-  (`FileGroupRepository.countFilesById`, the `file_count` of the group search), so `total_steps` is right from the first poll; the
-  progress rows commit in their own transaction (`vempain-common` 1.0.4+) and are therefore visible while the group's transaction is open.
+  as a background task with one step per exported file, also for publish-all (groups processed sequentially, a group without exported files counts
+  as one step and a group that fails as a whole marks its remaining file steps as failed). Only the converted (exported) files are transferred, so a
+  file without an `export_files` row is skipped silently and is no step; an export that is registered but missing on disk is a failed step. The
+  totals are computed when the task is submitted (`FileGroupRepository.countExportedFilesById`, the `exported_file_count` of the group search, never
+  the original `file_count`), so `total_steps` is right from the first poll; the progress rows commit in their own transaction (`vempain-common` 1.0.4+) and are
+  therefore visible while the group's transaction is open.
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.
 - `UpdatedFileRefreshSchedule` persists its checkpoint in `scheduler_checkpoint`, verifies changed files with SHA-256, refreshes metadata and derivatives, and
   republishes only files whose `site_file_published` flag is true.
@@ -197,6 +199,38 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `file_group_id` plus `time_series_name`, with identifiers normalized to Admin-safe snake_case.
 - Runtime API traffic uses `/api` on port 8080; actuator and Swagger are exposed on port 8081. Local runs require PostgreSQL, valid `vempain.*`
   settings, existing source/export roots, and `exiftool`.
+- Metrics are pushed, never scraped: `/actuator/prometheus` must stay out of `management.endpoints.web.exposure.include` because the management
+  port is routed publicly through Traefik. The backend exports OTLP/HTTP (`micrometer-registry-otlp`) to the monitoring Prometheus when
+  `VEMPAIN_METRICS_ENABLED=true`; `VEMPAIN_METRICS_URL`, `VEMPAIN_METRICS_USERNAME`/`VEMPAIN_METRICS_PASSWORD` (basic auth),
+  `VEMPAIN_METRICS_CERTIFICATE` (PEM of the self-signed endpoint, trusted through an SSL bundle), `VEMPAIN_METRICS_STEP` and
+  `VEMPAIN_METRICS_ROLE` (`api` or `scheduler`, a common tag next to `application` and `instance`) feed the `vempain.metrics.*` properties.
+  The translation of `vempain.metrics.*` into the Boot `management.otlp.metrics.export.*` properties (URL, `Authorization` header, SSL bundle)
+  is the `MetricsExportEnvironmentPostProcessor` of `vempain-common` core; this backend only carries the properties, so bump `vempain-common`
+  in `gradle/libs.versions.toml` to the release that ships it (together with the shared `vempain.tasks.*` task meters).
+- Tracing: `spring-boot-starter-opentelemetry` makes the backend continue the W3C `traceparent` it receives (from Traefik or the SPA, B3 is
+  consumed too) and produce W3C on the way out; Boot's default log pattern carries `[app,traceId,spanId]`, so there is no custom logback
+  configuration here. The Feign calls to the admin backend carry the context by themselves: OpenFeign registers the `feign-micrometer`
+  observation capability in every client context, which opens a client span (a child of the request or task span) and the propagating
+  observation handler injects its `traceparent` (`VempainAdminTracePropagationITC` pins the header against a stub admin backend); do not
+  add a hand-written interceptor. Background tasks get a span `task <type>` and `taskId` in the MDC from `vempain-common`'s `TaskRunner`.
+  Both `management.tracing.enabled` and `management.tracing.export.enabled` are bound to `vempain.tracing.enabled` (`VEMPAIN_TRACING_ENABLED`,
+  default false): `export.enabled` is the switch Boot's tracing conditions evaluate, it turns on the propagators, the OTLP exporter and the
+  `[app,traceId,spanId]` block of the console pattern, so the three backends behave identically. `VEMPAIN_TRACING_URL` and
+  `VEMPAIN_TRACING_SAMPLING` feed `vempain.tracing.*`; the translation into `management.opentelemetry.tracing.export.otlp.*` (endpoint,
+  `Authorization` from the metrics credentials, the `vempain-metrics` SSL bundle) is the same `MetricsExportEnvironmentPostProcessor` of
+  `vempain-common`, so the bump above covers it. Tests that need tracing set `management.tracing.export.enabled=true` without an OTLP
+  endpoint, which enables propagation and sends nothing.
+- Custom meters live in `fi.poltsi.vempain.file.metrics`: `FileMetrics` owns every name (`vempain.scan.files.scanned|new{directory}`,
+  `vempain.scan.duration{directory,result}`, `vempain.file_processing.queue{status,file_type}` gauge, `vempain.file_processing.items{result,file_type}`,
+  `vempain.file_processing.attempts{file_type}`, `vempain.thumbnails.generated{result}`, `vempain.thumbnails.missing`,
+  `vempain.publish.files{result=uploaded|updated|skipped_no_export|missing_on_disk|failed}`, `vempain.publish.bytes`,
+  `vempain.admin_backend.rejected{status}`, `vempain.acl.repaired`, `vempain.refresh.files.verified|republished`,
+  `vempain.refresh.checkpoint.age.seconds`, `vempain.inventory.files{file_type}`, `vempain.inventory.export_files`,
+  `vempain.inventory.file_groups[.published]`); `FileMetricsRefresher` feeds the database backed gauges once a minute (`vempain.metrics.gauge-refresh-ms`);
+  `ToolMetrics` times the static exiftool and FFmpeg calls as `vempain.tool.duration{tool,result}` on the
+  global registry. Feign calls to the admin backend report `http.client.requests` through `feign-micrometer`; the Hikari pool is named `file`
+  and Tomcat's MBean registry is enabled for the `tomcat.*` meters. Tags are bounded enumerations only, never ids or file names. Services take
+  `FileMetrics` as a constructor dependency; unit tests pass a `FileMetrics(new SimpleMeterRegistry())` or a mock.
 - A file's `description` column comes from `MetadataTool.extractDescription` (scan and refresh): `XMP-dc:Description`, then
   `IFD0:ImageDescription`, then the legacy `IPTC:Caption-Abstract`, using the family 1 group names of the scanner's `exiftool -g1 -J`
   output (there is no `XMP` group in it). Thumbnails (`ThumbnailGenerationService`) carry the description of the file they were made

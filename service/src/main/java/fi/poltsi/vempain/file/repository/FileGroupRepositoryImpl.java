@@ -32,8 +32,9 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
         String groupName = tuple[2] != null ? tuple[2].toString() : null;
         String description = tuple[3] != null ? tuple[3].toString() : null;
         long count = tuple[4] != null ? ((Number) tuple[4]).longValue() : 0L;
-        Long galleryId = tuple[5] != null ? ((Number) tuple[5]).longValue() : null;
-        return new FileGroupSummaryRow(id, path, groupName, description, count, galleryId);
+        long exportedCount = tuple[5] != null ? ((Number) tuple[5]).longValue() : 0L;
+        Long galleryId = tuple[6] != null ? ((Number) tuple[6]).longValue() : null;
+        return new FileGroupSummaryRow(id, path, groupName, description, count, exportedCount, galleryId);
     }
 
     @Override
@@ -49,8 +50,10 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
         String whereClause = buildWhereClause(tokens, caseSensitive);
         String orderClause = buildOrderClause(pageable);
 
-        String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count, fg.gallery_id "
+        // export_files.file_id is unique, so the extra join adds no rows and COUNT(f.id) stays the number of files in the group
+        String selectSql = "SELECT fg.id, fg.path, fg.group_name, fg.description, COUNT(f.id) AS file_count, COUNT(e.id) AS exported_file_count, fg.gallery_id "
                 + base
+                + " LEFT JOIN export_files e ON e.file_id = f.id "
                 + whereClause
                 + " GROUP BY fg.id, fg.path, fg.group_name, fg.gallery_id, fg.description "
                 + orderClause
@@ -146,6 +149,7 @@ public class FileGroupRepositoryImpl implements FileGroupRepositoryCustom {
             case "groupname", "group_name" -> "fg.group_name";
             case "description" -> "fg.description";
             case "filecount", "file_count" -> "file_count";
+            case "exportedfilecount", "exported_file_count" -> "exported_file_count";
             default -> "fg.path";
         };
     }

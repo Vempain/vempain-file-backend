@@ -396,7 +396,8 @@ class TagServiceUTC {
             when(fileTagRepository.findByTag(tag)).thenReturn(List.of(FileTag.builder()
                 .file(file)
                 .tag(tag)
-                .build()), List.of());
+                .build()))
+                .thenReturn(List.of());
 
             var task = tagService.removeTagFromAllAsTask(request("old", null, List.of()));
 

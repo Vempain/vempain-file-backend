@@ -566,10 +566,9 @@ class DirectoryProcessorServiceExtendedUTC {
             assertThat(fileTags.getAllValues()).extracting(fileTag -> fileTag.getTag()
                 .getTagName())
                 .containsExactly("alpha", "beta");
-            @SuppressWarnings("unchecked")
-            var metadata = ArgumentCaptor.forClass(List.class);
+            ArgumentCaptor<List<MetadataEntity>> metadata = ArgumentCaptor.captor();
             verify(metadataRepository).saveAll(metadata.capture());
-            var rows = (List<MetadataEntity>) metadata.getValue();
+            var rows = metadata.getValue();
             assertThat(rows).extracting(MetadataEntity::getMetadataGroup)
                 .doesNotContain("SourceFile");
             assertThat(rows).anySatisfy(row -> {
@@ -834,7 +833,8 @@ class DirectoryProcessorServiceExtendedUTC {
                 .file(entity)
                 .build());
             when(metadataRepository.findByFile(entity)).thenReturn(oldMetadata);
-            when(fileTagRepository.findByFile(entity)).thenReturn(oldFileTags, List.of());
+            when(fileTagRepository.findByFile(entity)).thenReturn(oldFileTags)
+                .thenReturn(List.of());
             var json = metadataJson(null, group("Composite", new JSONObject().put("ImageSize", "32x24")),
                     group("XMP-dc", new JSONObject().put("Subject", "gamma")
                         .put("Description", "new caption")),

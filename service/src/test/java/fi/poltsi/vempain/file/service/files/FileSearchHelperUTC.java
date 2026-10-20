@@ -53,7 +53,7 @@ class FileSearchHelperUTC {
     @Test
     @SuppressWarnings("unchecked")
     void buildSpecificationEscapesWildcardsAndDeclaresTheEscapeCharacter() {
-        var root = org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
+        jakarta.persistence.criteria.Root<fi.poltsi.vempain.file.entity.FileEntity> root = org.mockito.Mockito.mock();
         var cb = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaBuilder.class);
         var path = org.mockito.Mockito.mock(jakarta.persistence.criteria.Path.class);
         var lower = org.mockito.Mockito.mock(jakarta.persistence.criteria.Expression.class);
@@ -63,7 +63,7 @@ class FileSearchHelperUTC {
         org.mockito.Mockito.when(cb.lower(org.mockito.ArgumentMatchers.any()))
             .thenReturn(lower);
         org.mockito.Mockito
-            .when(cb.like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString(),
+            .when(cb.like(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(), org.mockito.ArgumentMatchers.anyString(),
                     org.mockito.ArgumentMatchers.anyChar()))
             .thenReturn(predicate);
         org.mockito.Mockito.when(cb.or(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
@@ -79,7 +79,7 @@ class FileSearchHelperUTC {
         org.mockito.Mockito.verify(cb, org.mockito.Mockito.times(4))
             .like(lower, "%trip\\_%", '\\');
         org.mockito.Mockito.verify(cb, org.mockito.Mockito.never())
-            .like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString());
+            .like(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(), org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -87,13 +87,14 @@ class FileSearchHelperUTC {
         var manyTokens = java.util.stream.IntStream.range(0, 15)
             .mapToObj(i -> "t" + i)
             .collect(java.util.stream.Collectors.joining(" "));
-        var root = org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
+        jakarta.persistence.criteria.Root<fi.poltsi.vempain.file.entity.FileEntity> root = org.mockito.Mockito.mock();
         var cb = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaBuilder.class);
         var predicate = org.mockito.Mockito.mock(jakarta.persistence.criteria.Predicate.class);
-        org.mockito.Mockito.when(root.get(org.mockito.ArgumentMatchers.anyString()))
-            .thenReturn(org.mockito.Mockito.mock(jakarta.persistence.criteria.Path.class));
+        jakarta.persistence.criteria.Path<Object> path = org.mockito.Mockito.mock();
+        org.mockito.Mockito.when(root.<Object>get(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(path);
         org.mockito.Mockito
-            .when(cb.like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString(),
+            .when(cb.like(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(), org.mockito.ArgumentMatchers.anyString(),
                     org.mockito.ArgumentMatchers.anyChar()))
             .thenReturn(predicate);
         org.mockito.Mockito.when(cb.or(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Predicate>any()))
@@ -106,7 +107,7 @@ class FileSearchHelperUTC {
 
         // 4 fields per token, 10 tokens at most
         org.mockito.Mockito.verify(cb, org.mockito.Mockito.times(40))
-            .like(org.mockito.ArgumentMatchers.any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.anyString(),
+            .like(org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(), org.mockito.ArgumentMatchers.anyString(),
                     org.mockito.ArgumentMatchers.anyChar());
     }
 }

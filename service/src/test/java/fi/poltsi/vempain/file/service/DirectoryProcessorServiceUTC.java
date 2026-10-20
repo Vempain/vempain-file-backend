@@ -91,7 +91,8 @@ class DirectoryProcessorServiceUTC {
         stored.setFilename("success.jpg");
         // Every file is looked up once before processing (does it exist already?) and the successful one again afterwards
         when(fileRepository.findByFilePathAndFilename(eq("/"), any())).thenReturn(Optional.empty());
-        when(fileRepository.findByFilePathAndFilename("/", "success.jpg")).thenReturn(Optional.empty(), Optional.of(stored));
+        when(fileRepository.findByFilePathAndFilename("/", "success.jpg")).thenReturn(Optional.empty())
+            .thenReturn(Optional.of(stored));
 
         var service = spy(newService());
         ReflectionTestUtils.setField(service, "originalRootDirectory", testRoot.toString());
@@ -134,7 +135,8 @@ class DirectoryProcessorServiceUTC {
         created.setFilename("new.jpg");
         var refreshed = new ImageFileEntity();
         refreshed.setFilename("refreshed.jpg");
-        when(fileRepository.findByFilePathAndFilename("/", "new.jpg")).thenReturn(Optional.empty(), Optional.of(created));
+        when(fileRepository.findByFilePathAndFilename("/", "new.jpg")).thenReturn(Optional.empty())
+            .thenReturn(Optional.of(created));
         when(fileRepository.findByFilePathAndFilename("/", "refreshed.jpg")).thenReturn(Optional.of(refreshed));
 
         var service = spy(newService());

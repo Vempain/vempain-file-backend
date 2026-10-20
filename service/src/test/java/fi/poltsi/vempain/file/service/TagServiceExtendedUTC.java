@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,6 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.common.api.request.TagRequest;
 import fi.poltsi.vempain.file.api.request.TagOperationRequest;
+import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.TagEntity;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
@@ -70,7 +72,7 @@ class TagServiceExtendedUTC {
                 when(tagRepository.existsById(99L)).thenReturn(false);
 
                 assertThrows(IllegalArgumentException.class, () -> tagService.getFilesByTag(99L, new PagedRequest(0, 10, null, null, null, false)));
-                verify(fileRepository, never()).findAll(any(Specification.class), any(Pageable.class));
+                verify(fileRepository, never()).findAll(ArgumentMatchers.<Specification<FileEntity>>any(), any(Pageable.class));
             }
         }
     }
@@ -272,7 +274,8 @@ class TagServiceExtendedUTC {
             .tagName("nature")
             .tagNameFi("luonto")
             .build();
-        when(tagRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(tag), Pageable.ofSize(1), 2));
+        when(tagRepository.findAll(ArgumentMatchers.<Specification<TagEntity>>any(), any(Pageable.class)))
+            .thenReturn(new PageImpl<>(List.of(tag), Pageable.ofSize(1), 2));
 
         var result = tagService.getAllTagsPageable(new PagedRequest(0, 1, "tag_name", null, "luonto", false));
 
@@ -281,6 +284,6 @@ class TagServiceExtendedUTC {
             .getFirst()
             .getTagName()).isEqualTo("nature");
         assertThat(result.getTotalElements()).isEqualTo(2);
-        verify(tagRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(tagRepository).findAll(ArgumentMatchers.<Specification<TagEntity>>any(), any(Pageable.class));
     }
 }

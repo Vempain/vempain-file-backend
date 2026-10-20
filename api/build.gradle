@@ -36,6 +36,11 @@ tasks.withType(Javadoc).configureEach {
 	options.addStringOption('Xdoclint:all,-missing', '-quiet') // keep other checks, ignore missing docs
 }
 
+// Report deprecated API use and unchecked operations with their location instead of javac's "recompile with -Xlint" note
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation', '-Xlint:unchecked']
+}
+
 dependencies {
 	api "org.springframework.boot:spring-boot-starter-data-jpa:${libs.versions.spring.boot.get()}"
 	api "org.springframework.boot:spring-boot-starter-webmvc:${libs.versions.spring.boot.get()}"

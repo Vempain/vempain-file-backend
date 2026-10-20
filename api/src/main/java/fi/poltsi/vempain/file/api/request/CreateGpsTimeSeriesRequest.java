@@ -19,11 +19,11 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Schema(name = "CreateGpsTimeSeriesRequest", description = "Request to create a GPS time-series dataset from a file group")
 public class CreateGpsTimeSeriesRequest {
 
-    @Schema(description = "ID of the file group containing GPS-tagged images", example = "42", required = true)
+    @Schema(description = "ID of the file group containing GPS-tagged images", example = "42", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "File group ID must not be null")
     private Long fileGroupId;
 
-    @Schema(description = "Name of the time-series dataset (identifier)", example = "holidays_2024", required = true)
+    @Schema(description = "Name of the time-series dataset (identifier)", example = "holidays_2024", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "Time series name must not be blank")
     private String timeSeriesName;
 }

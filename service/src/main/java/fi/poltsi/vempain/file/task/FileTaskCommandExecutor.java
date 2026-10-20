@@ -74,10 +74,7 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
             }
             case TAG_REMOVE_FROM_ALL, TAG_REPLACE_ACROSS_ALL, TAG_RENAME_ACROSS_ALL -> {
                 var request = objectMapper.treeToValue(payload.path("request"), TagOperationRequest.class);
-                var fileIds = objectMapper.convertValue(payload.path("file_ids"), List.class);
-                var ids = fileIds.stream()
-                    .map(value -> ((Number) value).longValue())
-                    .toList();
+                var ids = toLongList(payload.path("file_ids"));
                 var operation = payload.path("operation")
                     .asString();
                 var deleteUnused = payload.path("delete_unused_tag")

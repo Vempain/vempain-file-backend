@@ -2,6 +2,7 @@ package fi.poltsi.vempain.file.service;
 
 import java.io.File;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.springframework.data.domain.Sort;
@@ -14,7 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 import feign.FeignException;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestGalleryAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUnitResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
@@ -100,6 +103,64 @@ public class VempainAdminService {
 
             log.error("{} listing failed with FeignException (status {}): {}", what, e.status(), e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Admin backend did not answer the " + what + " listing");
+        }
+    }
+
+    /**
+     * The current grantees of a site file an earlier upload created; empty when the admin backend no longer has it.
+     *
+     * @throws VempainAuthenticationException when the admin backend rejects the API token
+     * @throws ResponseStatusException        502 when the admin backend does not answer
+     */
+    public Optional<FileIngestSiteFileAclResponse> getSiteFileAcls(long siteFileId) {
+        log.debug("Fetching the grantees of site file {} from Vempain Admin service", siteFileId);
+        return fetchOptional("site file " + siteFileId, () -> vempainAdminFileIngestClient.getSiteFileAcls(siteFileId));
+    }
+
+    /**
+     * Like {@link #getSiteFileAcls} but keyed by this backend's file ID, for files published before the site file ID was recorded; empty when the admin backend
+     * holds no site file created from the file.
+     */
+    public Optional<FileIngestSiteFileAclResponse> getSiteFileAclsByFileId(long fileId) {
+        log.debug("Fetching the grantees of the site file published from file {} from Vempain Admin service", fileId);
+        return fetchOptional("site file of file " + fileId, () -> vempainAdminFileIngestClient.getSiteFileAclsByFileId(fileId));
+    }
+
+    /**
+     * The current grantees and site files of a gallery an earlier group publish created; empty when the admin backend no longer has it. Same failure handling
+     * as {@link #getSiteFileAcls}.
+     */
+    public Optional<FileIngestGalleryAclResponse> getGalleryAcls(long galleryId) {
+        log.debug("Fetching the grantees of gallery {} from Vempain Admin service", galleryId);
+        return fetchOptional("gallery " + galleryId, () -> vempainAdminFileIngestClient.getGalleryAcls(galleryId));
+    }
+
+    private <T> Optional<T> fetchOptional(String what, Supplier<ResponseEntity<T>> call) {
+        try {
+            var responseEntity = call.get();
+            if (responseEntity == null
+                || !responseEntity.getStatusCode()
+                    .is2xxSuccessful()
+                || responseEntity.getBody() == null) {
+                log.error("Lookup of {} from Vempain admin failed with HTTP status {}", what, responseEntity != null ? responseEntity.getStatusCode() : "null");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Admin backend did not answer the lookup of " + what);
+            }
+            return Optional.of(responseEntity.getBody());
+        } catch (FeignException e) {
+            if (e.status() == 404) {
+                log.debug("Vempain admin does not hold {} (any more)", what);
+                return Optional.empty();
+            }
+            if (e.status() == 401
+                || e.status() == 403) {
+                log.error("The admin backend refused the API token while looking up {} (status {}); check vempain.service.admin-backend-api-token", what,
+                        e.status());
+                fileMetrics.adminBackendRejected(e.status());
+                throw new VempainAuthenticationException();
+            }
+
+            log.error("Lookup of {} failed with FeignException (status {}): {}", what, e.status(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Admin backend did not answer the lookup of " + what);
         }
     }
 

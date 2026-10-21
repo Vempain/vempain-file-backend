@@ -27,6 +27,10 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Tag(name = "FileGroups", description = "Schema for FileGroupResponse")
 public class FileGroupResponse extends AbstractFileGroup {
 
+    @Schema(description = "ID of the gallery the group was last published as in the admin backend; null when never published", example = "1001",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Long galleryId;
+
     @Schema(description = "Files belonging to this group")
     @NotNull
     @Size(min = 0)

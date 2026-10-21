@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUnitResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
@@ -29,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <li>POST /api/publish/all-file-groups – publish all file groups</li>
  * <li>GET /api/publish/users – admin users that can be granted privileges on published resources</li>
  * <li>GET /api/publish/units – admin units that can be granted privileges on published resources</li>
+ * <li>GET /api/publish/file/{id}/status, GET /api/publish/file-group/{id}/status – whether and how the file or group was published before</li>
  * </ul>
  *
  * <p>
@@ -256,5 +259,103 @@ class PublishControllerCTC extends AbstractControllerCTC {
             deleteImageFile(9307L);
             deleteImageFile(9308L);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /api/publish/file/{id}/status and /api/publish/file-group/{id}/status
+    // -----------------------------------------------------------------------
+
+    @Test
+    void publishFileStatusReturns404WhenFileDoesNotExist() throws Exception {
+        doGet("/publish/file/99999/status").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publishFileStatusReturns403WhenCallerMayNotModifyTheFile() throws Exception {
+        seedImageFile(9311L, "readonly-status.jpg", false);
+        try {
+            doGet("/publish/file/9311/status").andExpect(status().isForbidden());
+        } finally {
+            deleteImageFile(9311L);
+        }
+    }
+
+    @Test
+    void publishFileStatusAsksTheAdminBackendByFileIdWhenNoSiteFileIsRecorded() throws Exception {
+        seedImageFile(9312L, "published-before.jpg", true);
+        when(vempainAdminFileIngestClient.getSiteFileAclsByFileId(9312L)).thenReturn(ResponseEntity.ok(FileIngestSiteFileAclResponse.builder()
+            .siteFileId(500L)
+            .fileId(9312L)
+            .acls(List.of(FileIngestAclResponse.builder()
+                .userId(12L)
+                .readPrivilege(true)
+                .modifyPrivilege(true)
+                .build()))
+            .build()));
+        try {
+            doGet("/publish/file/9312/status").andExpect(status().isOk())
+                .andExpect(jsonPath("$.file_id").value(9312))
+                .andExpect(jsonPath("$.published").value(true))
+                .andExpect(jsonPath("$.site_file_id").value(500))
+                .andExpect(jsonPath("$.acls", hasSize(1)))
+                .andExpect(jsonPath("$.acls[0].user_id").value(12))
+                .andExpect(jsonPath("$.acls[0].unit_id").isEmpty())
+                .andExpect(jsonPath("$.acls[0].read_privilege").value(true))
+                .andExpect(jsonPath("$.acls[0].create_privilege").value(false))
+                .andExpect(jsonPath("$.acls[0].modify_privilege").value(true))
+                .andExpect(jsonPath("$.acls[0].delete_privilege").value(false));
+        } finally {
+            deleteImageFile(9312L);
+        }
+    }
+
+    @Test
+    void publishFileStatusReportsAnUnpublishedFile() throws Exception {
+        seedImageFile(9313L, "never-published.jpg", true);
+        when(vempainAdminFileIngestClient.getSiteFileAclsByFileId(9313L)).thenThrow(feignNotFound());
+        try {
+            doGet("/publish/file/9313/status").andExpect(status().isOk())
+                .andExpect(jsonPath("$.published").value(false))
+                .andExpect(jsonPath("$.site_file_id").isEmpty())
+                .andExpect(jsonPath("$.acls", hasSize(0)));
+        } finally {
+            deleteImageFile(9313L);
+        }
+    }
+
+    @Test
+    void publishFileGroupStatusReturns404WhenFileGroupDoesNotExist() throws Exception {
+        doGet("/publish/file-group/99999/status").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publishFileGroupStatusReportsAGroupWithoutAGalleryWithoutAskingTheAdminBackend() throws Exception {
+        jdbcTemplate.update("INSERT INTO file_group(path, group_name, description) VALUES (?, ?, ?)", "/pub/status", "Status Group", "Never published");
+        Long groupId = jdbcTemplate.queryForObject("SELECT MAX(id) FROM file_group", Long.class);
+
+        doGet("/publish/file-group/" + groupId + "/status").andExpect(status().isOk())
+            .andExpect(jsonPath("$.file_group_id").value(groupId))
+            .andExpect(jsonPath("$.published").value(false))
+            .andExpect(jsonPath("$.gallery_id").isEmpty())
+            .andExpect(jsonPath("$.site_file_ids", hasSize(0)))
+            .andExpect(jsonPath("$.acls", hasSize(0)));
+        org.mockito.Mockito.verifyNoInteractions(vempainAdminFileIngestClient);
+    }
+
+    @Test
+    void publishStatusRequiresAuthentication() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/publish/file/1/status"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/publish/file-group/1/status"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    private static feign.FeignException feignNotFound() {
+        return feign.FeignException.errorStatus("getSiteFileAclsByFileId", feign.Response.builder()
+            .status(404)
+            .reason("Not Found")
+            .request(feign.Request.create(feign.Request.HttpMethod.GET, "http://admin", java.util.Map.of(), null, new feign.RequestTemplate()))
+            .headers(java.util.Map.of())
+            .build());
     }
 }

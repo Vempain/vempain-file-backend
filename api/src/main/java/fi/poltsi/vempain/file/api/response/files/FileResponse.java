@@ -33,6 +33,14 @@ public class FileResponse extends AbstractResponse {
     @Schema(description = "Thumbnail file ID", example = "123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long thumbnailId;
 
+    @Schema(description = "Whether the file is known to be published as a site file in the admin backend; null when not yet determined", example = "true",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Boolean siteFilePublished;
+
+    @Schema(description = "ID of the site file the last publish created or updated in the admin backend; null when never published by this release",
+            example = "12345", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Long siteFileId;
+
     @Schema(description = "External file identifier", example = "ext12345")
     private String externalFileId;
 

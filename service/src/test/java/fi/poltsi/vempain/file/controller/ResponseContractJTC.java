@@ -6,12 +6,15 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import fi.poltsi.vempain.file.api.response.FileStatisticsResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileGroupStatusResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileStatusResponse;
+import fi.poltsi.vempain.file.api.response.PublishedAclResponse;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Contract test for a representative REST response with multi-word fields.
+ * Contract test for representative REST responses with multi-word fields: the statistics and the publication status answers.
  */
 class ResponseContractJTC {
 
@@ -40,5 +43,33 @@ class ResponseContractJTC {
                 + "\"largest_file_group_size\":8,\"largest_file_size\":500,"
                 + "\"largest_file_size_by_type\":{\"IMAGE\":500},\"smallest_file_group_size\":1,"
                 + "\"total_file_size\":1000,\"total_files\":10,\"total_gps_locations\":2,\"total_tags\":3}");
+    }
+
+    @Test
+    void publishStatusResponsesUseSnakeCaseNamesAndTheAclShapeOfThePublishRequest() throws Exception {
+        var acl = PublishedAclResponse.builder()
+            .userId(12L)
+            .readPrivilege(true)
+            .modifyPrivilege(true)
+            .build();
+        var file = PublishFileStatusResponse.builder()
+            .fileId(55L)
+            .published(true)
+            .siteFileId(500L)
+            .acls(java.util.List.of(acl))
+            .build();
+        var group = PublishFileGroupStatusResponse.builder()
+            .fileGroupId(11L)
+            .published(false)
+            .siteFileIds(java.util.List.of())
+            .acls(java.util.List.of())
+            .build();
+
+        // The mapper writes the properties in alphabetical order
+        assertThat(new ObjectMapper().writeValueAsString(file)).isEqualTo("{\"acls\":[{\"create_privilege\":false,\"delete_privilege\":false,"
+                + "\"modify_privilege\":true,\"read_privilege\":true,\"unit_id\":null,\"user_id\":12}],"
+                + "\"file_id\":55,\"published\":true,\"site_file_id\":500}");
+        assertThat(new ObjectMapper().writeValueAsString(group))
+            .isEqualTo("{\"acls\":[],\"file_group_id\":11,\"gallery_id\":null," + "\"gallery_name\":null,\"published\":false,\"site_file_ids\":[]}");
     }
 }

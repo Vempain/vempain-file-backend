@@ -93,6 +93,10 @@ public abstract class FileEntity extends AbstractVempainEntity {
     @Column(name = "site_file_published")
     private Boolean siteFilePublished;
 
+    /** The site file the last publish created or updated in the admin backend (from the ingest answer); null until published by this release */
+    @Column(name = "site_file_id")
+    private Long siteFileId;
+
     // Replace raw FK id with relation
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "gps_location_id")
@@ -137,6 +141,8 @@ public abstract class FileEntity extends AbstractVempainEntity {
         response.setCreatorCountry(this.creatorCountry);
         response.setCreatorUrl(this.creatorUrl);
         response.setGpsTimestamp(this.gpsTimestamp);
+        response.setSiteFilePublished(this.siteFilePublished);
+        response.setSiteFileId(this.siteFileId);
         // Map relation to response DTO
         response.setLocation(this.gpsLocation != null ? this.gpsLocation.toResponse() : null);
         response.setTags(this.tags.stream()

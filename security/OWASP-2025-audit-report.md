@@ -115,3 +115,16 @@ must be reviewed together with this API report as required by the root task.
   it) to an API token sent in `X-Vempain-Api-Token` (A04/A07): the token is created in the admin UI with an expiry and a network
   restriction, lives only in the deployment environment (`ENV_VEMPAIN_ADMIN_BACKEND_API_TOKEN`) and can be revoked without touching this
   service. The login client and the re-authentication retry loops were removed.
+
+## Addendum 2026-10-21 — publication status of files and file groups
+
+* `GET /api/publish/file/{fileId}/status` and `GET /api/publish/file-group/{fileGroupId}/status` (`PublishService.publishFileStatus`/
+  `publishFileGroupStatus`) tell the publish dialog whether the file or group was published before and which admin users and units the
+  previous publish granted privileges to, so that they can be shown and resent. Authorization is the same as for the publish itself and
+  runs before the admin backend is asked: 404 for an unknown ID, `FileAclService.requireModify` on the file / on every file of the group (403). The answer is
+  built from the admin backend's reduced ACL rows (IDs and privilege flags only, never the service account's own row)
+  fetched with the service API token; a `404` from the admin backend is reported as "not published", `401`/`403` as an authentication
+  failure, anything else as `502`, never with the admin backend's message (A01, A05, A10).
+* The site file ID an ingest answers is recorded on the published file (`files.site_file_id`, `V1012`) and exposed read-only in
+  `FileResponse`; it is an admin-side ID with no meaning in this backend's own tables.
+* Tests: `PublishServiceUTC` (`PublicationStatus`), `VempainAdminServiceUTC` (`AclLookups`), `PublishControllerCTC` (401, 403, 404, 200).

@@ -67,6 +67,7 @@ public class FileGroupEntity {
             .path(path)
             .groupName(groupName)
             .description(description)
+            .galleryId(galleryId)
             .files(files != null ? files.stream()
                 .map(file -> file.toResponse(false))
                 .toList() : List.of())

@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -16,6 +17,8 @@ import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
+import fi.poltsi.vempain.file.api.response.PublishFileGroupStatusResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileStatusResponse;
 import fi.poltsi.vempain.file.api.response.PublishUnitResponse;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -116,4 +119,40 @@ public interface PublishAPI {
     @SecurityRequirement(name = "Bearer Authentication")
     @GetMapping(path = BASE_PATH + "/units", produces = "application/json")
     ResponseEntity<List<PublishUnitResponse>> listPublishUnits();
+
+    @Operation(summary = "Publication state of a file",
+            description = "Whether the file has been published to the admin backend before and, if so, the site file it became and the admin users and "
+                    + "units that were granted privileges on it (in the shape of the acls list of POST /publish/file, so they can be shown and sent "
+                    + "again). The file backend asks the admin backend; a site file that was deleted there answers published=false. The caller needs "
+                    + "the modify privilege on the file, like for publishing it.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "200", description = "The publication state",
+                        content = {
+                            @Content(schema = @Schema(implementation = PublishFileStatusResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE) }),
+                @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+                @ApiResponse(responseCode = "403", description = "The caller may not modify the file", content = @Content),
+                @ApiResponse(responseCode = "404", description = "No file found", content = @Content),
+                @ApiResponse(responseCode = "502", description = "The admin backend did not answer", content = @Content) })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @GetMapping(path = BASE_PATH + "/file/{fileId}/status", produces = "application/json")
+    ResponseEntity<PublishFileStatusResponse> getPublishFileStatus(@PathVariable("fileId") long fileId);
+
+    @Operation(summary = "Publication state of a file group",
+            description = "Whether the file group has been published to the admin backend before and, if so, the gallery it became, the site files the "
+                    + "gallery holds and the admin users and units that were granted privileges on it (in the shape of the acls list of "
+                    + "POST /publish/file-group). A gallery that was deleted in the admin backend answers published=false. The caller needs the modify "
+                    + "privilege on every file of the group, like for publishing it.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "200", description = "The publication state",
+                        content = {
+                            @Content(schema = @Schema(implementation = PublishFileGroupStatusResponse.class), mediaType = MediaType.APPLICATION_JSON_VALUE) }),
+                @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+                @ApiResponse(responseCode = "403", description = "The caller may not modify every file of the group", content = @Content),
+                @ApiResponse(responseCode = "404", description = "No file group found", content = @Content),
+                @ApiResponse(responseCode = "502", description = "The admin backend did not answer", content = @Content) })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @GetMapping(path = BASE_PATH + "/file-group/{fileGroupId}/status", produces = "application/json")
+    ResponseEntity<PublishFileGroupStatusResponse> getPublishFileGroupStatus(@PathVariable("fileGroupId") long fileGroupId);
 }

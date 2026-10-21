@@ -10,6 +10,8 @@ import fi.poltsi.vempain.file.api.request.PublishAllFileGroupsRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
+import fi.poltsi.vempain.file.api.response.PublishFileGroupStatusResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileStatusResponse;
 import fi.poltsi.vempain.file.api.response.PublishUnitResponse;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
 import fi.poltsi.vempain.file.rest.PublishAPI;
@@ -67,5 +69,16 @@ public class PublishController implements PublishAPI {
     @Override
     public ResponseEntity<List<PublishUnitResponse>> listPublishUnits() {
         return ResponseEntity.ok(publishService.listPublishUnits());
+    }
+
+    @Override
+    public ResponseEntity<PublishFileStatusResponse> getPublishFileStatus(long fileId) {
+        // 404 for an unknown file and 403 without the modify privilege, like the publish itself
+        return ResponseEntity.ok(publishService.publishFileStatus(fileId));
+    }
+
+    @Override
+    public ResponseEntity<PublishFileGroupStatusResponse> getPublishFileGroupStatus(long fileGroupId) {
+        return ResponseEntity.ok(publishService.publishFileGroupStatus(fileGroupId));
     }
 }

@@ -22,7 +22,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestGalleryAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUnitResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
@@ -59,6 +62,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -507,6 +511,11 @@ class PublishServiceUTC {
             assertThat(task.getMessage()).isEqualTo("Published exported.jpg");
             verify(vempainAdminService).uploadAsSiteFile(any(), any());
             assertEquals(77L, group.getGalleryId());
+            // The published file remembers its site file, the file without an export is untouched
+            assertEquals(500L, exported.getSiteFileId());
+            assertEquals(Boolean.TRUE, exported.getSiteFilePublished());
+            verify(fileRepository).save(exported);
+            assertNull(notExported.getSiteFileId());
         }
 
         @Test
@@ -971,7 +980,7 @@ class PublishServiceUTC {
 
         @Test
         void publishFileUploadsWithoutAnyGalleryAndForwardsTheAcls(@TempDir Path exportDir) throws IOException {
-            exportedDocument(exportDir);
+            var mockDocEntity = exportedDocument(exportDir);
             when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
                 .siteFileId(500L)
                 .updated(false)
@@ -1010,6 +1019,10 @@ class PublishServiceUTC {
                 .getFirst()
                 .getUserId());
             verify(fileGroupRepository, never()).save(any());
+            // The created site file is recorded on the file for the next publish to find
+            verify(mockDocEntity).setSiteFileId(500L);
+            verify(mockDocEntity).setSiteFilePublished(true);
+            verify(fileRepository).save(mockDocEntity);
         }
 
         @Test
@@ -1076,6 +1089,80 @@ class PublishServiceUTC {
         }
 
         @Test
+        void aPublishFileTaskThatFailsAfterTheUploadRemovesTheSiteFileAndForgetsTheLink(@TempDir Path exportDir) throws Exception {
+            var mockDocEntity = exportedDocument(exportDir);
+            // The file was published once before this release recorded site file IDs: an old link and an undetermined flag are put back on revert
+            when(mockDocEntity.getSiteFileId()).thenReturn(400L);
+            when(mockDocEntity.getSiteFilePublished()).thenReturn(null);
+            when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+                .siteFileId(500L)
+                .updated(false)
+                .build());
+            when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);
+            // The progress write after the upload fails, so the runner reverts the task through the registered compensation
+            var progress = fi.poltsi.vempain.common.task.TaskProgress.unmanaged("t", "PUBLISH_FILE", "Publish file doc.pdf", 1L, 1, "{}");
+            var compensations = new java.util.ArrayList<fi.poltsi.vempain.common.task.Compensation>();
+            var spied = org.mockito.Mockito.spy(progress);
+            org.mockito.Mockito.doAnswer(invocation -> {
+                compensations.add(invocation.getArgument(1));
+                return null;
+            })
+                .when(spied)
+                .registerCompensation(any(), any());
+
+            publishService.publishFileNow(PublishFileRequest.builder()
+                .fileId(55L)
+                .build(), spied);
+
+            assertThat(compensations).hasSize(1);
+            compensations.getFirst()
+                .revert();
+            verify(vempainAdminService).deleteSiteFile(500L);
+            // The previous link (site file 400, flag undetermined) is put back
+            verify(mockDocEntity).setSiteFileId(500L);
+            verify(mockDocEntity).setSiteFilePublished(true);
+            verify(mockDocEntity).setSiteFileId(400L);
+            verify(mockDocEntity).setSiteFilePublished(org.mockito.ArgumentMatchers.isNull());
+            verify(fileRepository, times(2)).save(mockDocEntity);
+        }
+
+        @Test
+        void anUploadThatReplacedASiteFileRecordsTheLinkButRegistersNoUndo(@TempDir Path exportDir) throws IOException {
+            var mockDocEntity = exportedDocument(exportDir);
+            when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+                .siteFileId(500L)
+                .updated(true)
+                .build());
+            var spied = org.mockito.Mockito.spy(fi.poltsi.vempain.common.task.TaskProgress.unmanaged("t", "PUBLISH_FILE", "Publish file doc.pdf", 1L, 1, "{}"));
+
+            publishService.publishFileNow(PublishFileRequest.builder()
+                .fileId(55L)
+                .build(), spied);
+
+            verify(mockDocEntity).setSiteFileId(500L);
+            verify(fileRepository).save(mockDocEntity);
+            verify(spied, never()).registerCompensation(any(), any());
+        }
+
+        @Test
+        void restoreSiteFileLinkPutsThePreviousValuesBack() {
+            var file = ImageFileEntity.builder()
+                .id(71L)
+                .siteFileId(500L)
+                .siteFilePublished(true)
+                .build();
+            when(fileRepository.findById(71L)).thenReturn(Optional.of(file));
+            when(fileRepository.findById(72L)).thenReturn(Optional.empty());
+
+            publishService.restoreSiteFileLink(71L, null, null);
+            publishService.restoreSiteFileLink(72L, 1L, true);
+
+            assertNull(file.getSiteFileId());
+            assertNull(file.getSiteFilePublished());
+            verify(fileRepository).save(file);
+        }
+
+        @Test
         void authorizeFilePublishRequiresModifyOnTheFileAndKnowsMissingFiles() {
             var file = ImageFileEntity.builder()
                 .id(70L)
@@ -1124,6 +1211,190 @@ class PublishServiceUTC {
 
             verify(fileAclService).requireModifyBulk(List.of(first, second));
             verify(fileAclService, never()).requireModify(any(FileEntity.class));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // publishFileStatus / publishFileGroupStatus
+    // ------------------------------------------------------------------
+    @Nested
+    @DisplayName("publication status")
+    class PublicationStatus {
+
+        private final FileIngestAclResponse grantee = FileIngestAclResponse.builder()
+            .userId(12L)
+            .readPrivilege(true)
+            .modifyPrivilege(true)
+            .build();
+
+        @Test
+        void toPublishedAclsMapsEveryEntryAndLeavesNullEmpty() {
+            var mapped = PublishService.toPublishedAcls(List.of(grantee, FileIngestAclResponse.builder()
+                .unitId(3L)
+                .readPrivilege(true)
+                .deletePrivilege(true)
+                .build()));
+
+            assertEquals(2, mapped.size());
+            assertEquals(12L, mapped.getFirst()
+                .getUserId());
+            assertNull(mapped.getFirst()
+                .getUnitId());
+            assertTrue(mapped.getFirst()
+                .isReadPrivilege());
+            assertFalse(mapped.getFirst()
+                .isCreatePrivilege());
+            assertTrue(mapped.getFirst()
+                .isModifyPrivilege());
+            assertFalse(mapped.getFirst()
+                .isDeletePrivilege());
+            assertEquals(3L, mapped.get(1)
+                .getUnitId());
+            assertTrue(mapped.get(1)
+                .isDeletePrivilege());
+            assertTrue(PublishService.toPublishedAcls(null)
+                .isEmpty());
+        }
+
+        @Test
+        void fileStatusUsesTheRecordedSiteFileAndRequiresModify() {
+            var file = ImageFileEntity.builder()
+                .id(55L)
+                .siteFileId(500L)
+                .build();
+            when(fileRepository.findById(55L)).thenReturn(Optional.of(file));
+            when(vempainAdminService.getSiteFileAcls(500L)).thenReturn(Optional.of(FileIngestSiteFileAclResponse.builder()
+                .siteFileId(500L)
+                .fileId(55L)
+                .acls(List.of(grantee))
+                .build()));
+
+            var status = publishService.publishFileStatus(55L);
+
+            verify(fileAclService).requireModify(file);
+            assertEquals(55L, status.getFileId());
+            assertTrue(status.isPublished());
+            assertEquals(500L, status.getSiteFileId());
+            assertEquals(1, status.getAcls()
+                .size());
+            assertEquals(12L, status.getAcls()
+                .getFirst()
+                .getUserId());
+            verify(vempainAdminService, never()).getSiteFileAclsByFileId(anyLong());
+        }
+
+        @Test
+        void fileStatusFallsBackToTheFileIdWhenNoSiteFileIsRecordedOrTheRecordedOneIsGone() {
+            var legacy = ImageFileEntity.builder()
+                .id(56L)
+                .build();
+            when(fileRepository.findById(56L)).thenReturn(Optional.of(legacy));
+            when(vempainAdminService.getSiteFileAclsByFileId(56L)).thenReturn(Optional.of(FileIngestSiteFileAclResponse.builder()
+                .siteFileId(600L)
+                .fileId(56L)
+                .acls(List.of())
+                .build()));
+
+            var legacyStatus = publishService.publishFileStatus(56L);
+
+            assertTrue(legacyStatus.isPublished());
+            assertEquals(600L, legacyStatus.getSiteFileId());
+            assertTrue(legacyStatus.getAcls()
+                .isEmpty());
+            verify(vempainAdminService, never()).getSiteFileAcls(anyLong());
+
+            var stale = ImageFileEntity.builder()
+                .id(57L)
+                .siteFileId(700L)
+                .build();
+            when(fileRepository.findById(57L)).thenReturn(Optional.of(stale));
+            when(vempainAdminService.getSiteFileAcls(700L)).thenReturn(Optional.empty());
+            when(vempainAdminService.getSiteFileAclsByFileId(57L)).thenReturn(Optional.empty());
+
+            var staleStatus = publishService.publishFileStatus(57L);
+
+            assertFalse(staleStatus.isPublished());
+            assertNull(staleStatus.getSiteFileId());
+            assertTrue(staleStatus.getAcls()
+                .isEmpty());
+        }
+
+        @Test
+        void fileStatusOfAMissingFileIsNotFound() {
+            when(fileRepository.findById(404L)).thenReturn(Optional.empty());
+
+            var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> publishService.publishFileStatus(404L));
+
+            assertThat(ex.getStatusCode()
+                .value()).isEqualTo(404);
+            verify(vempainAdminService, never()).getSiteFileAclsByFileId(anyLong());
+        }
+
+        @Test
+        void groupStatusAnswersTheGalleryItsSiteFilesAndGranteesAndRequiresModifyOnEveryFile() {
+            var file = ImageFileEntity.builder()
+                .id(61L)
+                .build();
+            var group = FileGroupEntity.builder()
+                .id(407L)
+                .galleryId(77L)
+                .files(List.<FileEntity>of(file))
+                .build();
+            when(fileGroupRepository.findById(407L)).thenReturn(Optional.of(group));
+            when(vempainAdminService.getGalleryAcls(77L)).thenReturn(Optional.of(FileIngestGalleryAclResponse.builder()
+                .galleryId(77L)
+                .shortname("Summer")
+                .siteFileIds(List.of(500L, 501L))
+                .acls(List.of(grantee))
+                .build()));
+
+            var status = publishService.publishFileGroupStatus(407L);
+
+            verify(fileAclService).requireModify(group.getFiles());
+            assertEquals(407L, status.getFileGroupId());
+            assertTrue(status.isPublished());
+            assertEquals(77L, status.getGalleryId());
+            assertEquals("Summer", status.getGalleryName());
+            assertEquals(List.of(500L, 501L), status.getSiteFileIds());
+            assertEquals(12L, status.getAcls()
+                .getFirst()
+                .getUserId());
+        }
+
+        @Test
+        void groupStatusOfAnUnpublishedOrStaleGroupIsNotPublished() {
+            var never = FileGroupEntity.builder()
+                .id(408L)
+                .build();
+            when(fileGroupRepository.findById(408L)).thenReturn(Optional.of(never));
+
+            var neverStatus = publishService.publishFileGroupStatus(408L);
+
+            assertFalse(neverStatus.isPublished());
+            assertNull(neverStatus.getGalleryId());
+            assertTrue(neverStatus.getSiteFileIds()
+                .isEmpty());
+            verify(vempainAdminService, never()).getGalleryAcls(anyLong());
+
+            var stale = FileGroupEntity.builder()
+                .id(409L)
+                .galleryId(78L)
+                .build();
+            when(fileGroupRepository.findById(409L)).thenReturn(Optional.of(stale));
+            when(vempainAdminService.getGalleryAcls(78L)).thenReturn(Optional.empty());
+
+            assertFalse(publishService.publishFileGroupStatus(409L)
+                .isPublished());
+        }
+
+        @Test
+        void groupStatusOfAMissingGroupIsNotFound() {
+            when(fileGroupRepository.findById(404L)).thenReturn(Optional.empty());
+
+            var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> publishService.publishFileGroupStatus(404L));
+
+            assertThat(ex.getStatusCode()
+                .value()).isEqualTo(404);
         }
     }
 }

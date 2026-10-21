@@ -115,6 +115,22 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   the same failure handling as the uploads; an unreachable admin backend answers `502`. Never resolve these IDs against this backend's
   own `user_account` or `unit` tables. The task runner propagates the caller's security context to the worker thread, but authorization that must fail the
   request itself always runs before `TaskRunner.submit`.
+- A publish remembers what it created so that the next publish of the same file or group can show and resend the grantees of the previous
+  one: every ingest answer (`FileIngestResponse`: `site_file_id`, `gallery_id`, `gallery_site_file_ids` = the site files of the gallery after
+  the ingest, admin API 1.0.69+) is recorded by `PublishService.recordPublication` as `files.site_file_id` (`V1012`) plus
+  `site_file_published=true` on the published file (single file, group and refresh republish alike); the file group keeps its `gallery_id`
+  as before. The compensation of a created site file deletes it in the admin backend and puts the previous link back (`restoreSiteFileLink`); a replaced site
+  file keeps its link. `GET /api/publish/file/{fileId}/status` (`PublishFileStatusResponse`:
+  `published`, `site_file_id`, `acls`) and `GET /api/publish/file-group/{fileGroupId}/status` (`PublishFileGroupStatusResponse`: `published`,
+  `gallery_id`, `gallery_name`, `site_file_ids`, `acls`) answer whether the admin backend still holds the site file or gallery and who was
+  granted privileges on it (`PublishedAclResponse` rows, the shape of `PublishAclRequest`, never the service account's own row), asked
+  through `VempainAdminService.getSiteFileAcls`/`getSiteFileAclsByFileId`/`getGalleryAcls` (`FileIngestAPI`; a `404` from the admin backend is
+  "not published", `401`/`403` is `VempainAuthenticationException`, anything else `502`). A file without a recorded site file ID, or whose
+  recorded site file is gone, is looked up by its own `files.id` (`site_file.file_id` is unique in the admin backend), so files published
+  before `V1012` are found too; a group without `gallery_id` never asks the admin backend. Both need the modify privilege like the publish
+  itself (404 unknown, 403 denied). `FileResponse` exposes `site_file_published` and `site_file_id`, `FileGroupResponse` the `gallery_id`.
+  Tests: `PublishServiceUTC` (`PublicationStatus`, link recording and revert), `VempainAdminServiceUTC` (`AclLookups`), `PublishControllerCTC`,
+  `ResponseContractJTC`.
 - Long-running actions never block the HTTP request. They run through the shared durable task facility of `vempain-common-core`
   (`fi.poltsi.vempain.common.task`: `TaskRunner.submitDurable(type, title, totalSteps, payload, localFallback)` -> `TaskProgress`,
   `TaskProgressStore`, `TaskController` = `TaskAPI` at `/api/tasks`): the endpoint answers `202 TaskAcceptedResponse` and the frontend
@@ -160,7 +176,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   alphabetical order using a locale-aware `Collator` (`vempain.path-completion.collation-locale`, default `fi`: å, ä and ö sort after
   z and case only breaks ties); never return the raw filesystem order, it follows modification times and makes the lists jump.
   `PathCompletionServiceUTC`/`ITC` cover the non-ASCII ordering.
-- Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published`
+- Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published` and
+  `files.site_file_id` (set by every publish, see the publish section)
 - Data dataset publication flows:
   - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
   - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and

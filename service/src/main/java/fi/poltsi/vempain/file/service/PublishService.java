@@ -20,6 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import fi.poltsi.vempain.admin.api.request.file.FileIngestAclRequest;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.response.LocationResponse;
@@ -32,8 +35,11 @@ import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
 import fi.poltsi.vempain.file.api.response.CopyrightResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileGroupStatusResponse;
+import fi.poltsi.vempain.file.api.response.PublishFileStatusResponse;
 import fi.poltsi.vempain.file.api.response.PublishUnitResponse;
 import fi.poltsi.vempain.file.api.response.PublishUserResponse;
+import fi.poltsi.vempain.file.api.response.PublishedAclResponse;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
 import fi.poltsi.vempain.file.entity.DocumentFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
@@ -138,6 +144,88 @@ public class PublishService {
                 .deletePrivilege(acl.isDeletePrivilege())
                 .build())
             .toList();
+    }
+
+    /**
+     * Maps the grantees the admin backend reports on an earlier publish to this API's shape, which is the one the next publish request takes them in.
+     */
+    static List<PublishedAclResponse> toPublishedAcls(List<FileIngestAclResponse> acls) {
+        if (acls == null) {
+            return List.of();
+        }
+
+        return acls.stream()
+            .map(acl -> PublishedAclResponse.builder()
+                .userId(acl.getUserId())
+                .unitId(acl.getUnitId())
+                .readPrivilege(acl.isReadPrivilege())
+                .createPrivilege(acl.isCreatePrivilege())
+                .modifyPrivilege(acl.isModifyPrivilege())
+                .deletePrivilege(acl.isDeletePrivilege())
+                .build())
+            .toList();
+    }
+
+    /**
+     * Whether the file was published before and what that publish granted, asked from the admin backend: by the site file ID recorded with the last publish,
+     * or, when none is recorded or that site file is gone, by this backend's file ID (unique per site file in the admin backend), so that files published
+     * before the ID was recorded are found too. Requires the modify privilege like the publish itself.
+     *
+     * @throws ResponseStatusException        404 when the file does not exist, 502 when the admin backend does not answer
+     * @throws AccessDeniedException          when the file is not modifiable by the current user
+     * @throws VempainAuthenticationException when the admin backend refuses the token
+     */
+    @Transactional(readOnly = true)
+    public PublishFileStatusResponse publishFileStatus(long fileId) {
+        var file = fileRepository.findById(fileId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File " + fileId + " not found"));
+        fileAclService.requireModify(file);
+
+        var siteFile = file.getSiteFileId() == null ? java.util.Optional.<FileIngestSiteFileAclResponse>empty()
+                : vempainAdminService.getSiteFileAcls(file.getSiteFileId());
+        if (siteFile.isEmpty()) {
+            siteFile = vempainAdminService.getSiteFileAclsByFileId(fileId);
+        }
+
+        var status = PublishFileStatusResponse.builder()
+            .fileId(fileId)
+            .published(siteFile.isPresent())
+            .acls(List.of());
+        siteFile.ifPresent(found -> status.siteFileId(found.getSiteFileId())
+            .acls(toPublishedAcls(found.getAcls())));
+        return status.build();
+    }
+
+    /**
+     * Whether the file group was published before and what that publish granted on its gallery, asked from the admin backend with the gallery ID recorded by
+     * the last publish; a gallery that no longer exists there counts as not published. Requires the modify privilege on every file like the publish itself.
+     *
+     * @throws ResponseStatusException        404 when the group does not exist, 502 when the admin backend does not answer
+     * @throws AccessDeniedException          when a file of the group is not modifiable by the current user
+     * @throws VempainAuthenticationException when the admin backend refuses the token
+     */
+    @Transactional(readOnly = true)
+    public PublishFileGroupStatusResponse publishFileGroupStatus(long fileGroupId) {
+        var group = fileGroupRepository.findById(fileGroupId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File group " + fileGroupId + " not found"));
+        fileAclService.requireModify(group.getFiles());
+
+        var status = PublishFileGroupStatusResponse.builder()
+            .fileGroupId(fileGroupId)
+            .published(false)
+            .siteFileIds(List.of())
+            .acls(List.of());
+
+        if (group.getGalleryId() != null) {
+            vempainAdminService.getGalleryAcls(group.getGalleryId())
+                .ifPresent(gallery -> status.published(true)
+                    .galleryId(gallery.getGalleryId())
+                    .galleryName(gallery.getShortname())
+                    .siteFileIds(gallery.getSiteFileIds() == null ? List.of() : gallery.getSiteFileIds())
+                    .acls(toPublishedAcls(gallery.getAcls())));
+        }
+
+        return status.build();
     }
 
     /**
@@ -262,8 +350,8 @@ public class PublishService {
             var response = uploadFile(fileEntity, exportFilePath, FileIngestRequest.builder()
                 .sortOrder(0)
                 .acls(toIngestAcls(request.getAcls())), "vempain-");
+            recordPublication(fileEntity, response, progress);
             if (progress != null) {
-                registerUploadCompensation(progress, fileEntity.getFilename(), response);
                 progress.advance("Published " + fileEntity.getFilename());
             }
             log.debug("Published file {} as site file {}", fileEntity.getFilename(), response == null ? null : response.getSiteFileId());
@@ -420,12 +508,12 @@ public class PublishService {
                 var fileIngestResponse = uploadFile(fileEntity, exportFilePath, buildIngestRequestBase(fileEntity, request, fileGroup, sortOrder), "vempain-");
                 sortOrder++;
                 galleryId = fileIngestResponse == null ? galleryId : fileIngestResponse.getGalleryId();
-                log.debug("Published file {} from group {} as site file to gallery ID {}", fileEntity.getFilename(), request.getFileGroupId(), galleryId);
-                if (progress != null) {
-                    registerUploadCompensation(progress, fileEntity.getFilename(), fileIngestResponse);
-                    if (reportFileSteps) {
-                        progress.advance("Published " + fileEntity.getFilename());
-                    }
+                log.debug("Published file {} from group {} as site file to gallery ID {} (gallery now holds site files {})", fileEntity.getFilename(),
+                        request.getFileGroupId(), galleryId, fileIngestResponse == null ? null : fileIngestResponse.getGallerySiteFileIds());
+                recordPublication(fileEntity, fileIngestResponse, progress);
+                if (progress != null
+                    && reportFileSteps) {
+                    progress.advance("Published " + fileEntity.getFilename());
                 }
             } catch (Exception ex) {
                 log.error("Failed to publish file {} from group {}", fileEntity.getFilename(), request.getFileGroupId(), ex);
@@ -438,20 +526,50 @@ public class PublishService {
     }
 
     /**
-     * A site file that the upload created is removed again when the task is cancelled. An upload that replaced an existing site file cannot be reverted,
-     * because the previous content is gone.
+     * Records on the file which site file the upload created or updated and marks it published, so that the next publish can read back what this one granted.
+     * When running as a task, a site file that the upload created is removed again on cancel and the previous link is put back; an upload that replaced an
+     * existing site file cannot be reverted, because the previous content is gone, so its (unchanged) link is kept.
      */
-    private void registerUploadCompensation(TaskProgress progress, String filename, fi.poltsi.vempain.admin.api.response.file.FileIngestResponse response) {
+    private void recordPublication(FileEntity fileEntity, FileIngestResponse response, TaskProgress progress) {
         if (response == null
             || response.getSiteFileId() == null) {
             return;
         }
-        if (response.isUpdated()) {
-            log.debug("Site file {} replaced an existing file; the upload cannot be reverted", response.getSiteFileId());
+
+        var previousSiteFileId = fileEntity.getSiteFileId();
+        var previousPublished = fileEntity.getSiteFilePublished();
+        var siteFileId = response.getSiteFileId();
+        fileEntity.setSiteFileId(siteFileId);
+        fileEntity.setSiteFilePublished(true);
+        fileRepository.save(fileEntity);
+
+        if (progress == null) {
             return;
         }
-        var siteFileId = response.getSiteFileId();
-        progress.registerCompensation("Remove " + filename + " from the admin backend", () -> vempainAdminService.deleteSiteFile(siteFileId));
+        if (response.isUpdated()) {
+            log.debug("Site file {} replaced an existing file; the upload cannot be reverted", siteFileId);
+            return;
+        }
+
+        var proxy = applicationContext.getBean(PublishService.class);
+        var fileId = fileEntity.getId();
+        progress.registerCompensation("Remove " + fileEntity.getFilename() + " from the admin backend", () -> {
+            vempainAdminService.deleteSiteFile(siteFileId);
+            proxy.restoreSiteFileLink(fileId, previousSiteFileId, previousPublished);
+        });
+    }
+
+    /**
+     * Undo of the site file link {@link #recordPublication} made.
+     */
+    @Transactional
+    public void restoreSiteFileLink(long fileId, Long previousSiteFileId, Boolean previousPublished) {
+        fileRepository.findById(fileId)
+            .ifPresent(file -> {
+                file.setSiteFileId(previousSiteFileId);
+                file.setSiteFilePublished(previousPublished);
+                fileRepository.save(file);
+            });
     }
 
     private static void reportFailure(TaskProgress progress, String message) {
@@ -473,8 +591,8 @@ public class PublishService {
     /**
      * Resizes images, fills the ingest request from the file entity, and uploads the file to the admin backend.
      */
-    private fi.poltsi.vempain.admin.api.response.file.FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath,
-            FileIngestRequest.FileIngestRequestBuilder builder, String tempPrefix) throws IOException {
+    private FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath, FileIngestRequest.FileIngestRequestBuilder builder, String tempPrefix)
+            throws IOException {
         var metadataEntries = metadataService.getFileMetadata(fileEntity.getId());
         var metadataJson = resolveMetadataJson(collectStandardMetadataAsJson(metadataEntries, fileEntity));
 
@@ -617,8 +735,9 @@ public class PublishService {
         }
 
         try {
-            uploadFile(fileEntity, exportFilePath, FileIngestRequest.builder()
+            var response = uploadFile(fileEntity, exportFilePath, FileIngestRequest.builder()
                 .sortOrder(0), "vempain-refresh-");
+            recordPublication(fileEntity, response, null);
             return true;
         } catch (Exception e) {
             log.warn("Failed to republish site file for file id {}", fileEntity.getId(), e);

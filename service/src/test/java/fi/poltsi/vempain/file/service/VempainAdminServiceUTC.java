@@ -22,7 +22,10 @@ import feign.Request;
 import feign.RequestTemplate;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestGalleryAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUnitResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
@@ -85,7 +88,11 @@ class VempainAdminServiceUTC {
             var request = FileIngestRequest.builder()
                 .mimeType("image/jpeg")
                 .build();
-            var expected = new FileIngestResponse(99L, 42L, false);
+            var expected = FileIngestResponse.builder()
+                .galleryId(99L)
+                .siteFileId(42L)
+                .updated(false)
+                .build();
 
             when(objectMapper.writeValueAsString(any())).thenReturn("{}");
             when(vempainAdminFileIngestClient.ingest(anyString(), any())).thenReturn(ResponseEntity.ok(expected));
@@ -310,6 +317,87 @@ class VempainAdminServiceUTC {
             doThrow(fakeFeignException(500)).when(vempainAdminFileIngestClient)
                 .deleteSiteFile(8L);
             assertThrows(FeignException.class, () -> vempainAdminService.deleteSiteFile(8L));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // ACL lookups of earlier publishes
+    // ------------------------------------------------------------------
+    @Nested
+    @DisplayName("getSiteFileAcls / getSiteFileAclsByFileId / getGalleryAcls")
+    class AclLookups {
+
+        private final FileIngestSiteFileAclResponse siteFileAcls = FileIngestSiteFileAclResponse.builder()
+            .siteFileId(42L)
+            .fileId(55L)
+            .acls(List.of(FileIngestAclResponse.builder()
+                .userId(12L)
+                .readPrivilege(true)
+                .build()))
+            .build();
+
+        @Test
+        void returnsTheGranteesOfASiteFile() {
+            when(vempainAdminFileIngestClient.getSiteFileAcls(42L)).thenReturn(ResponseEntity.ok(siteFileAcls));
+
+            assertThat(vempainAdminService.getSiteFileAcls(42L)).contains(siteFileAcls);
+        }
+
+        @Test
+        void returnsTheGranteesOfTheSiteFileOfAFile() {
+            when(vempainAdminFileIngestClient.getSiteFileAclsByFileId(55L)).thenReturn(ResponseEntity.ok(siteFileAcls));
+
+            assertThat(vempainAdminService.getSiteFileAclsByFileId(55L)).contains(siteFileAcls);
+        }
+
+        @Test
+        void returnsTheGranteesAndSiteFilesOfAGallery() {
+            var gallery = FileIngestGalleryAclResponse.builder()
+                .galleryId(77L)
+                .shortname("Summer")
+                .siteFileIds(List.of(42L, 43L))
+                .acls(List.of())
+                .build();
+            when(vempainAdminFileIngestClient.getGalleryAcls(77L)).thenReturn(ResponseEntity.ok(gallery));
+
+            assertThat(vempainAdminService.getGalleryAcls(77L)).contains(gallery);
+        }
+
+        @Test
+        void aResourceTheAdminBackendNoLongerHoldsIsEmpty() {
+            when(vempainAdminFileIngestClient.getSiteFileAcls(404L)).thenThrow(fakeFeignException(404));
+            when(vempainAdminFileIngestClient.getSiteFileAclsByFileId(404L)).thenThrow(fakeFeignException(404));
+            when(vempainAdminFileIngestClient.getGalleryAcls(404L)).thenThrow(fakeFeignException(404));
+
+            assertThat(vempainAdminService.getSiteFileAcls(404L)).isEmpty();
+            assertThat(vempainAdminService.getSiteFileAclsByFileId(404L)).isEmpty();
+            assertThat(vempainAdminService.getGalleryAcls(404L)).isEmpty();
+        }
+
+        @Test
+        void aRefusedTokenIsAnAuthenticationFailure() {
+            when(vempainAdminFileIngestClient.getSiteFileAcls(42L)).thenThrow(fakeFeignException(401));
+            when(vempainAdminFileIngestClient.getGalleryAcls(77L)).thenThrow(fakeFeignException(403));
+
+            assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.getSiteFileAcls(42L));
+            assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.getGalleryAcls(77L));
+            verify(fileMetrics).adminBackendRejected(401);
+            verify(fileMetrics).adminBackendRejected(403);
+        }
+
+        @Test
+        void otherFailuresAndEmptyAnswersBecomeBadGateway() {
+            when(vempainAdminFileIngestClient.getSiteFileAcls(42L)).thenThrow(fakeFeignException(500));
+            when(vempainAdminFileIngestClient.getGalleryAcls(77L)).thenReturn(ResponseEntity.ok(null));
+            when(vempainAdminFileIngestClient.getSiteFileAclsByFileId(55L)).thenReturn(ResponseEntity.status(204)
+                .build());
+
+            for (Runnable call : List.<Runnable>of(() -> vempainAdminService.getSiteFileAcls(42L), () -> vempainAdminService.getGalleryAcls(77L),
+                    () -> vempainAdminService.getSiteFileAclsByFileId(55L))) {
+                var ex = assertThrows(org.springframework.web.server.ResponseStatusException.class, call::run);
+                assertThat(ex.getStatusCode()
+                    .value()).isEqualTo(502);
+            }
         }
     }
 }

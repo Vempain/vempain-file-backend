@@ -669,10 +669,8 @@ public class PublishService {
     }
 
     /**
-     * Metadata sent with the upload; an empty set is sent as an empty JSON array.
-     */
-    /**
-     * The MIME type of the file that is uploaded: a single-tag ExifTool read instead of the full metadata, with the filesystem probe as fallback.
+     * Metadata sent with the upload; an empty set is sent as an empty JSON array. The MIME type of the file that is uploaded: a single-tag ExifTool read
+     * instead of the full metadata, with the filesystem probe as fallback.
      */
     private String resolveUploadMimetype(Path uploadPath) throws IOException {
         var mimetype = exifToolService.readTag(uploadPath.toFile(), "MIMEType");

@@ -26,7 +26,7 @@ public class MeteredOtlpMetricsSender implements OtlpMetricsSender {
         try {
             delegate.send(request);
             metrics.exportSucceeded(payloadBytes, Duration.ofNanos(System.nanoTime() - started));
-        } catch (Exception | Error failure) {
+        } catch (Exception failure) {
             metrics.exportFailed(failure, Duration.ofNanos(System.nanoTime() - started));
             throw failure;
         }

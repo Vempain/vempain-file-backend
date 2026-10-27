@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity;
@@ -28,8 +29,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
 
 @Slf4j
 @Service
@@ -45,6 +44,7 @@ public class UpdatedFileRefreshSchedule {
     private final PublishService publishService;
     private final VempainAdminService vempainAdminService;
     private final FileMetrics fileMetrics;
+    private final ExifToolService exifToolService;
 
     @Value("${vempain.refresh-updated-files.enabled:true}")
     private boolean schedulerEnabled;
@@ -192,7 +192,12 @@ public class UpdatedFileRefreshSchedule {
         try {
             exportFile.setSha256sum(sha);
             exportFile.setFilesize(Files.size(exportPath));
-            exportFile.setMimetype(extractMimetype(extractMetadataJsonObject(exportPath.toFile())));
+            // a single-tag read is enough for the MIME type; an empty answer keeps the stored type
+            var mimetype = exifToolService.readTag(exportPath.toFile(), "MIMEType");
+            if (mimetype != null
+                && !mimetype.isBlank()) {
+                exportFile.setMimetype(mimetype);
+            }
             exportFile.setOriginalDocumentId(exportFile.getFile()
                 .getOriginalDocumentId());
             exportFileRepository.save(exportFile);

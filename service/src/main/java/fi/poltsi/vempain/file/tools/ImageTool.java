@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
@@ -22,6 +23,8 @@ import net.coobird.thumbnailator.Thumbnails;
 public class ImageTool {
 
     private static final String RESPONSE_STATUS_EXCEPTION_MESSAGE = "Unknown error";
+
+    private final ExifToolService exifToolService;
 
     public Dimension resizeImage(Path sourceFile, Path destinationFile, int imageMinimumSize, float quality, String metadataJson) {
         // Get the original dimensions of the source file in order to see whether it should be resized
@@ -54,9 +57,9 @@ public class ImageTool {
                 .toFile(destinationFile.toFile());
 
             if (metadataJson != null) {
-                MetadataTool.writeMetadataFromJson(destinationFile.toFile(), metadataJson);
+                exifToolService.replaceMetadataFromJson(destinationFile.toFile(), metadataJson);
             } else {
-                MetadataTool.copyMetadata(sourceFile.toFile(), destinationFile.toFile());
+                copyMetadata(sourceFile, destinationFile);
             }
         } catch (IOException e) {
             log.error("Failed to copy/convert {} to {}", sourceFile, destinationFile, e);
@@ -64,6 +67,17 @@ public class ImageTool {
         }
 
         return targetDimensions;
+    }
+
+    /**
+     * Copies every tag of the source into the resized image; a failure is logged, the image stays usable without metadata.
+     */
+    private void copyMetadata(Path sourceFile, Path destinationFile) {
+        try {
+            exifToolService.copyAllTags(sourceFile.toFile(), destinationFile.toFile());
+        } catch (IOException e) {
+            log.error("Failed to copy metadata from file {} to file {}: {}", sourceFile, destinationFile, e.getMessage());
+        }
     }
 
     public Dimension getImageDimensions(Path imageFile) {

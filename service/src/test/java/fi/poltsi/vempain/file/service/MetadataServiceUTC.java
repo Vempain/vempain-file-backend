@@ -50,7 +50,7 @@ import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepositoryCustom.MetadataSummaryRow;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
-import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.file.tools.TestExifTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -100,7 +100,7 @@ class MetadataServiceUTC {
     void setUp() {
         var taskRunner = new TaskRunner(new TaskProgressStore(), queued::add);
         metadataService = new MetadataService(metadataRepository, fileRepository, fileResponseEnricher, exportFileRepository, thumbFileRepository,
-                directoryProcessorService, thumbnailGenerationService, fileAclService, taskRunner, applicationContext);
+                directoryProcessorService, thumbnailGenerationService, fileAclService, taskRunner, applicationContext, TestExifTool.service());
         ReflectionTestUtils.setField(metadataService, "originalRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(metadataService, "exportRootDirectory", tempDir.resolve("export")
             .toString());
@@ -310,7 +310,8 @@ class MetadataServiceUTC {
             var image = tempDir.resolve("creator.jpg")
                 .toFile();
             ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
-            MetadataTool.writeMetadataValue(image, "XMP-dc", "Creator", "Jane");
+            TestExifTool.service()
+                .writeValue(image, "XMP-dc", "Creator", "Jane");
             var file = new ImageFileEntity();
             file.setId(1L);
             file.setFilename(image.getName());
@@ -325,7 +326,8 @@ class MetadataServiceUTC {
 
             metadataService.applyValueUpdate(request("XMP-dc", "Creator", "Jane", "Joe"), List.of(1L), progress);
 
-            assertThat(MetadataTool.extractMetadataJsonObject(image)
+            assertThat(TestExifTool.service()
+                .readMetadata(image)
                 .getJSONObject("XMP-dc")
                 .getString("Creator")).isEqualTo("Joe");
             verify(directoryProcessorService).refreshExistingOriginalFile(file, image);
@@ -340,7 +342,8 @@ class MetadataServiceUTC {
             var image = tempDir.resolve("revert.jpg")
                 .toFile();
             ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
-            MetadataTool.writeMetadataValue(image, "XMP-dc", "Creator", "Joe");
+            TestExifTool.service()
+                .writeValue(image, "XMP-dc", "Creator", "Joe");
             var file = new ImageFileEntity();
             file.setId(1L);
             file.setFilename(image.getName());
@@ -351,7 +354,8 @@ class MetadataServiceUTC {
 
             metadataService.revertValue(1L, "XMP-dc", "Creator", "Jane");
 
-            assertThat(MetadataTool.extractMetadataJsonObject(image)
+            assertThat(TestExifTool.service()
+                .readMetadata(image)
                 .getJSONObject("XMP-dc")
                 .getString("Creator")).isEqualTo("Jane");
             verify(fileRepository).save(file);
@@ -384,7 +388,8 @@ class MetadataServiceUTC {
             var image = tempDir.resolve(name)
                 .toFile();
             ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
-            MetadataTool.writeMetadataValue(image, "XMP-dc", "Creator", "Jane");
+            TestExifTool.service()
+                .writeValue(image, "XMP-dc", "Creator", "Jane");
             var file = new ImageFileEntity();
             file.setId(1L);
             file.setFilename(name);
@@ -409,8 +414,9 @@ class MetadataServiceUTC {
                 .run();
 
             assertThat(progress.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
-            assertThat(MetadataTool.extractMetadataJsonObject(tempDir.resolve("queued.jpg")
-                .toFile())
+            assertThat(TestExifTool.service()
+                .readMetadata(tempDir.resolve("queued.jpg")
+                    .toFile())
                 .getJSONObject("XMP-dc")
                 .getString("Creator")).isEqualTo("Joe");
         }
@@ -442,7 +448,8 @@ class MetadataServiceUTC {
 
             metadataService.applyValueUpdate(request("XMP-dc", "Creator", "Jane", "Joe"), List.of(1L), progress);
 
-            assertThat(MetadataTool.extractMetadataJsonObject(exported)
+            assertThat(TestExifTool.service()
+                .readMetadata(exported)
                 .getJSONObject("XMP-dc")
                 .getString("Creator")).isEqualTo("Joe");
             assertThat(export.getSha256sum()).isNotEqualTo("stale");

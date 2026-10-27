@@ -33,6 +33,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.metadata.MetadataJson;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
@@ -49,8 +50,8 @@ import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import fi.poltsi.vempain.file.tools.SampleFiles;
+import fi.poltsi.vempain.file.tools.TestExifTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -101,7 +102,7 @@ class TagServiceUTC {
     void setUp() throws Exception {
         tagService = new TagService(tagRepository, fileTagRepository, fileRepository, fileResponseEnricher, exportFileRepository, thumbFileRepository,
                 directoryProcessorService, thumbnailGenerationService, fileAclService, new TaskRunner(new TaskProgressStore(), Runnable::run),
-                applicationContext);
+                applicationContext, TestExifTool.service());
         ReflectionTestUtils.setField(tagService, "originalRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(tagService, "exportRootDirectory", tempDir.resolve("export")
             .toString());
@@ -113,7 +114,8 @@ class TagServiceUTC {
             .setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
 
         original = SampleFiles.jpeg(tempDir.resolve("a.jpg"));
-        MetadataTool.writeSubjects(original, List.of("old", "keep"));
+        TestExifTool.service()
+            .writeSubjects(original, List.of("old", "keep"));
         file = new ImageFileEntity();
         file.setId(1L);
         file.setFilePath("/");
@@ -133,7 +135,8 @@ class TagServiceUTC {
     }
 
     private List<String> subjectsOf(File target) throws IOException {
-        return MetadataTool.extractSubjects(MetadataTool.extractMetadataJsonObject(target));
+        return MetadataJson.extractSubjects(TestExifTool.service()
+            .readMetadata(target));
     }
 
     private static TagOperationRequest request(String tagName, String replacement, List<Long> fileIds) {
@@ -482,7 +485,8 @@ class TagServiceUTC {
             tagService.revertTagMutation(1L, "keep", "", "REMOVE");
             assertThat(subjectsOf(original)).containsExactly("old", "keep");
 
-            MetadataTool.writeSubjects(original, List.of("keep", "new"));
+            TestExifTool.service()
+                .writeSubjects(original, List.of("keep", "new"));
             tagService.revertTagMutation(1L, "old", "new", "REPLACE");
             assertThat(subjectsOf(original)).containsExactly("keep", "old");
 

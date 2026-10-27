@@ -30,6 +30,7 @@ import fi.poltsi.vempain.admin.api.response.file.FileIngestUnitResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestUserResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.request.PublishAclRequest;
@@ -48,7 +49,7 @@ import fi.poltsi.vempain.file.repository.FileGroupRepositoryCustom.FileGroupSumm
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 
-import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
+import static fi.poltsi.vempain.file.tools.FileMetadataTool.collectStandardMetadataAsJson;
 import static fi.poltsi.vempain.file.util.MetadataUtil.generateMetadataEntities;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -90,6 +91,8 @@ class PublishServiceUTC {
     private FileAclService fileAclService;
     @Mock
     private ImageTool imageTool;
+    @Mock
+    private ExifToolService exifToolService;
     @Mock
     private MetadataService metadataService;
     @Mock

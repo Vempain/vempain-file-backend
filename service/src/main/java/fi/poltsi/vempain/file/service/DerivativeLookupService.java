@@ -10,10 +10,10 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +25,7 @@ public class DerivativeLookupService {
 
     private final ExportFileRepository exportFileRepository;
     private final FileRepository fileRepository;
+    private final ExifToolService exifToolService;
     @Value("${vempain.export-root-directory}")
     private String exportDirectory;
 
@@ -87,7 +88,7 @@ public class DerivativeLookupService {
 
     private boolean hasMatchingDocumentId(File file, String documentId) {
         try {
-            var metaJson = MetadataTool.extractMetadataJson(file);
+            var metaJson = exifToolService.readMetadataJson(file);
             var mapper = new ObjectMapper();
             var root = mapper.readTree(metaJson);
             if (root.isArray()

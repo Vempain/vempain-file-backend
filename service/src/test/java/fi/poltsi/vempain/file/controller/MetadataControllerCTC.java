@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
-import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.file.tools.TestExifTool;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -189,7 +189,8 @@ class MetadataControllerCTC extends AbstractControllerCTC {
         var image = tempDirectory.resolve("ctc-meta-rewrite.jpg")
             .toFile();
         ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
-        MetadataTool.writeMetadataValue(image, "XMP-dc", "Creator", "ctc-meta-old");
+        TestExifTool.service()
+            .writeValue(image, "XMP-dc", "Creator", "ctc-meta-old");
 
         var relativeDirectory = "/" + tempDirectory.getFileName();
         seedFileRow(REWRITTEN_IMAGE, "IMAGE", "image/jpeg", image.getName(), relativeDirectory);
@@ -205,7 +206,8 @@ class MetadataControllerCTC extends AbstractControllerCTC {
             .andReturn();
         awaitTaskCompletion(accepted);
 
-        assertThat(MetadataTool.extractMetadataJsonObject(image)
+        assertThat(TestExifTool.service()
+            .readMetadata(image)
             .getJSONObject("XMP-dc")
             .getString("Creator")).isEqualTo("ctc-meta-new");
         assertThat(jdbcTemplate.queryForList("SELECT metadata_value FROM metadata WHERE file_id = ? AND metadata_group = 'XMP-dc' AND metadata_key = 'Creator'",
@@ -219,7 +221,8 @@ class MetadataControllerCTC extends AbstractControllerCTC {
             .andReturn();
         awaitTaskCompletion(removed);
 
-        assertThat(MetadataTool.extractMetadataJsonObject(image)
+        assertThat(TestExifTool.service()
+            .readMetadata(image)
             .optJSONObject("XMP-dc")).satisfiesAnyOf(group -> assertThat(group).isNull(), group -> assertThat(group.has("Creator")).isFalse());
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM metadata WHERE file_id = ? AND metadata_group = 'XMP-dc' AND metadata_key = 'Creator'",
                 Integer.class, REWRITTEN_IMAGE))

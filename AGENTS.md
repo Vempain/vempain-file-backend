@@ -137,7 +137,8 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   polls `GET /api/tasks/{task_id}` (`TaskProgressResponse`: status QUEUED/RUNNING/CANCELLING/CANCELLED/COMPLETED/FAILED, steps, percent,
   message, `cancel_requested`, `reverted_steps`, type specific `result`), cancels a running task with `POST /api/tasks/{task_id}/cancel` and
   dismisses a finished one with `DELETE`. Tasks are private to their owner, persisted in `task_record`/`task_compensation`
-  (`V1009__durable_tasks.sql`, the reference schema lives in `vempain-common-core`) and kept for `vempain.tasks.retention-minutes`.
+  (`V1009__durable_tasks.sql` plus the task lane columns of `V1013__task_lanes.sql`; the reference schema lives in `vempain-common-core`, which validates both
+  at startup) and kept for `vempain.tasks.retention-minutes`.
   This service's part is `fi.poltsi.vempain.file.task.FileTaskCommandExecutor` (the `TaskCommandExecutor` bean that maps `TaskTypeEnum`
   + JSON payload to service calls and replays `TAG_REVERT_MUTATION` compensations) and `fi.poltsi.vempain.file.api.TaskTypeEnum`:
     publish single file / file group / all file groups, directory scan (result `ScanResponses`), music and GPS data set publishing (result admin
@@ -199,9 +200,10 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Every `FileIngestRequest` built by `PublishService.uploadFile` carries `file_id` = the `files.id` of the published entity (admin API releases after 1.0.64
   require it and store it as `site_file.file_id`); keep it set in every publish path (single file, group, republish).
 - **IMPERATIVE:** When a file is published in `PublishService`, the `metadata` field of the `FileIngestRequest` DTO MUST contain only the metadata defined by
-  `MetadataTool.collectStandardMetadataAsJson(...)`, built from the file's `metadata` rows and `FileEntity`. Never send the raw metadata rows, the full
-  `exiftool -json` output, or any other metadata set in `FileIngestRequest.metadata`. The same standard JSON is the only metadata passed to
-  `ImageTool.resizeImage`. Any change to the published metadata must be made in `MetadataTool.collectStandardMetadataAsJson`, not in the publish path.
+  `FileMetadataTool.collectStandardMetadataAsJson(...)` (the `MetadataJson.collectStandardMetadataAsJson` of `vempain-common`), built from the file's
+  `metadata` rows and `FileEntity`. Never send the raw metadata rows, the full `exiftool -json` output, or any other metadata set in
+  `FileIngestRequest.metadata`. The same standard JSON is the only metadata passed to `ImageTool.resizeImage`. Any change to the published metadata
+  must be made in `MetadataJson.collectStandardMetadataAsJson` of `vempain-common`, not in the publish path.
 - Publishing resolves export files through `PublishService`, optionally resizes images, and uploads `FileIngestRequest` data to Admin through Feign clients,
   as a background task with one step per exported file, also for publish-all (groups processed sequentially, a group without exported files counts
   as one step and a group that fails as a whole marks its remaining file steps as failed). Only the converted (exported) files are transferred, so a
@@ -244,11 +246,17 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `vempain.admin_backend.rejected{status}`, `vempain.acl.repaired`, `vempain.refresh.files.verified|republished`,
   `vempain.refresh.checkpoint.age.seconds`, `vempain.inventory.files{file_type}`, `vempain.inventory.export_files`,
   `vempain.inventory.file_groups[.published]`); `FileMetricsRefresher` feeds the database backed gauges once a minute (`vempain.metrics.gauge-refresh-ms`);
-  `ToolMetrics` times the static exiftool and FFmpeg calls as `vempain.tool.duration{tool,result}` on the
-  global registry. Feign calls to the admin backend report `http.client.requests` through `feign-micrometer`; the Hikari pool is named `file`
+  `ToolMetrics` times the static FFmpeg calls as `vempain.tool.duration{tool=ffmpeg,result}` on the global registry and the shared
+  `ExifToolService` of `vempain-common` records the exiftool runs under the same meter. Feign calls to the admin backend report `http.client.requests` through
+  `feign-micrometer`; the Hikari pool is named `file`
   and Tomcat's MBean registry is enabled for the `tomcat.*` meters. Tags are bounded enumerations only, never ids or file names. Services take
   `FileMetrics` as a constructor dependency; unit tests pass a `FileMetrics(new SimpleMeterRegistry())` or a mock.
-- A file's `description` column comes from `MetadataTool.extractDescription` (scan and refresh): `XMP-dc:Description`, then
+- The OTLP push reports itself: `MeteredOtlpMetricsSender.Registrar` (a `BeanPostProcessor`) wraps the `OtlpMetricsSender` Boot builds and
+  reports every push to `MetricsExportMetrics` (`vempain.metrics_export.requests{result=success|rejected|error,status}`,
+  `vempain.metrics_export.duration{result}`, `vempain.metrics_export.bytes`, the gauges `vempain.metrics_export.last_success.age.seconds`
+  (-1 before the first success) and `vempain.metrics_export.meters`). The same two classes exist in the admin backend; the monitoring dashboard
+  `vempain-application.json` has a "Metrics export" row for them. Keep Boot's OTLP auto-configuration untouched: the sender is decorated, never replaced.
+- A file's `description` column comes from `MetadataJson.extractDescription` (scan and refresh): `XMP-dc:Description`, then
   `IFD0:ImageDescription`, then the legacy `IPTC:Caption-Abstract`, using the family 1 group names of the scanner's `exiftool -g1 -J`
   output (there is no `XMP` group in it). Thumbnails (`ThumbnailGenerationService`) carry the description of the file they were made
   from, never their pixel size; `V1011` backfilled both from the `metadata` table and the thumbnails' target files.
@@ -260,13 +268,24 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   filters, sort through `FileSearchHelper.buildSort`) lists only files passing `FileAclService.readableFiles`; `POST /metadata/value`
   (`MetadataValueUpdateRequest`: the triple plus `new_value`, empty removes the entry) answers `202` with a `METADATA_UPDATE_VALUE` task
   after `requireModifyBulk` on every file carrying the value. The task body `MetadataService.applyValueUpdate` runs
-  `MetadataTool.writeMetadataValue` (`exiftool -GROUP:KEY=value`, in place) on the original and its export file, updates the export
+  `ExifToolService.writeValue` (`exiftool -GROUP:KEY=value`, in place) on the original and its export file, updates the export
   checksum and thumbnail, re-reads the file through `DirectoryProcessorService.refreshExistingOriginalFile` (which rebuilds the file's
   `metadata` rows) and registers a `METADATA_REVERT_VALUE` compensation per file (replayed by `FileTaskCommandExecutor`). Group and key
-  names must match `MetadataTool.isValidTagName` (`[A-Za-z0-9][A-Za-z0-9_-]*`, so request text can never become an ExifTool option or
+  names must match `ExifToolService.isValidTagName` (`[A-Za-z0-9][A-Za-z0-9_-]*`, so request text can never become an ExifTool option or
   `+=`/`<=` operator) and the groups `ExifTool`, `File`, `System` and `Composite` are read-only (`isWritableGroup`, reported as
   `writable=false` in the summary). Metadata rows themselves carry no ACL. Covered by `MetadataServiceUTC`, `MetadataControllerCTC` (end
-  to end with ExifTool) and `MetadataToolITC`.
+  to end with ExifTool) and `FileMetadataToolITC`.
+- ExifTool runs only through the shared `fi.poltsi.vempain.common.metadata.ExifToolService` of `vempain-common` (persistent `-stay_open`
+  processes, `vempain.exiftool.path|stay-open|pool-size|idle-timeout-ms` in `application.yaml`, `VEMPAIN_EXIFTOOL_*` in the container);
+  `DirectoryProcessorService`, `TagService`, `MetadataService`, `PublishService`, `DerivativeLookupService`, `UpdatedFileRefreshSchedule`
+  and `ImageTool` take it as a constructor dependency, and the JSON is parsed with the static `MetadataJson`. One full read per file serves
+  every per-type field of the scan and the refresh (`MetadataJson.extractFrameRate(json)`, `extractAudioBitRate(json, size)`,
+  `extractDocumentPageCount(json)`, ...); never run ExifTool again for a single tag of a file that was just read. The publish and the
+  refresh read the MIME type of a new export with one `readTag(file, "MIMEType")` plus `Files.probeContentType`. `tools/FileMetadataTool`
+  keeps what is specific to this backend: the FFmpeg codec probe (`extractVideoCodec`), `extractGpsData` as a `GpsLocationEntity` and
+  `collectStandardMetadataAsJson` over `MetadataEntity` rows. Tests: `FileMetadataToolUTC`, `FileMetadataToolITC` (every file type from one
+  grouped read, real exiftool and FFmpeg), `ImageToolUTC` and the service UTCs mock `ExifToolService`; `tools/TestExifTool` offers one real
+  service for tests that prepare files with ExifTool. Never add a `ProcessBuilder("exiftool")` to this backend again.
 - Every `LIKE` pattern built from request text goes through `fi.poltsi.vempain.file.tools.LikePatterns` (`contains`/`containsIgnoreCase`/`prefix`: escapes
   `%`, `_` and `\\`, truncates to 200 characters; `limitTokens` caps a search at 10 tokens) and declares the escape character,
   as in `FileGroupRepositoryImpl` and `MetadataRepositoryImpl` (native SQL, `ESCAPE_CLAUSE`), `FileSearchHelper`, `MetadataService.findFiles` and
@@ -274,6 +293,16 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   never acts as wildcard syntax (OWASP A05).
 - Security findings and their mitigations are recorded in `security/OWASP-2025-audit-report.md`; keep it current when changing authorization,
   query building, filesystem handling or input validation.
+
+## Container image
+
+- `Dockerfile` is runtime-only (the CI-built jar is added as `/app.jar`) and starts `container-entrypoint.sh` as root: it builds the private
+  JVM truststore from the mounted admin certificate, gives the image's `vempain` account the ids `VEMPAIN_UID`/`VEMPAIN_GID` (default
+  `6666`, set per container in the `vempain-cluster` stacks as `ENV_VEMPAIN_UID`/`ENV_VEMPAIN_GID`) by rewriting `/etc/passwd` and
+  `/etc/group`, and runs Java through `su-exec` as those ids; a container started as a non-root user keeps that user. The ids must be the
+  host owner of the mounted `/vempain_file/original` and `/vempain_file/export`. The same script, apart from the truststore, is in the website backend; keep the
+  user handling of
+  the three identical.
 
 ## Tag ACL rule
 

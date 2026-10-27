@@ -27,6 +27,7 @@ import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.tools.AuthTools;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
@@ -59,59 +60,57 @@ import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import lombok.extern.slf4j.Slf4j;
 
+import static fi.poltsi.vempain.common.metadata.MetadataJson.dateTimeParser;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractArchiveCompressionMethod;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractArchiveContentCount;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractArchiveIsEncrypted;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractArchiveUncompressedSize;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractAudioBitRate;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractAudioChannels;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractAudioCodec;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractAudioSampleRate;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractAudioVideoDuration;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractCreatorCountry;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractCreatorEmail;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractCreatorName;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractCreatorUrl;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractDescription;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractDocumentFormat;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractDocumentPageCount;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractFontFamily;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractFontStyle;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractFontWeight;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractFrameRate;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractGpsTime;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractIconIsScalable;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractImageColorDepth;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractImageDpi;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractImageResolution;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractLabel;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMimetype;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicAlbum;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicAlbumArtist;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicArtist;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicDescription;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicGenre;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicTitle;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicTrackNumber;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicTrackTotal;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractMusicYear;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractOriginalDateTime;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractOriginalDocumentId;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractOriginalSecondFraction;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractRightsHolder;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractRightsTerms;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractRightsUrl;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractSubjects;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractVectorLayersCount;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.extractXYResolution;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.hasMusicMetadata;
+import static fi.poltsi.vempain.common.metadata.MetadataJson.metadataToJsonObject;
+import static fi.poltsi.vempain.file.tools.FileMetadataTool.extractGpsData;
+import static fi.poltsi.vempain.file.tools.FileMetadataTool.extractVideoCodec;
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
-import static fi.poltsi.vempain.file.tools.MetadataTool.dateTimeParser;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveCompressionMethod;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveContentCount;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveIsEncrypted;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractArchiveUncompressedSize;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioBitRate;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioChannels;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioCodec;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioSampleRate;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractAudioVideoDuration;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorCountry;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorEmail;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorName;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractCreatorUrl;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractDescription;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentFormat;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractDocumentPageCount;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontFamily;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontStyle;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractFontWeight;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractFrameRate;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractGpsData;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractGpsTime;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractIconIsScalable;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageColorDepth;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageDpi;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractImageResolution;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractLabel;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJson;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMetadataJsonObject;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMimetype;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbum;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicAlbumArtist;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicArtist;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicDescription;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicGenre;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTitle;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackNumber;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicTrackTotal;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractMusicYear;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDateTime;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalDocumentId;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractOriginalSecondFraction;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsHolder;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsTerms;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractRightsUrl;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractSubjects;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractVectorLayersCount;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractVideoCodec;
-import static fi.poltsi.vempain.file.tools.MetadataTool.extractXYResolution;
-import static fi.poltsi.vempain.file.tools.MetadataTool.hasMusicMetadata;
-import static fi.poltsi.vempain.file.tools.MetadataTool.metadataToJsonObject;
 
 @Slf4j
 @Service
@@ -129,11 +128,13 @@ public class DirectoryProcessorService {
     private final ExportedFilesService exportedFilesService;
     private final FileProcessingQueueService fileProcessingQueueService;
     private final GpsLocationRepository gpsLocationRepository;
+    private final ExifToolService exifToolService;
 
     @Autowired
     public DirectoryProcessorService(FileGroupRepository fileGroupRepository, FileRepository fileRepository, TagRepository tagRepository,
             MetadataRepository metadataRepository, FileTagRepository fileTagRepository, ExportFileRepository exportFileRepository, AclService aclService,
-            ExportedFilesService exportedFilesService, FileProcessingQueueService fileProcessingQueueService, GpsLocationRepository gpsLocationRepository) {
+            ExportedFilesService exportedFilesService, FileProcessingQueueService fileProcessingQueueService, GpsLocationRepository gpsLocationRepository,
+            ExifToolService exifToolService) {
         this.fileGroupRepository = fileGroupRepository;
         this.fileRepository = fileRepository;
         this.tagRepository = tagRepository;
@@ -144,6 +145,7 @@ public class DirectoryProcessorService {
         this.exportedFilesService = exportedFilesService;
         this.fileProcessingQueueService = fileProcessingQueueService;
         this.gpsLocationRepository = gpsLocationRepository;
+        this.exifToolService = exifToolService;
     }
 
     /**
@@ -151,9 +153,9 @@ public class DirectoryProcessorService {
      */
     public DirectoryProcessorService(FileGroupRepository fileGroupRepository, FileRepository fileRepository, TagRepository tagRepository,
             MetadataRepository metadataRepository, FileTagRepository fileTagRepository, ExportFileRepository exportFileRepository, AclService aclService,
-            ExportedFilesService exportedFilesService, GpsLocationRepository gpsLocationRepository) {
+            ExportedFilesService exportedFilesService, GpsLocationRepository gpsLocationRepository, ExifToolService exifToolService) {
         this(fileGroupRepository, fileRepository, tagRepository, metadataRepository, fileTagRepository, exportFileRepository, aclService, exportedFilesService,
-                null, gpsLocationRepository);
+                null, gpsLocationRepository, exifToolService);
     }
 
     @Value("${vempain.original-root-directory}")
@@ -455,7 +457,7 @@ public class DirectoryProcessorService {
         String metadata = null;
 
         try {
-            metadata = extractMetadataJson(file);
+            metadata = exifToolService.readMetadataJson(file);
         } catch (IOException e) {
             log.error("Failed to extract metadata for file: {}", file.getAbsolutePath(), e);
         }
@@ -515,30 +517,30 @@ public class DirectoryProcessorService {
         switch (fileTypeEnum) {
             case ARCHIVE -> {
                 var archiveFile = (ArchiveFileEntity) fileEntity;
-                archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
-                archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
-                archiveFile.setContentCount(extractArchiveContentCount(file));
-                archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
+                archiveFile.setCompressionMethod(extractArchiveCompressionMethod(jsonObject));
+                archiveFile.setUncompressedSize(extractArchiveUncompressedSize(jsonObject));
+                archiveFile.setContentCount(extractArchiveContentCount(jsonObject));
+                archiveFile.setIsEncrypted(extractArchiveIsEncrypted(jsonObject));
                 fileRepository.save(archiveFile);
                 linkFileToGroup(archiveFile, fileGroup);
             }
             case AUDIO -> {
                 var audioFile = (AudioFileEntity) fileEntity;
-                audioFile.setDuration(extractAudioVideoDuration(file));
-                audioFile.setBitRate(extractAudioBitRate(file));
-                audioFile.setSampleRate(extractAudioSampleRate(file));
-                audioFile.setCodec(extractAudioCodec(file));
-                audioFile.setChannels(extractAudioChannels(file));
+                audioFile.setDuration(extractAudioVideoDuration(jsonObject));
+                audioFile.setBitRate(extractAudioBitRate(jsonObject, file.length()));
+                audioFile.setSampleRate(extractAudioSampleRate(jsonObject));
+                audioFile.setCodec(extractAudioCodec(jsonObject));
+                audioFile.setChannels(extractAudioChannels(jsonObject));
                 fileRepository.save(audioFile);
                 linkFileToGroup(audioFile, fileGroup);
             }
             case MUSIC -> {
                 var musicFile = (MusicFileEntity) fileEntity;
-                musicFile.setDuration(extractAudioVideoDuration(file));
-                musicFile.setBitRate(extractAudioBitRate(file));
-                musicFile.setSampleRate(extractAudioSampleRate(file));
-                musicFile.setCodec(extractAudioCodec(file));
-                musicFile.setChannels(extractAudioChannels(file));
+                musicFile.setDuration(extractAudioVideoDuration(jsonObject));
+                musicFile.setBitRate(extractAudioBitRate(jsonObject, file.length()));
+                musicFile.setSampleRate(extractAudioSampleRate(jsonObject));
+                musicFile.setCodec(extractAudioCodec(jsonObject));
+                musicFile.setChannels(extractAudioChannels(jsonObject));
                 musicFile.setArtist(extractMusicArtist(jsonObject));
                 musicFile.setAlbumArtist(extractMusicAlbumArtist(jsonObject));
                 musicFile.setAlbum(extractMusicAlbum(jsonObject));
@@ -568,8 +570,8 @@ public class DirectoryProcessorService {
             }
             case DOCUMENT -> {
                 var documentFile = (DocumentFileEntity) fileEntity;
-                documentFile.setPageCount(extractDocumentPageCount(file));
-                documentFile.setFormat(extractDocumentFormat(file));
+                documentFile.setPageCount(extractDocumentPageCount(jsonObject));
+                documentFile.setFormat(extractDocumentFormat(jsonObject));
                 fileRepository.save(documentFile);
                 linkFileToGroup(documentFile, fileGroup);
             }
@@ -583,18 +585,18 @@ public class DirectoryProcessorService {
             }
             case FONT -> {
                 var fontFile = (FontFileEntity) fileEntity;
-                fontFile.setFontFamily(extractFontFamily(file));
-                fontFile.setWeight(extractFontWeight(file));
-                fontFile.setStyle(extractFontStyle(file));
+                fontFile.setFontFamily(extractFontFamily(jsonObject));
+                fontFile.setWeight(extractFontWeight(jsonObject));
+                fontFile.setStyle(extractFontStyle(jsonObject));
                 fileRepository.save(fontFile);
                 linkFileToGroup(fontFile, fileGroup);
             }
             case ICON -> {
                 var iconFile = (IconFileEntity) fileEntity;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 iconFile.setWidth(res.width);
                 iconFile.setHeight(res.height);
-                iconFile.setIsScalable(extractIconIsScalable(file));
+                iconFile.setIsScalable(extractIconIsScalable(jsonObject));
                 fileRepository.save(iconFile);
                 linkFileToGroup(iconFile, fileGroup);
             }
@@ -635,20 +637,20 @@ public class DirectoryProcessorService {
             }
             case VECTOR -> {
                 var vectorFile = (VectorFileEntity) fileEntity;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 vectorFile.setWidth(res.width);
                 vectorFile.setHeight(res.height);
-                vectorFile.setLayersCount(extractVectorLayersCount(file));
+                vectorFile.setLayersCount(extractVectorLayersCount(jsonObject));
                 fileRepository.save(vectorFile);
                 linkFileToGroup(vectorFile, fileGroup);
             }
             case VIDEO -> {
                 var videoFile = (VideoFileEntity) fileEntity;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 videoFile.setWidth(res.width);
                 videoFile.setHeight(res.height);
-                videoFile.setFrameRate(extractFrameRate(file));
-                videoFile.setDuration(extractAudioVideoDuration(file));
+                videoFile.setFrameRate(extractFrameRate(jsonObject));
+                videoFile.setDuration(extractAudioVideoDuration(jsonObject));
                 videoFile.setCodec(extractVideoCodec(file));
                 fileRepository.save(videoFile);
                 linkFileToGroup(videoFile, fileGroup);
@@ -679,7 +681,7 @@ public class DirectoryProcessorService {
 
         String metadata;
         try {
-            metadata = extractMetadataJson(file);
+            metadata = exifToolService.readMetadataJson(file);
         } catch (IOException e) {
             log.error("Failed to extract metadata for updated file: {}", file.getAbsolutePath(), e);
             return false;
@@ -815,26 +817,26 @@ public class DirectoryProcessorService {
         switch (existingFile.getFileType()) {
             case ARCHIVE -> {
                 var archiveFile = (ArchiveFileEntity) existingFile;
-                archiveFile.setCompressionMethod(extractArchiveCompressionMethod(file));
-                archiveFile.setUncompressedSize(extractArchiveUncompressedSize(file));
-                archiveFile.setContentCount(extractArchiveContentCount(file));
-                archiveFile.setIsEncrypted(extractArchiveIsEncrypted(file));
+                archiveFile.setCompressionMethod(extractArchiveCompressionMethod(jsonObject));
+                archiveFile.setUncompressedSize(extractArchiveUncompressedSize(jsonObject));
+                archiveFile.setContentCount(extractArchiveContentCount(jsonObject));
+                archiveFile.setIsEncrypted(extractArchiveIsEncrypted(jsonObject));
             }
             case AUDIO -> {
                 var audioFile = (AudioFileEntity) existingFile;
-                audioFile.setDuration(extractAudioVideoDuration(file));
-                audioFile.setBitRate(extractAudioBitRate(file));
-                audioFile.setSampleRate(extractAudioSampleRate(file));
-                audioFile.setCodec(extractAudioCodec(file));
-                audioFile.setChannels(extractAudioChannels(file));
+                audioFile.setDuration(extractAudioVideoDuration(jsonObject));
+                audioFile.setBitRate(extractAudioBitRate(jsonObject, file.length()));
+                audioFile.setSampleRate(extractAudioSampleRate(jsonObject));
+                audioFile.setCodec(extractAudioCodec(jsonObject));
+                audioFile.setChannels(extractAudioChannels(jsonObject));
             }
             case MUSIC -> {
                 var musicFile = (MusicFileEntity) existingFile;
-                musicFile.setDuration(extractAudioVideoDuration(file));
-                musicFile.setBitRate(extractAudioBitRate(file));
-                musicFile.setSampleRate(extractAudioSampleRate(file));
-                musicFile.setCodec(extractAudioCodec(file));
-                musicFile.setChannels(extractAudioChannels(file));
+                musicFile.setDuration(extractAudioVideoDuration(jsonObject));
+                musicFile.setBitRate(extractAudioBitRate(jsonObject, file.length()));
+                musicFile.setSampleRate(extractAudioSampleRate(jsonObject));
+                musicFile.setCodec(extractAudioCodec(jsonObject));
+                musicFile.setChannels(extractAudioChannels(jsonObject));
                 musicFile.setArtist(extractMusicArtist(jsonObject));
                 musicFile.setAlbumArtist(extractMusicAlbumArtist(jsonObject));
                 musicFile.setAlbum(extractMusicAlbum(jsonObject));
@@ -854,8 +856,8 @@ public class DirectoryProcessorService {
             case DATA -> ((DataFileEntity) existingFile).setDataStructure(determineDataStructure(mimetype));
             case DOCUMENT -> {
                 var documentFile = (DocumentFileEntity) existingFile;
-                documentFile.setPageCount(extractDocumentPageCount(file));
-                documentFile.setFormat(extractDocumentFormat(file));
+                documentFile.setPageCount(extractDocumentPageCount(jsonObject));
+                documentFile.setFormat(extractDocumentFormat(jsonObject));
             }
             case EXECUTABLE -> {
                 var exe = (ExecutableFileEntity) existingFile;
@@ -864,16 +866,16 @@ public class DirectoryProcessorService {
             }
             case FONT -> {
                 var fontFile = (FontFileEntity) existingFile;
-                fontFile.setFontFamily(extractFontFamily(file));
-                fontFile.setWeight(extractFontWeight(file));
-                fontFile.setStyle(extractFontStyle(file));
+                fontFile.setFontFamily(extractFontFamily(jsonObject));
+                fontFile.setWeight(extractFontWeight(jsonObject));
+                fontFile.setStyle(extractFontStyle(jsonObject));
             }
             case ICON -> {
                 var iconFile = (IconFileEntity) existingFile;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 iconFile.setWidth(res.width);
                 iconFile.setHeight(res.height);
-                iconFile.setIsScalable(extractIconIsScalable(file));
+                iconFile.setIsScalable(extractIconIsScalable(jsonObject));
             }
             case IMAGE -> {
                 var imageFile = (ImageFileEntity) existingFile;
@@ -897,18 +899,18 @@ public class DirectoryProcessorService {
             }
             case VECTOR -> {
                 var vectorFile = (VectorFileEntity) existingFile;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 vectorFile.setWidth(res.width);
                 vectorFile.setHeight(res.height);
-                vectorFile.setLayersCount(extractVectorLayersCount(file));
+                vectorFile.setLayersCount(extractVectorLayersCount(jsonObject));
             }
             case VIDEO -> {
                 var videoFile = (VideoFileEntity) existingFile;
-                var res = extractXYResolution(file);
+                var res = extractXYResolution(jsonObject);
                 videoFile.setWidth(res.width);
                 videoFile.setHeight(res.height);
-                videoFile.setFrameRate(extractFrameRate(file));
-                videoFile.setDuration(extractAudioVideoDuration(file));
+                videoFile.setFrameRate(extractFrameRate(jsonObject));
+                videoFile.setDuration(extractAudioVideoDuration(jsonObject));
                 videoFile.setCodec(extractVideoCodec(file));
             }
             default -> {
@@ -967,7 +969,9 @@ public class DirectoryProcessorService {
             JSONObject metadataObject;
 
             try {
-                metadataObject = extractMetadataJsonObject(file);
+                var metadataJson = exifToolService.readMetadataJson(file);
+                metadataObject = metadataJson == null
+                                 || metadataJson.isBlank() ? null : metadataToJsonObject(metadataJson);
             } catch (IOException e) {
                 errorMessage.append("Failed to extract metadata from exported file: ")
                     .append(file.getAbsolutePath())

@@ -1,6 +1,5 @@
 package fi.poltsi.vempain.file.service;
 
-import java.awt.Dimension;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -8,9 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -25,7 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -39,6 +35,7 @@ import fi.poltsi.vempain.auth.exception.VempainRuntimeException;
 import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.api.response.ExportFileResponse;
 import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.entity.AudioFileEntity;
@@ -68,21 +65,24 @@ import fi.poltsi.vempain.file.repository.GpsLocationRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.file.tools.FileMetadataTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests (UTC) for the file type and metadata branches of {@link DirectoryProcessorService}. ExifTool is replaced by a static mock of {@link MetadataTool}
- * that answers the file based extractors from a per-test table and runs every JSON based extractor for real, so that each of the 14 typed entities, the GPS
+ * Unit tests (UTC) for the file type and metadata branches of {@link DirectoryProcessorService}. ExifTool is replaced by a mocked {@code ExifToolService} that
+ * answers the file based extractors from a per-test table and runs every JSON based extractor for real, so that each of the 14 typed entities, the GPS
  * handling, the refresh of an existing file and the export directory scan can be driven without ExifTool being able to read the generated files.
  */
 @ExtendWith(MockitoExtension.class)
@@ -109,21 +109,19 @@ class DirectoryProcessorServiceExtendedUTC {
     private FileProcessingQueueService fileProcessingQueueService;
     @Mock
     private GpsLocationRepository gpsLocationRepository;
+    @Mock
+    private ExifToolService exifToolService;
 
     @TempDir
     Path tempDir;
 
     private DirectoryProcessorService service;
     private FileGroupEntity group;
-    /**
-     * Answers of the file based {@link MetadataTool} extractors by method name; a {@link Throwable} value is thrown instead.
-     */
-    private final Map<String, Object> toolAnswers = new HashMap<>();
 
     @BeforeEach
     void setUp() throws Exception {
         service = new DirectoryProcessorService(fileGroupRepository, fileRepository, tagRepository, metadataRepository, fileTagRepository, exportFileRepository,
-                aclService, exportedFilesService, fileProcessingQueueService, gpsLocationRepository);
+                aclService, exportedFilesService, fileProcessingQueueService, gpsLocationRepository, exifToolService);
         ReflectionTestUtils.setField(service, "originalRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", tempDir.toString());
         group = FileGroupEntity.builder()
@@ -155,25 +153,6 @@ class DirectoryProcessorServiceExtendedUTC {
             gps.setId(77L);
             return gps;
         });
-        toolAnswers.put("extractXYResolution", new Dimension(16, 9));
-        toolAnswers.put("extractFrameRate", 25.0);
-        toolAnswers.put("extractVideoCodec", "h264");
-        toolAnswers.put("extractAudioVideoDuration", Duration.ofSeconds(42));
-        toolAnswers.put("extractAudioBitRate", 128);
-        toolAnswers.put("extractAudioSampleRate", 44100);
-        toolAnswers.put("extractAudioCodec", "pcm");
-        toolAnswers.put("extractAudioChannels", 2);
-        toolAnswers.put("extractDocumentPageCount", 3);
-        toolAnswers.put("extractDocumentFormat", "PDF");
-        toolAnswers.put("extractVectorLayersCount", 4);
-        toolAnswers.put("extractIconIsScalable", true);
-        toolAnswers.put("extractFontFamily", "Lato");
-        toolAnswers.put("extractFontWeight", "Medium");
-        toolAnswers.put("extractFontStyle", "Regular");
-        toolAnswers.put("extractArchiveCompressionMethod", "Deflated");
-        toolAnswers.put("extractArchiveUncompressedSize", 600L);
-        toolAnswers.put("extractArchiveContentCount", 2);
-        toolAnswers.put("extractArchiveIsEncrypted", false);
     }
 
     @AfterEach
@@ -188,22 +167,61 @@ class DirectoryProcessorServiceExtendedUTC {
     }
 
     /**
-     * Static mock of {@link MetadataTool}: the ExifTool process based methods answer from {@link #toolAnswers}, everything else runs for real.
+     * Stubs the shared ExifTool read with the JSON and the FFmpeg codec probe with "h264"; the per-type fields the scanner reads from the JSON come from
+     * {@link #probe()}. Closing the result ends the codec stub.
      */
-    private MockedStatic<MetadataTool> mockTool(String metadataJson) {
-        toolAnswers.put("extractMetadataJson", metadataJson);
-        return mockStatic(MetadataTool.class, invocation -> {
-            var name = invocation.getMethod()
-                .getName();
-            if (toolAnswers.containsKey(name)) {
-                var answer = toolAnswers.get(name);
-                if (answer instanceof Throwable throwable) {
-                    throw throwable;
-                }
-                return answer;
+    private Stub mockTool(String metadataJson) throws IOException {
+        doReturn(metadataJson).when(exifToolService)
+            .readMetadataJson(any());
+        var codec = mockStatic(FileMetadataTool.class, invocation -> {
+            if ("extractVideoCodec".equals(invocation.getMethod()
+                .getName())) {
+                return "h264";
             }
             return invocation.callRealMethod();
         });
+        return codec::close;
+    }
+
+    /**
+     * Stubs the shared ExifTool read to fail.
+     */
+    private Stub mockToolFailure() throws IOException {
+        doThrow(new IOException("exiftool missing")).when(exifToolService)
+            .readMetadataJson(any());
+        return () -> {};
+    }
+
+    /** A stub of the tool that is closed without checked exceptions, so that the helpers can be used in try-with-resources. */
+    private interface Stub extends AutoCloseable {
+
+        @Override
+        void close();
+    }
+
+    /**
+     * The tag values of every file type the scanner reads from the grouped JSON, in one group of their own.
+     */
+    private static JSONObject probe() {
+        return new JSONObject().put("ImageWidth", 16)
+            .put("ImageHeight", 9)
+            .put("VideoFrameRate", 25.0)
+            .put("Duration", "0:00:42")
+            .put("AudioBitrate", 128)
+            .put("AudioSampleRate", 44100)
+            .put("AudioCodec", "pcm")
+            .put("AudioChannels", 2)
+            .put("PageCount", 3)
+            .put("FileType", "PDF")
+            .put("Layers", 4)
+            .put("Scalable", true)
+            .put("FontFamily", "Lato")
+            .put("FontWeight", "Medium")
+            .put("FontStyle", "Regular")
+            .put("Compression", "Deflated")
+            .put("UncompressedSize", 600)
+            .put("ContentCount", 2)
+            .put("Encrypted", false);
     }
 
     private static String metadataJson(String mimetype, JSONObject... groups) {
@@ -217,6 +235,7 @@ class DirectoryProcessorServiceExtendedUTC {
                 object.put(key, group.get(key));
             }
         }
+        object.put("Probe", probe());
         return new JSONArray().put(object)
             .toString();
     }
@@ -601,13 +620,7 @@ class DirectoryProcessorServiceExtendedUTC {
         @Test
         void metadataExtractionFailuresAreReportedAsFailures() throws Exception {
             var file = write("broken.jpg");
-            try (var ignored = mockStatic(MetadataTool.class, invocation -> {
-                if ("extractMetadataJson".equals(invocation.getMethod()
-                    .getName())) {
-                    throw new IOException("exiftool missing");
-                }
-                return invocation.callRealMethod();
-            })) {
+            try (var ignored = mockToolFailure()) {
                 assertThat(service.processOriginalFile(file, group)).isFalse();
             }
             try (var ignored = mockTool("   ")) {
@@ -796,13 +809,7 @@ class DirectoryProcessorServiceExtendedUTC {
         void rejectsUnreadableMetadataAndTypeChanges() throws Exception {
             var entity = stored(new ImageFileEntity(), FileTypeEnum.IMAGE, "a.jpg");
             var file = write("a.jpg");
-            try (var ignored = mockStatic(MetadataTool.class, invocation -> {
-                if ("extractMetadataJson".equals(invocation.getMethod()
-                    .getName())) {
-                    throw new IOException("exiftool missing");
-                }
-                return invocation.callRealMethod();
-            })) {
+            try (var ignored = mockToolFailure()) {
                 assertThat(service.refreshExistingOriginalFile(entity, file)).isFalse();
             }
             try (var ignored = mockTool(" ")) {
@@ -1005,16 +1012,14 @@ class DirectoryProcessorServiceExtendedUTC {
             var errors = new StringBuilder();
 
             List<Long> result;
-            try (var ignored = mockStatic(MetadataTool.class, invocation -> {
-                if ("extractMetadataJson".equals(invocation.getMethod()
-                    .getName())) {
-                    var name = invocation.getArgument(0, File.class)
-                        .getName()
-                        .replace(".jpg", "");
-                    return metadataJson("image/jpeg", group("XMP-xmpMM", new JSONObject().put("OriginalDocumentID", "doc-" + name)));
-                }
-                return invocation.callRealMethod();
-            })) {
+            doAnswer(invocation -> {
+                var name = invocation.getArgument(0, File.class)
+                    .getName()
+                    .replace(".jpg", "");
+                return metadataJson("image/jpeg", group("XMP-xmpMM", new JSONObject().put("OriginalDocumentID", "doc-" + name)));
+            }).when(exifToolService)
+                .readMetadataJson(any());
+            {
                 result = service.processExportDirectory(exportDir, errors, orphans, responses, recorder);
             }
 
@@ -1065,13 +1070,7 @@ class DirectoryProcessorServiceExtendedUTC {
             export("bad.jpg");
             when(exportFileRepository.findByFilePathAndFilename(any(), any())).thenReturn(Optional.empty());
             var errors = new StringBuilder();
-            try (var ignored = mockStatic(MetadataTool.class, invocation -> {
-                if ("extractMetadataJson".equals(invocation.getMethod()
-                    .getName())) {
-                    throw new IOException("exiftool missing");
-                }
-                return invocation.callRealMethod();
-            })) {
+            try (var ignored = mockToolFailure()) {
                 assertThatThrownBy(() -> service.processExportDirectory(exportDir, errors, new ArrayList<>(), new ArrayList<>()))
                     .isInstanceOf(RuntimeException.class)
                     .hasCauseInstanceOf(IOException.class);

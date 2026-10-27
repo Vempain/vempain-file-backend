@@ -28,8 +28,8 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Generates small real files of the types the scanner and {@link MetadataTool} handle, so that integration tests can run ExifTool and FFmpeg on genuine content
- * without checking binary fixtures in.
+ * Generates small real files of the types the scanner and {@link FileMetadataTool} handle, so that integration tests can run ExifTool and FFmpeg on genuine
+ * content without checking binary fixtures in.
  */
 public final class SampleFiles {
 

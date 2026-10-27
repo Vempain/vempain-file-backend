@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileGroupEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
@@ -58,6 +59,8 @@ class DirectoryProcessorServiceUTC {
     private ExportedFilesService exportedFilesService;
     @Mock
     private GpsLocationRepository gpsLocationRepository;
+    @Mock
+    private ExifToolService exifToolService;
 
     private Path testRoot;
 
@@ -207,6 +210,6 @@ class DirectoryProcessorServiceUTC {
 
     private DirectoryProcessorService newService() {
         return new DirectoryProcessorService(fileGroupRepository, fileRepository, tagRepository, metadataRepository, fileTagRepository, exportFileRepository,
-                aclService, exportedFilesService, gpsLocationRepository);
+                aclService, exportedFilesService, gpsLocationRepository, exifToolService);
     }
 }

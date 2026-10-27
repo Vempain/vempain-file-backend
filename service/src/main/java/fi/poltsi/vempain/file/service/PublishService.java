@@ -26,6 +26,7 @@ import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.response.LocationResponse;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
@@ -51,12 +52,11 @@ import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import static fi.poltsi.vempain.file.tools.FileMetadataTool.collectStandardMetadataAsJson;
 import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
-import static fi.poltsi.vempain.file.tools.MetadataTool.collectStandardMetadataAsJson;
 
 /**
  * Publishes file groups to the admin backend. Publishing runs as background tasks ({@link TaskRunner}); the caller gets the task id back immediately and
@@ -82,6 +82,7 @@ public class PublishService {
     private final TaskRunner taskRunner;
     private final MetadataService metadataService;
     private final FileMetrics fileMetrics;
+    private final ExifToolService exifToolService;
 
     @Value("${vempain.site-image-size:1200}")
     private int siteImageSize;
@@ -617,8 +618,7 @@ public class PublishService {
             }
 
             // We need to send the mimetype of the uploaded file, not the original which may have a different type
-            var exportFileJsonObject = MetadataTool.extractMetadataJsonObject(uploadPath.toFile());
-            var mimetype = MetadataTool.extractMimetype(exportFileJsonObject);
+            var mimetype = resolveUploadMimetype(uploadPath);
             var copyrightResponse = CopyrightResponse.builder()
                 .creatorName(fileEntity.getCreatorName())
                 .creatorEmail(fileEntity.getCreatorEmail())
@@ -671,6 +671,18 @@ public class PublishService {
     /**
      * Metadata sent with the upload; an empty set is sent as an empty JSON array.
      */
+    /**
+     * The MIME type of the file that is uploaded: a single-tag ExifTool read instead of the full metadata, with the filesystem probe as fallback.
+     */
+    private String resolveUploadMimetype(Path uploadPath) throws IOException {
+        var mimetype = exifToolService.readTag(uploadPath.toFile(), "MIMEType");
+        if (mimetype == null
+            || mimetype.isBlank()) {
+            mimetype = Files.probeContentType(uploadPath);
+        }
+        return mimetype;
+    }
+
     private static String resolveMetadataJson(String metadataJson) {
         if (metadataJson == null
             || metadataJson.isBlank()) {

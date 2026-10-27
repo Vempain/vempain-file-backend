@@ -17,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.metrics.FileMetrics;
@@ -54,6 +55,8 @@ class UpdatedFileRefreshScheduleUTC {
     private VempainAdminService vempainAdminService;
     @Mock
     private FileMetrics fileMetrics;
+    @Mock
+    private ExifToolService exifToolService;
     @InjectMocks
     private UpdatedFileRefreshSchedule updatedFileRefreshSchedule;
 
@@ -277,6 +280,7 @@ class UpdatedFileRefreshScheduleUTC {
             .sha256sum("stale")
             .build();
         var exported = SampleFiles.jpeg(root.resolve("six-export.jpg"));
+        when(exifToolService.readTag(eq(exported), eq("MIMEType"))).thenReturn("image/jpeg");
         when(exportFileRepository.findByFileId(6L)).thenReturn(Optional.of(goodExport));
         when(exportFileRepository.findByFileId(7L)).thenReturn(Optional.of(ExportFileEntity.builder()
             .file(missingExport)

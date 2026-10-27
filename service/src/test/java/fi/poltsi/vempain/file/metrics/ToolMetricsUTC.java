@@ -32,11 +32,11 @@ class ToolMetricsUTC {
 
     @Test
     void successfulCallIsTimedAndItsValueReturned() throws IOException {
-        var value = ToolMetrics.time(ToolMetrics.EXIFTOOL, () -> "json");
+        var value = ToolMetrics.time(ToolMetrics.FFMPEG, () -> "json");
 
         assertThat(value).isEqualTo("json");
         assertThat(registry.get(ToolMetrics.TOOL_DURATION)
-            .tags("tool", "exiftool", "result", "success")
+            .tags("tool", "ffmpeg", "result", "success")
             .timer()
             .count()).isEqualTo(1);
     }
@@ -56,10 +56,10 @@ class ToolMetricsUTC {
 
     @Test
     void recordAddsOneTimedRun() {
-        ToolMetrics.record(ToolMetrics.EXIFTOOL, ToolMetrics.RESULT_FAILURE, 5_000_000L);
+        ToolMetrics.record(ToolMetrics.FFMPEG, ToolMetrics.RESULT_FAILURE, 5_000_000L);
 
         assertThat(registry.get(ToolMetrics.TOOL_DURATION)
-            .tags("tool", "exiftool", "result", "failure")
+            .tags("tool", "ffmpeg", "result", "failure")
             .timer()
             .totalTime(java.util.concurrent.TimeUnit.MILLISECONDS)).isEqualTo(5);
     }

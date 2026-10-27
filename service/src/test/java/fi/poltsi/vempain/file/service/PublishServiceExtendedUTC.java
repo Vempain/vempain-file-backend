@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.service;
 
 import java.awt.Dimension;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +30,7 @@ import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.api.TaskStatusEnum;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskProgressStore;
 import fi.poltsi.vempain.common.task.TaskRunner;
@@ -92,6 +94,8 @@ class PublishServiceExtendedUTC {
     @Mock
     private ImageTool imageTool;
     @Mock
+    private ExifToolService exifToolService;
+    @Mock
     private ApplicationContext applicationContext;
     @Spy
     private TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
@@ -101,8 +105,10 @@ class PublishServiceExtendedUTC {
     private PublishService publishService;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         ReflectionTestUtils.setField(publishService, "exportRootDirectory", exportDir.toString());
+        // the MIME type of an upload is one ExifTool tag read; the real tool is not part of this unit test
+        when(exifToolService.readTag(any(), eq("MIMEType"))).thenReturn("image/jpeg");
         ReflectionTestUtils.setField(publishService, "exportFileType", "jpeg");
         ReflectionTestUtils.setField(publishService, "siteImageSize", MAX_IMAGE_SIZE);
         when(applicationContext.getBean(PublishService.class)).thenReturn(publishService);

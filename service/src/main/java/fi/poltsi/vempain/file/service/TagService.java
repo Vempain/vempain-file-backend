@@ -23,6 +23,8 @@ import fi.poltsi.vempain.auth.api.request.PagedRequest;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.request.TagRequest;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
+import fi.poltsi.vempain.common.metadata.MetadataJson;
 import fi.poltsi.vempain.common.task.Compensation;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskRunner;
@@ -40,7 +42,6 @@ import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.service.files.FileSearchHelper;
 import fi.poltsi.vempain.file.tools.LikePatterns;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -59,6 +60,7 @@ public class TagService {
     private final FileAclService fileAclService;
     private final TaskRunner taskRunner;
     private final ApplicationContext applicationContext;
+    private final ExifToolService exifToolService;
 
     @Value("${vempain.original-root-directory}")
     private String originalRootDirectory;
@@ -358,8 +360,8 @@ public class TagService {
                 throw new IOException("Original file does not exist: " + original);
             }
 
-            var metadata = MetadataTool.extractMetadataJsonObject(original);
-            var subjects = new ArrayList<>(MetadataTool.extractSubjects(metadata));
+            var metadata = exifToolService.readMetadata(original);
+            var subjects = new ArrayList<>(MetadataJson.extractSubjects(metadata));
             if (operation == Operation.ADD) {
                 if (!subjects.contains(oldTag)) {
                     subjects.add(oldTag);
@@ -372,14 +374,14 @@ public class TagService {
                     subjects.add(newTag);
                 }
             }
-            MetadataTool.writeSubjects(original, subjects);
+            exifToolService.writeSubjects(original, subjects);
 
             var export = exportFileRepository.findByFileId(file.getId())
                 .orElse(null);
             if (export != null) {
                 var exported = resolve(exportRootDirectory, export.getFilePath(), export.getFilename());
                 if (Files.isRegularFile(exported.toPath())) {
-                    MetadataTool.writeSubjects(exported, subjects);
+                    exifToolService.writeSubjects(exported, subjects);
                     export.setFilesize(exported.length());
                     export.setSha256sum(fi.poltsi.vempain.file.tools.FileTool.computeSha256(exported));
                     exportFileRepository.save(export);

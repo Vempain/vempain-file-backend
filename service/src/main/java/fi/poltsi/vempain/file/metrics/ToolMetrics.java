@@ -5,13 +5,12 @@ import java.util.concurrent.TimeUnit;
 import io.micrometer.core.instrument.Metrics;
 
 /**
- * Timer of the external tools (exiftool, the bundled FFmpeg) that the static tool classes run. They have no Spring context, so the timer is recorded on the
- * global registry, which Spring Boot binds the application registry to.
+ * Timer of the bundled FFmpeg that the static tool classes run (ExifTool is timed under the same meter by the shared ExifToolService of vempain-common). They
+ * have no Spring context, so the timer is recorded on the global registry, which Spring Boot binds the application registry to.
  */
 public final class ToolMetrics {
 
     public static final String TOOL_DURATION = "vempain.tool.duration";
-    public static final String EXIFTOOL = "exiftool";
     public static final String FFMPEG = "ffmpeg";
     public static final String RESULT_SUCCESS = "success";
     public static final String RESULT_FAILURE = "failure";

@@ -10,12 +10,15 @@ import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.MockedStatic;
 import org.springframework.web.server.ResponseStatusException;
+
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class ImageToolUTC {
 
@@ -23,12 +26,11 @@ class ImageToolUTC {
     void resizeImageKeepsSmallImageDimensions(@TempDir Path tempDirectory) throws Exception {
         var source = createImage(tempDirectory.resolve("small.png"), 80, 40);
         var destination = tempDirectory.resolve("small.jpg");
-        var tool = new ImageTool();
+        var exifToolService = mock(ExifToolService.class);
+        var tool = new ImageTool(exifToolService);
 
-        try (MockedStatic<MetadataTool> metadata = mockStatic(MetadataTool.class)) {
-            assertThat(tool.resizeImage(source, destination, 100, 0.7f, null)).isEqualTo(new Dimension(80, 40));
-            metadata.verify(() -> MetadataTool.copyMetadata(source.toFile(), destination.toFile()));
-        }
+        assertThat(tool.resizeImage(source, destination, 100, 0.7f, null)).isEqualTo(new Dimension(80, 40));
+        verify(exifToolService).copyAllTags(source.toFile(), destination.toFile());
         assertThat(ImageIO.read(destination.toFile())).isNotNull();
     }
 
@@ -36,18 +38,20 @@ class ImageToolUTC {
     void resizeImageScalesLandscapeAndPortraitToMinimumSize(@TempDir Path tempDirectory) throws Exception {
         var landscape = createImage(tempDirectory.resolve("landscape.png"), 200, 100);
         var portrait = createImage(tempDirectory.resolve("portrait.png"), 100, 200);
-        var tool = new ImageTool();
+        var exifToolService = mock(ExifToolService.class);
+        var tool = new ImageTool(exifToolService);
 
-        try (MockedStatic<MetadataTool> metadata = mockStatic(MetadataTool.class)) {
-            assertThat(tool.resizeImage(landscape, tempDirectory.resolve("landscape.jpg"), 100, 0.7f, "{}")).isEqualTo(new Dimension(200, 100));
-            assertThat(tool.resizeImage(portrait, tempDirectory.resolve("portrait.jpg"), 100, 0.7f, "{}")).isEqualTo(new Dimension(100, 200));
-            metadata.verify(() -> MetadataTool.writeMetadataFromJson(landscape.toFile(), "{}"), org.mockito.Mockito.never());
-        }
+        assertThat(tool.resizeImage(landscape, tempDirectory.resolve("landscape.jpg"), 100, 0.7f, "{}")).isEqualTo(new Dimension(200, 100));
+        assertThat(tool.resizeImage(portrait, tempDirectory.resolve("portrait.jpg"), 100, 0.7f, "{}")).isEqualTo(new Dimension(100, 200));
+        verify(exifToolService).replaceMetadataFromJson(tempDirectory.resolve("landscape.jpg")
+            .toFile(), "{}");
+        verify(exifToolService, never()).copyAllTags(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void missingImageFailsWithInternalServerError(@TempDir Path tempDirectory) {
-        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(tempDirectory.resolve("missing.jpg")));
+        var exception = assertThrows(ResponseStatusException.class,
+                () -> new ImageTool(mock(ExifToolService.class)).getImageDimensions(tempDirectory.resolve("missing.jpg")));
 
         assertThat(exception.getStatusCode()
             .value()).isEqualTo(500);
@@ -58,7 +62,7 @@ class ImageToolUTC {
         var source = tempDirectory.resolve("not-an-image.bin");
         Files.writeString(source, "not an image");
 
-        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(source));
+        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool(mock(ExifToolService.class)).getImageDimensions(source));
 
         assertThat(exception.getStatusCode()
             .value()).isEqualTo(500);
@@ -79,7 +83,8 @@ class ImageToolUTC {
         var source = createImage(tempDirectory.resolve("source.png"), 80, 40);
         var destination = Files.createDirectories(tempDirectory.resolve("out.jpg"));
 
-        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().resizeImage(source, destination, 100, 0.7f, null));
+        var exception = assertThrows(ResponseStatusException.class,
+                () -> new ImageTool(mock(ExifToolService.class)).resizeImage(source, destination, 100, 0.7f, null));
 
         assertThat(exception.getStatusCode()
             .value()).isEqualTo(500);
@@ -87,13 +92,13 @@ class ImageToolUTC {
 
     @Test
     void directoriesAndTruncatedImagesFailWithInternalServerError(@TempDir Path tempDirectory) throws Exception {
-        var directory = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(tempDirectory));
+        var directory = assertThrows(ResponseStatusException.class, () -> new ImageTool(mock(ExifToolService.class)).getImageDimensions(tempDirectory));
         assertThat(directory.getStatusCode()
             .value()).isEqualTo(500);
 
         var truncated = tempDirectory.resolve("truncated.png");
         Files.write(truncated, new byte[]{ (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R' });
-        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool().getImageDimensions(truncated));
+        var exception = assertThrows(ResponseStatusException.class, () -> new ImageTool(mock(ExifToolService.class)).getImageDimensions(truncated));
         assertThat(exception.getStatusCode()
             .value()).isEqualTo(500);
     }

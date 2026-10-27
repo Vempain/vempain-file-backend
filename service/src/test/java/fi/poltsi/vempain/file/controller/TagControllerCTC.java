@@ -12,8 +12,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
-import fi.poltsi.vempain.file.tools.MetadataTool;
+import fi.poltsi.vempain.common.metadata.MetadataJson;
 import fi.poltsi.vempain.file.tools.SampleFiles;
+import fi.poltsi.vempain.file.tools.TestExifTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -242,7 +243,8 @@ class TagControllerCTC extends AbstractControllerCTC {
         var image = tempDirectory.resolve("rename.jpg")
             .toFile();
         ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "jpg", image);
-        MetadataTool.writeSubjects(image, java.util.List.of("I maailmansota"));
+        TestExifTool.service()
+            .writeSubjects(image, java.util.List.of("I maailmansota"));
 
         var relativeDirectory = "/" + tempDirectory.getFileName();
         seedFileRow(9001L, "IMAGE", "image/jpeg", image.getName(), relativeDirectory);
@@ -310,13 +312,15 @@ class TagControllerCTC extends AbstractControllerCTC {
     }
 
     private List<String> subjectsOf(java.io.File image) throws Exception {
-        return MetadataTool.extractSubjects(MetadataTool.extractMetadataJsonObject(image));
+        return MetadataJson.extractSubjects(TestExifTool.service()
+            .readMetadata(image));
     }
 
     @Test
     void addReplaceRenameAndRemoveTagsOnSelectedFiles(@TempDir Path tempDirectory) throws Exception {
         var image = SampleFiles.jpeg(tempDirectory.resolve("tagged.jpg"));
-        MetadataTool.writeSubjects(image, List.of("ctc-old"));
+        TestExifTool.service()
+            .writeSubjects(image, List.of("ctc-old"));
         seedTaggedImage(9101L, image, "/" + tempDirectory.getFileName(), 1L, true, "ctc-old");
         try {
             doPost("/tags/files/add", """
@@ -350,7 +354,8 @@ class TagControllerCTC extends AbstractControllerCTC {
     @Test
     void tagMutationsAreDeniedWithoutTheModifyPrivilege(@TempDir Path tempDirectory) throws Exception {
         var image = SampleFiles.jpeg(tempDirectory.resolve("locked.jpg"));
-        MetadataTool.writeSubjects(image, List.of("ctc-locked"));
+        TestExifTool.service()
+            .writeSubjects(image, List.of("ctc-locked"));
         seedTaggedImage(9102L, image, "/" + tempDirectory.getFileName(), 1L, false, "ctc-locked");
         try {
             doPost("/tags/files/add", "{\"tag_name\":\"ctc-new\",\"file_ids\":[9102]}").andExpect(status().isForbidden());
@@ -365,7 +370,8 @@ class TagControllerCTC extends AbstractControllerCTC {
     @Test
     void replaceAndRemoveAcrossAllFilesRunAsTasks(@TempDir Path tempDirectory) throws Exception {
         var image = SampleFiles.jpeg(tempDirectory.resolve("everywhere.jpg"));
-        MetadataTool.writeSubjects(image, List.of("ctc-all", "ctc-keep"));
+        TestExifTool.service()
+            .writeSubjects(image, List.of("ctc-all", "ctc-keep"));
         seedTaggedImage(9103L, image, "/" + tempDirectory.getFileName(), 1L, true, "ctc-all", "ctc-keep");
         try {
             var replaced = doPost("/tags/all/replace", """

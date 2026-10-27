@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.auth.tools.AuthTools;
+import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
@@ -41,7 +42,6 @@ import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.service.files.FileSearchHelper;
 import fi.poltsi.vempain.file.tools.FileTool;
 import fi.poltsi.vempain.file.tools.LikePatterns;
-import fi.poltsi.vempain.file.tools.MetadataTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -67,6 +67,7 @@ public class MetadataService {
     private final FileAclService fileAclService;
     private final TaskRunner taskRunner;
     private final ApplicationContext applicationContext;
+    private final ExifToolService exifToolService;
 
     @Value("${vempain.original-root-directory}")
     private String originalRootDirectory;
@@ -103,9 +104,9 @@ public class MetadataService {
                 .metadataKey(row.metadataKey())
                 .metadataValue(row.metadataValue())
                 .fileCount(row.fileCount())
-                .writable(MetadataTool.isWritableGroup(row.metadataGroup())
-                          && MetadataTool.isValidTagName(row.metadataGroup())
-                          && MetadataTool.isValidTagName(row.metadataKey()))
+                .writable(ExifToolService.isWritableGroup(row.metadataGroup())
+                          && ExifToolService.isValidTagName(row.metadataGroup())
+                          && ExifToolService.isValidTagName(row.metadataKey()))
                 .build())
             .toList();
         return PagedResponse.of(content, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages(), result.isFirst(),
@@ -220,11 +221,11 @@ public class MetadataService {
     }
 
     private void requireWritable(String group, String key) {
-        if (!MetadataTool.isValidTagName(group)
-            || !MetadataTool.isValidTagName(key)) {
+        if (!ExifToolService.isValidTagName(group)
+            || !ExifToolService.isValidTagName(key)) {
             throw new IllegalArgumentException("Invalid metadata group or key");
         }
-        if (!MetadataTool.isWritableGroup(group)) {
+        if (!ExifToolService.isWritableGroup(group)) {
             throw new IllegalArgumentException("Metadata group '" + group + "' is read-only");
         }
     }
@@ -239,14 +240,14 @@ public class MetadataService {
             if (!Files.isRegularFile(original.toPath())) {
                 throw new IOException("Original file does not exist: " + original);
             }
-            MetadataTool.writeMetadataValue(original, group, key, value);
+            exifToolService.writeValue(original, group, key, value);
 
             var export = exportFileRepository.findByFileId(file.getId())
                 .orElse(null);
             if (export != null) {
                 var exported = resolve(exportRootDirectory, export.getFilePath(), export.getFilename());
                 if (Files.isRegularFile(exported.toPath())) {
-                    MetadataTool.writeMetadataValue(exported, group, key, value);
+                    exifToolService.writeValue(exported, group, key, value);
                     export.setFilesize(exported.length());
                     export.setSha256sum(FileTool.computeSha256(exported));
                     exportFileRepository.save(export);

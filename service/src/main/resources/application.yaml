@@ -105,6 +105,12 @@ logging:
 
 vempain:
   name: @projectName@
+  exiftool:
+    # The shared metadata runner of vempain-common: exiftool executable (name on the PATH or absolute path), persistent -stay_open processes
+    path: ${VEMPAIN_EXIFTOOL_PATH:exiftool}
+    stay-open: ${VEMPAIN_EXIFTOOL_STAY_OPEN:true}
+    pool-size: ${VEMPAIN_EXIFTOOL_POOL_SIZE:2}
+    idle-timeout-ms: ${VEMPAIN_EXIFTOOL_IDLE_TIMEOUT_MS:600000}
   scheduling:
     enabled: ${VEMPAIN_SCHEDULING_ENABLED:true}
   metrics:

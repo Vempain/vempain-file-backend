@@ -27,6 +27,13 @@ then release the admin backend, then bump both versions in `gradle/libs.versions
 ./docker_db.sh                  # start local PostgreSQL container for local app runs
 ```
 
+javac runs with `-Xlint:deprecation -Xlint:unchecked -Werror` in every module (`tasks.withType(JavaCompile)` in the `build.gradle` files), so a deprecated
+3rd-party API or an unchecked operation fails the compile: replace the call with the documented successor; a deliberate exception needs `@SuppressWarnings` with
+a comment explaining why.
+`ConfigurationPropertyDeprecationUTC` scans `application*.yaml|yml|properties` under `src/main/resources` and `src/test/resources` against the deprecations of
+the Spring Boot configuration metadata on the class path and fails on any deprecated key, naming the replacement; Boot itself only logs them at startup. The
+scanner is `fi.poltsi.vempain.common.config.DeprecatedConfigurationProperties` of `vempain-common` (1.0.11 or later).
+
 ## CLI contract synchronization
 
 Any REST API change in this repository—endpoint, path, method, request/response DTO, JSON field, status code, or behavior—requires a corresponding
@@ -232,10 +239,11 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   observation capability in every client context, which opens a client span (a child of the request or task span) and the propagating
   observation handler injects its `traceparent` (`VempainAdminTracePropagationITC` pins the header against a stub admin backend); do not
   add a hand-written interceptor. Background tasks get a span `task <type>` and `taskId` in the MDC from `vempain-common`'s `TaskRunner`.
-  Both `management.tracing.enabled` and `management.tracing.export.enabled` are bound to `vempain.tracing.enabled` (`VEMPAIN_TRACING_ENABLED`,
-  default false): `export.enabled` is the switch Boot's tracing conditions evaluate, it turns on the propagators, the OTLP exporter and the
-  `[app,traceId,spanId]` block of the console pattern, so the three backends behave identically. `VEMPAIN_TRACING_URL` and
-  `VEMPAIN_TRACING_SAMPLING` feed `vempain.tracing.*`; the translation into `management.opentelemetry.tracing.export.otlp.*` (endpoint,
+  `management.tracing.export.enabled` is bound to `vempain.tracing.enabled` (`VEMPAIN_TRACING_ENABLED`, default false): it is the switch
+  Boot's tracing conditions evaluate, it turns on the propagators, the OTLP exporter and the `[app,traceId,spanId]` block of the console
+  pattern, so the three backends behave identically (`management.tracing.enabled` is deprecated since Boot 4.0 and no longer set).
+  `VEMPAIN_TRACING_URL` and `VEMPAIN_TRACING_SAMPLING` feed `vempain.tracing.*`; the translation into `management.opentelemetry.tracing.export.otlp.*`
+  (endpoint,
   `Authorization` from the metrics credentials, the `vempain-metrics` SSL bundle) is the same `MetricsExportEnvironmentPostProcessor` of
   `vempain-common`, so the bump above covers it. Tests that need tracing set `management.tracing.export.enabled=true` without an OTLP
   endpoint, which enables propagation and sends nothing.

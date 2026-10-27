@@ -35,7 +35,6 @@ import static org.assertj.core.api.Assertions.assertThat;
     "vempain.generate-missing-thumbnails.thumb-image-quality=0.5",
     "vempain.generate-missing-thumbnails.thumb-image-size=100",
     // export.enabled is the switch Boot's tracing conditions look at (propagation included); without an OTLP endpoint nothing is sent anywhere
-    "management.tracing.enabled=true",
     "management.tracing.export.enabled=true",
     "management.tracing.sampling.probability=1.0" })
 class VempainAdminTracePropagationITC {

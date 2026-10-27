@@ -1,7 +1,7 @@
 [versions]
 release = "0.0.1-SNAPSHOT"
 java = "25"
-spring-boot = "4.1.1"
+spring-boot = "4.1.2"
 commons-codec = "1.22.1"
 freefair-lombok = "9.8.2"
 jacoco = "0.8.15"
@@ -21,9 +21,9 @@ springdoc = "3.1.1"
 swagger = "2.2.55"
 testcontainers = "2.0.5"
 thumbnailator = "0.4.21"
-vempain-admin = "1.0.72"
-vempain-auth = "1.0.42"
-vempain-common = "1.0.10"
+vempain-admin = "1.0.73"
+vempain-auth = "1.0.43"
+vempain-common = "1.0.11"
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

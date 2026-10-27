@@ -81,8 +81,8 @@ management:
     # W3C traceparent is consumed from Traefik and the SPA and produced towards the admin backend; the spans are pushed to the monitoring
     # Tempo when vempain.tracing.enabled is true (endpoint, auth and TLS come from vempain.tracing.* / vempain.metrics.* through the
     # vempain-common post-processor). Off by default, so local runs and tests never export. export.enabled is the switch Boot's tracing
-    # conditions evaluate (propagation, the [app,traceId,spanId] log correlation block, the exporter), enabled the general one.
-    enabled: ${vempain.tracing.enabled}
+    # conditions evaluate (propagation, the [app,traceId,spanId] log correlation block, the exporter); the former management.tracing.enabled
+    # is deprecated since Boot 4.0 and no longer set.
     export:
       enabled: ${vempain.tracing.enabled}
 

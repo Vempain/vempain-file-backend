@@ -5,6 +5,8 @@
 // .config/ (formatter profile, import order, Checkstyle). Written in Groovy so one file serves both DSLs and needs
 // no buildSrc or included build: it brings the Spotless plugin onto its own classpath.
 
+import org.gradle.api.artifacts.result.ResolvedComponentResult
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
 import org.gradle.util.GradleVersion
 
 buildscript {

@@ -8,6 +8,12 @@ plugins {
 	id 'jacoco'
 }
 
+// The main class is declared so that the Boot plugin need not scan the compiled classes while configuring: that scan makes the
+// compiled class directory a configuration input and a clean build can never reuse the configuration cache
+springBoot {
+	mainClass = 'fi.poltsi.vempain.file.VempainFileServiceApplication'
+}
+
 group = 'fi.poltsi.vempain'
 version = libs.versions.release.get()
 
@@ -151,16 +157,17 @@ jacocoTestCoverageVerification {
 }
 
 processResources {
-	// capture once at configuration time (CC-safe)
+	// Captured while configuring: the filesMatching action runs at execution, where the configuration cache offers no project
+	// and no task delegate, so it may only use plain values and the FileCopyDetails it is given
 	def ver = version.toString()
-	// declare as input for configuration cache
+	def name = rootProject.name
 	inputs.property("projectVersion", ver)
-	inputs.property("projectName", rootProject.name)
+	inputs.property("projectName", name)
+	filteringCharset = "UTF-8"
 
 	filesMatching("**/application.yaml") {
-		filteringCharset = "UTF-8"
 		filter(ReplaceTokens,
-				tokens: [projectName: rootProject.name, projectVersion: ver]
+				tokens: [projectName: name, projectVersion: ver]
 		)
 	}
 }

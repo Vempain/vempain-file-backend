@@ -212,6 +212,7 @@ public class DirectoryProcessorService {
             // A file that exists already is refreshed in place and cannot be reverted; only genuinely new files are reported
             var existedBefore = fileRepository.findByFilePathAndFilename(relativeDirectory, file.getName())
                 .isPresent();
+            var failed = false;
 
             try {
                 var processed = processOriginalFile(file, fileGroup);
@@ -234,13 +235,16 @@ public class DirectoryProcessorService {
                     }
                 } else if (processed != null) {
                     failedFiles.add(file.getName());
+                    failed = true;
                 }
             } catch (IOException e) {
                 log.error("Error processing file: {}", file.getAbsolutePath(), e);
                 errorMessage.append("Unable to process file ")
                     .append(file.getName())
                     .append("\n");
+                failed = true;
             }
+            recorder.fileScanned(relativeDirectory + "/" + file.getName(), failed);
         }
 
         return resultList;
@@ -944,88 +948,94 @@ public class DirectoryProcessorService {
             recorder.checkpoint();
             resultList.set(0, resultList.getFirst() + 1); // Increment scannedFilesCount
             var relativeFilePath = computeRelativeFilePath(exportRootDirectory, file);
-            var sha256sum = computeSha256(file);
+            var failed = false;
+            // Every outcome of the file (known, orphaned, imported, failed) is one step of the scan
+            try {
+                var sha256sum = computeSha256(file);
 
-            // Check first if the file already exists in the database
-            var optionalExportFile = exportFileRepository.findByFilePathAndFilename(relativeFilePath, file.getName());
-            var existedBefore = optionalExportFile.isPresent();
+                // Check first if the file already exists in the database
+                var optionalExportFile = exportFileRepository.findByFilePathAndFilename(relativeFilePath, file.getName());
+                var existedBefore = optionalExportFile.isPresent();
 
-            if (optionalExportFile.isPresent()) {
-                var exportFile = optionalExportFile.get();
-                log.debug("Exported file already exists in the database: {} in path {}, skipping", file.getName(), relativeFilePath);
+                if (optionalExportFile.isPresent()) {
+                    var exportFile = optionalExportFile.get();
+                    log.debug("Exported file already exists in the database: {} in path {}, skipping", file.getName(), relativeFilePath);
 
-                // If the sha256sum matches, we skip it
-                if (sha256sum != null
-                    && sha256sum.equals(exportFile.getSha256sum())) {
+                    // If the sha256sum matches, we skip it
+                    if (sha256sum != null
+                        && sha256sum.equals(exportFile.getSha256sum())) {
+                        continue;
+                    }
+
+                    // If the sha256sum does not match, we remove the existing entry so that it can be reprocessed
+                    log.debug("Export file with same path and name but different content already exists in the database, removing it: {} / {}",
+                            relativeFilePath, file.getName());
+                    exportFileRepository.delete(exportFile);
+                }
+
+                JSONObject metadataObject;
+
+                try {
+                    var metadataJson = exifToolService.readMetadataJson(file);
+                    metadataObject = metadataJson == null
+                                     || metadataJson.isBlank() ? null : metadataToJsonObject(metadataJson);
+                } catch (IOException e) {
+                    errorMessage.append("Failed to extract metadata from exported file: ")
+                        .append(file.getAbsolutePath())
+                        .append(" - ")
+                        .append(e.getMessage())
+                        .append("\n");
+                    log.error("Failed to extract metadata from exported file: {}", file.getAbsolutePath(), e);
+                    failed = true;
+                    throw new RuntimeException(e);
+                }
+
+                var originalDocumentId = extractOriginalDocumentId(metadataObject);
+
+                if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
+                    || exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
+                    log.debug("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
                     continue;
                 }
 
-                // If the sha256sum does not match, we remove the existing entry so that it can be reprocessed
-                log.debug("Export file with same path and name but different content already exists in the database, removing it: {} / {}", relativeFilePath,
-                        file.getName());
-                exportFileRepository.delete(exportFile);
+                resultList.set(1, resultList.get(1) + 1); // Increment newFilesCount
+
+                // Search for the original file using the document ID
+                var originalFileEntity = fileRepository.findByOriginalDocumentId(originalDocumentId);
+
+                if (originalFileEntity == null) {
+                    log.warn("No original file found for exported file: {}", file.getName());
+                    orphanedFiles.add(file.getName());
+                    continue; // Skip processing this file
+                }
+
+                // Finally save the exported file entity
+                // First get the sha256sum of the exported file
+                var mimetype = extractMimetype(metadataObject);
+
+                var exportFileEntity = ExportFileEntity.builder()
+                    .file(originalFileEntity)
+                    .filename(file.getName())
+                    .filePath(relativeFilePath)
+                    .originalDocumentId(originalDocumentId)
+                    .mimetype(mimetype)
+                    .filesize(file.length())
+                    .sha256sum(sha256sum)
+                    .created(Instant.now())
+                    .build();
+
+                // Save the exported file entity onto the database.
+                var storedExportFile = exportedFilesService.save(exportFileEntity);
+                log.debug("Successfully registered exported file: {}", storedExportFile.getFilename());
+                if (!existedBefore) {
+                    recorder.exportFileCreated(storedExportFile);
+                }
+                successfulFileResponses.add(storedExportFile.toResponse());
+                // If there is no existing file entity, we may not create a new one
+                // So the order is: The FileEntity must always exist in the database before we can process the exported file
+            } finally {
+                recorder.fileScanned(relativeFilePath + "/" + file.getName(), failed);
             }
-
-            JSONObject metadataObject;
-
-            try {
-                var metadataJson = exifToolService.readMetadataJson(file);
-                metadataObject = metadataJson == null
-                                 || metadataJson.isBlank() ? null : metadataToJsonObject(metadataJson);
-            } catch (IOException e) {
-                errorMessage.append("Failed to extract metadata from exported file: ")
-                    .append(file.getAbsolutePath())
-                    .append(" - ")
-                    .append(e.getMessage())
-                    .append("\n");
-                log.error("Failed to extract metadata from exported file: {}", file.getAbsolutePath(), e);
-                throw new RuntimeException(e);
-            }
-
-            var originalDocumentId = extractOriginalDocumentId(metadataObject);
-
-            if (exportedFilesService.existsByOriginalDocumentId(originalDocumentId)
-                || exportedFilesService.existsByPathAndFilename(file.getPath(), file.getName())) {
-                log.debug("Found already registered exported file at {}: {}", originalDocumentId, file.getName());
-                continue;
-            }
-
-            resultList.set(1, resultList.get(1) + 1); // Increment newFilesCount
-
-            // Search for the original file using the document ID
-            var originalFileEntity = fileRepository.findByOriginalDocumentId(originalDocumentId);
-
-            if (originalFileEntity == null) {
-                log.warn("No original file found for exported file: {}", file.getName());
-                orphanedFiles.add(file.getName());
-                continue; // Skip processing this file
-            }
-
-            // Finally save the exported file entity
-            // First get the sha256sum of the exported file
-            var mimetype = extractMimetype(metadataObject);
-
-            var exportFileEntity = ExportFileEntity.builder()
-                .file(originalFileEntity)
-                .filename(file.getName())
-                .filePath(relativeFilePath)
-                .originalDocumentId(originalDocumentId)
-                .mimetype(mimetype)
-                .filesize(file.length())
-                .sha256sum(sha256sum)
-                .created(Instant.now())
-                .build();
-
-            // Save the exported file entity onto the database.
-            var storedExportFile = exportedFilesService.save(exportFileEntity);
-            log.debug("Successfully registered exported file: {}", storedExportFile.getFilename());
-            if (!existedBefore) {
-                recorder.exportFileCreated(storedExportFile);
-            }
-            successfulFileResponses.add(storedExportFile.toResponse());
-
-            // If there is no existing file entity, we may not create a new one
-            // So the order is: The FileEntity must always exist in the database before we can process the exported file
         }
 
         return resultList;

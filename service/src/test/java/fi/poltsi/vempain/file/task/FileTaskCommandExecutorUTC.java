@@ -100,15 +100,37 @@ class FileTaskCommandExecutorUTC {
     void executesMusicAndGpsCommands() {
         var music = task("PUBLISH_MUSIC_DATA", Map.of());
         var gps = task("PUBLISH_GPS_TIME_SERIES", Map.of("file_group_id", 7L, "time_series_name", "Trip"));
+        // the website publishing flag of the newer payloads; an older payload without it only creates the data set
+        var musicToSite = task("PUBLISH_MUSIC_DATA", Map.of("publish_to_site", true));
+        var gpsToSite = task("PUBLISH_GPS_TIME_SERIES", Map.of("file_group_id", 7L, "time_series_name", "Trip", "publish_to_site", true));
+        // the grantees of the newer payloads; a payload without the list leaves the grantees of an existing data set untouched (null)
+        var grantee = fi.poltsi.vempain.file.api.request.PublishAclRequest.builder()
+            .userId(12L)
+            .readPrivilege(true)
+            .build();
+        var musicWithAcls = task("PUBLISH_MUSIC_DATA", Map.of("publish_to_site", false, "acls", List.of(grantee)));
+        var gpsWithoutGrantees = task("PUBLISH_GPS_TIME_SERIES", Map.of("file_group_id", 7L, "time_series_name", "Trip", "acls", List.of()));
         when(applicationContext.getBean(DataService.class)).thenReturn(dataService);
-        when(dataService.publishMusicDatasetNow(music)).thenReturn(null);
-        when(dataService.publishGpsTimeSeriesNow(7L, "Trip", gps)).thenReturn(null);
+        when(dataService.publishMusicDatasetNow(music, false, null)).thenReturn(null);
+        when(dataService.publishGpsTimeSeriesNow(7L, "Trip", gps, false, null)).thenReturn(null);
+        when(dataService.publishMusicDatasetNow(musicToSite, true, null)).thenReturn(null);
+        when(dataService.publishGpsTimeSeriesNow(7L, "Trip", gpsToSite, true, null)).thenReturn(null);
+        when(dataService.publishMusicDatasetNow(musicWithAcls, false, List.of(grantee))).thenReturn(null);
+        when(dataService.publishGpsTimeSeriesNow(7L, "Trip", gpsWithoutGrantees, false, List.of())).thenReturn(null);
 
         assertThat(executor.execute(music)).isNull();
         assertThat(executor.execute(gps)).isNull();
+        assertThat(executor.execute(musicToSite)).isNull();
+        assertThat(executor.execute(gpsToSite)).isNull();
+        assertThat(executor.execute(musicWithAcls)).isNull();
+        assertThat(executor.execute(gpsWithoutGrantees)).isNull();
 
-        verify(dataService).publishMusicDatasetNow(music);
-        verify(dataService).publishGpsTimeSeriesNow(7L, "Trip", gps);
+        verify(dataService).publishMusicDatasetNow(music, false, null);
+        verify(dataService).publishGpsTimeSeriesNow(7L, "Trip", gps, false, null);
+        verify(dataService).publishMusicDatasetNow(musicToSite, true, null);
+        verify(dataService).publishGpsTimeSeriesNow(7L, "Trip", gpsToSite, true, null);
+        verify(dataService).publishMusicDatasetNow(musicWithAcls, false, List.of(grantee));
+        verify(dataService).publishGpsTimeSeriesNow(7L, "Trip", gpsWithoutGrantees, false, List.of());
     }
 
     @Test

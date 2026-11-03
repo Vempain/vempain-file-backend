@@ -51,6 +51,8 @@ class DataServiceUTC {
     private VempainAdminDataClient vempainAdminDataClient;
     @Mock
     private LocationService locationService;
+    @Mock
+    private VempainAdminService vempainAdminService;
 
     private final TaskRunner taskRunner = new TaskRunner(new TaskProgressStore(), Runnable::run);
 
@@ -58,7 +60,7 @@ class DataServiceUTC {
 
     @BeforeEach
     void setUp() {
-        dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient, locationService, taskRunner);
+        dataService = new DataService(musicFileService, imageFileRepository, vempainAdminDataClient, locationService, taskRunner, vempainAdminService);
     }
 
     // -----------------------------------------------------------------------
@@ -220,6 +222,60 @@ class DataServiceUTC {
         verify(vempainAdminDataClient).getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER);
         verify(vempainAdminDataClient, never()).updateDataSet(any(DataRequest.class));
         verify(vempainAdminDataClient, never()).publishDataSet(any(String.class));
+    }
+
+    @Test
+    void musicTaskWithSitePublishingStartsTheAdminPublishingAsItsLastStep() {
+        var music = new MusicFileEntity();
+        music.setArtist("Artist");
+        when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+        when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenThrow(mock(FeignException.NotFound.class));
+        var dataResponse = new DataResponse();
+        dataResponse.setIdentifier(DataService.MUSIC_IDENTIFIER);
+        when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(dataResponse));
+        var adminTask = fi.poltsi.vempain.common.api.response.TaskAcceptedResponse.builder()
+            .taskId("admin-task-1")
+            .build();
+        when(vempainAdminDataClient.publishDataSet(DataService.MUSIC_IDENTIFIER)).thenReturn(ResponseEntity.accepted()
+            .body(adminTask));
+
+        var progress = dataService.publishMusicDatasetAsTask(true);
+
+        assertThat(progress.toAcceptedResponse()
+            .getTotalSteps()).isEqualTo(4);
+        verify(vempainAdminDataClient).publishDataSet(DataService.MUSIC_IDENTIFIER);
+
+        // without the flag the data set is only created in the admin backend, in three steps
+        var created = dataService.publishMusicDatasetAsTask(false);
+        assertThat(created.toAcceptedResponse()
+            .getTotalSteps()).isEqualTo(3);
+        verify(vempainAdminDataClient, org.mockito.Mockito.times(1)).publishDataSet(any(String.class));
+    }
+
+    @Test
+    void failedSitePublishingOfAGpsDataSetIsReportedAsAnAdminError() {
+        var location = new GpsLocationEntity();
+        location.setLatitude(new BigDecimal("60.12345"));
+        location.setLatitudeRef('N');
+        location.setLongitude(new BigDecimal("24.93545"));
+        location.setLongitudeRef('E');
+        var image = new ImageFileEntity();
+        image.setFilename("photo.jpg");
+        image.setGpsLocation(location);
+        when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(5L)).thenReturn(List.of(image));
+        when(locationService.isGuardedLocation(location)).thenReturn(false);
+        when(vempainAdminDataClient.getDataSetByIdentifier("trip")).thenThrow(mock(FeignException.NotFound.class));
+        var dataResponse = new DataResponse();
+        dataResponse.setIdentifier("trip");
+        when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(dataResponse));
+        when(vempainAdminDataClient.publishDataSet("trip")).thenThrow(mock(FeignException.InternalServerError.class));
+
+        assertThrows(ResponseStatusException.class, () -> dataService.publishGpsTimeSeriesNow(5L, "trip", null, true));
+        verify(vempainAdminDataClient).publishDataSet("trip");
+
+        // the plain creation never asks for the website publishing
+        dataService.publishGpsTimeSeriesNow(5L, "trip", null, false);
+        verify(vempainAdminDataClient, org.mockito.Mockito.times(1)).publishDataSet(any(String.class));
     }
 
     // -----------------------------------------------------------------------
@@ -698,5 +754,170 @@ class DataServiceUTC {
             .getIdentifier()).isEqualTo("gps_timeseries");
         assertThat(dataService.generateAndPublishGpsTimeSeriesByFileGroup(5L, "x".repeat(70))
             .getIdentifier()).hasSize(60);
+    }
+
+    // -----------------------------------------------------------------------
+    // ACL grantees of the data sets
+    // -----------------------------------------------------------------------
+
+    @Test
+    void theGranteesOfTheRequestTravelWithTheDataSetAndInTheTaskPayload() {
+        var music = new MusicFileEntity();
+        music.setArtist("Artist");
+        when(musicFileService.findAllOrdered()).thenReturn(List.of(music));
+        when(vempainAdminDataClient.getDataSetByIdentifier(DataService.MUSIC_IDENTIFIER)).thenThrow(mock(FeignException.NotFound.class));
+        var dataResponse = new DataResponse();
+        dataResponse.setIdentifier(DataService.MUSIC_IDENTIFIER);
+        when(vempainAdminDataClient.createDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(dataResponse));
+        var grantee = fi.poltsi.vempain.file.api.request.PublishAclRequest.builder()
+            .userId(12L)
+            .readPrivilege(true)
+            .modifyPrivilege(true)
+            .build();
+
+        dataService.publishMusicDatasetAsTask(false, List.of(grantee));
+
+        // (the durable payload that carries the grantees to a worker is read back in FileTaskCommandExecutorUTC)
+        var captor = org.mockito.ArgumentCaptor.forClass(DataRequest.class);
+        verify(vempainAdminDataClient).createDataSet(captor.capture());
+        var sent = captor.getValue()
+            .getAcls();
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0)
+            .getUserId()).isEqualTo(12L);
+        assertThat(sent.get(0)
+            .isModifyPrivilege()).isTrue();
+
+        // without grantees nothing is sent, so the admin backend keeps the current ones
+        dataService.publishMusicDatasetAsTask(false, null);
+        verify(vempainAdminDataClient, org.mockito.Mockito.times(2)).createDataSet(captor.capture());
+        assertThat(captor.getValue()
+            .getAcls()).isNull();
+    }
+
+    @Test
+    void replacingTheGranteesOfAnExistingDataSetRestoresThePreviousOnesWhenCancelled() throws Exception {
+        var location = new GpsLocationEntity();
+        location.setLatitude(new BigDecimal("60.12345"));
+        location.setLatitudeRef('N');
+        location.setLongitude(new BigDecimal("24.93545"));
+        location.setLongitudeRef('E');
+        var image = new ImageFileEntity();
+        image.setFilename("photo.jpg");
+        image.setGpsLocation(location);
+        when(imageFileRepository.findByFileGroupIdWithGpsOrderedByTime(5L)).thenReturn(List.of(image));
+        when(locationService.isGuardedLocation(location)).thenReturn(false);
+        var existing = new DataResponse();
+        existing.setIdentifier("trip");
+        existing.setCsvData("old");
+        when(vempainAdminDataClient.getDataSetByIdentifier("trip")).thenReturn(ResponseEntity.ok(existing));
+        when(vempainAdminDataClient.updateDataSet(any(DataRequest.class))).thenReturn(ResponseEntity.ok(existing));
+        when(vempainAdminService.getDataSetAcls("trip")).thenReturn(java.util.Optional.of(fi.poltsi.vempain.admin.api.response.DataSetAclResponse.builder()
+            .identifier("trip")
+            .acls(List.of(fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse.builder()
+                .unitId(3L)
+                .readPrivilege(true)
+                .build()))
+            .build()));
+        var progress = mock(TaskProgress.class);
+
+        dataService.publishGpsTimeSeriesNow(5L, "trip", progress, false, List.of());
+
+        // the update removes every additional grantee; the registered undo puts unit 3 back together with the old content
+        var captor = org.mockito.ArgumentCaptor.forClass(fi.poltsi.vempain.common.task.Compensation.class);
+        verify(progress).registerCompensation(any(String.class), captor.capture());
+        captor.getValue()
+            .revert();
+        var requests = org.mockito.ArgumentCaptor.forClass(DataRequest.class);
+        verify(vempainAdminDataClient, org.mockito.Mockito.times(2)).updateDataSet(requests.capture());
+        assertThat(requests.getAllValues()
+            .get(0)
+            .getAcls()).isEmpty();
+        var restored = requests.getAllValues()
+            .get(1);
+        assertThat(restored.getCsvData()).isEqualTo("old");
+        assertThat(restored.getAcls()).hasSize(1);
+        assertThat(restored.getAcls()
+            .get(0)
+            .getUnitId()).isEqualTo(3L);
+    }
+
+    @Test
+    void dataSetStatusTellsWhetherTheAdminBackendHoldsTheSetAndItsGrantees() {
+        when(vempainAdminService.getDataSetAcls("music_library"))
+            .thenReturn(java.util.Optional.of(fi.poltsi.vempain.admin.api.response.DataSetAclResponse.builder()
+                .identifier("music_library")
+                .acls(List.of(fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse.builder()
+                    .userId(12L)
+                    .readPrivilege(true)
+                    .deletePrivilege(true)
+                    .build()))
+                .build()));
+        when(vempainAdminService.getDataSetAcls("gps_timeseries_new")).thenReturn(java.util.Optional.empty());
+
+        var published = dataService.dataSetStatus("music_library");
+        assertThat(published.isPublished()).isTrue();
+        assertThat(published.getAcls()).hasSize(1);
+        assertThat(published.getAcls()
+            .get(0)
+            .getUserId()).isEqualTo(12L);
+        assertThat(published.getAcls()
+            .get(0)
+            .isDeletePrivilege()).isTrue();
+
+        var fresh = dataService.dataSetStatus("gps_timeseries_new");
+        assertThat(fresh.isPublished()).isFalse();
+        assertThat(fresh.getAcls()).isEmpty();
+        assertThat(fresh.getIdentifier()).isEqualTo("gps_timeseries_new");
+    }
+
+    @Test
+    void pagedDataSetsForwardsTheRequestAndReducesTheAdminRows() {
+        var request = new fi.poltsi.vempain.file.api.request.DataSetPagedRequest();
+        request.setPage(1);
+        request.setSize(10);
+        request.setSortBy("published");
+        request.setDirection(org.springframework.data.domain.Sort.Direction.DESC);
+        request.setSearch("gps");
+        request.setFilterColumn("identifier");
+        request.setModifiedAfterPublish(true);
+        var adminRow = fi.poltsi.vempain.admin.api.response.DataSummaryResponse.builder()
+            .id(5L)
+            .aclId(42L)
+            .identifier("gps_timeseries_trip")
+            .type("time_series")
+            .description("GPS")
+            .generated(Instant.parse("2026-01-01T10:00:00Z"))
+            .creator(1L)
+            .created(Instant.parse("2026-01-02T10:00:00Z"))
+            .modifier(1L)
+            .modified(Instant.parse("2026-01-03T10:00:00Z"))
+            .published(Instant.parse("2026-01-04T10:00:00Z"))
+            .columnDefinitions("[]")
+            .build();
+        var captor = org.mockito.ArgumentCaptor.forClass(fi.poltsi.vempain.admin.api.request.DataPagedRequest.class);
+        when(vempainAdminService.getPagedDataSets(captor.capture()))
+            .thenReturn(fi.poltsi.vempain.auth.api.response.PagedResponse.of(List.of(adminRow), 1, 10, 11, 2, false, true));
+
+        var page = dataService.pagedDataSets(request);
+
+        var forwarded = captor.getValue();
+        assertThat(forwarded.getPage()).isEqualTo(1);
+        assertThat(forwarded.getSize()).isEqualTo(10);
+        assertThat(forwarded.getSortBy()).isEqualTo("published");
+        assertThat(forwarded.getDirection()).isEqualTo(org.springframework.data.domain.Sort.Direction.DESC);
+        assertThat(forwarded.getSearch()).isEqualTo("gps");
+        assertThat(forwarded.getFilterColumn()).isEqualTo("identifier");
+        assertThat(forwarded.getModifiedAfterPublish()).isTrue();
+        assertThat(page.getTotalElements()).isEqualTo(11);
+        assertThat(page.getTotalPages()).isEqualTo(2);
+        assertThat(page.isLast()).isTrue();
+        var row = page.getContent()
+            .get(0);
+        assertThat(row.getIdentifier()).isEqualTo("gps_timeseries_trip");
+        assertThat(row.getAclId()).isEqualTo(42L);
+        assertThat(row.getCreator()).isEqualTo(1L);
+        assertThat(row.getModified()).isEqualTo(Instant.parse("2026-01-03T10:00:00Z"));
+        assertThat(row.getPublished()).isEqualTo(Instant.parse("2026-01-04T10:00:00Z"));
     }
 }

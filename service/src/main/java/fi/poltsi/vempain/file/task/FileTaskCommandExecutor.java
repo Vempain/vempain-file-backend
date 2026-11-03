@@ -10,6 +10,7 @@ import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.entity.TaskCompensationEntity;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
 import fi.poltsi.vempain.file.api.request.MetadataValueUpdateRequest;
+import fi.poltsi.vempain.file.api.request.PublishAclRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileGroupRequest;
 import fi.poltsi.vempain.file.api.request.PublishFileRequest;
 import fi.poltsi.vempain.file.api.request.PublishFilesRequest;
@@ -63,14 +64,14 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
             case SCAN_DIRECTORIES -> applicationContext.getBean(FileScannerService.class)
                 .scanDirectories(objectMapper.treeToValue(payload, ScanRequest.class), progress);
             case PUBLISH_MUSIC_DATA -> applicationContext.getBean(DataService.class)
-                .publishMusicDatasetNow(progress);
+                .publishMusicDatasetNow(progress, publishToSite(payload), acls(payload));
             case PUBLISH_GPS_TIME_SERIES -> {
                 var fileGroupId = payload.path("file_group_id")
                     .asLong();
                 var name = payload.path("time_series_name")
                     .asString();
                 yield applicationContext.getBean(DataService.class)
-                    .publishGpsTimeSeriesNow(fileGroupId, name, progress);
+                    .publishGpsTimeSeriesNow(fileGroupId, name, progress, publishToSite(payload), acls(payload));
             }
             case TAG_REMOVE_FROM_ALL, TAG_REPLACE_ACROSS_ALL, TAG_RENAME_ACROSS_ALL -> {
                 var request = objectMapper.treeToValue(payload.path("request"), TagOperationRequest.class);
@@ -123,5 +124,21 @@ public class FileTaskCommandExecutor implements TaskCommandExecutor {
         var ids = new java.util.ArrayList<Long>();
         node.forEach(value -> ids.add(value.asLong()));
         return ids;
+    }
+
+    /** The grantees of a data set payload; null when the payload carries none (the grantees of an existing set are then left untouched) */
+    private List<PublishAclRequest> acls(JsonNode payload) {
+        var node = payload.path(DataService.ACLS);
+        if (!node.isArray()) {
+            return null;
+        }
+        return List.of(objectMapper.treeToValue(node, PublishAclRequest[].class));
+    }
+
+    /** The optional website publishing flag of the data set tasks; tasks queued before the flag existed carry none and only create the data set */
+    private static boolean publishToSite(JsonNode payload) {
+        var node = payload.path(DataService.PUBLISH_TO_SITE);
+        return node.isBoolean()
+               && node.booleanValue();
     }
 }

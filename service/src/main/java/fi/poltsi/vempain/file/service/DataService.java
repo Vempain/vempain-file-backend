@@ -11,11 +11,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import feign.FeignException;
+import fi.poltsi.vempain.admin.api.request.DataPagedRequest;
 import fi.poltsi.vempain.admin.api.request.DataRequest;
+import fi.poltsi.vempain.admin.api.request.file.FileIngestAclRequest;
 import fi.poltsi.vempain.admin.api.response.DataResponse;
+import fi.poltsi.vempain.admin.api.response.DataSummaryResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestAclResponse;
+import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.common.task.TaskProgress;
 import fi.poltsi.vempain.common.task.TaskRunner;
 import fi.poltsi.vempain.file.api.TaskTypeEnum;
+import fi.poltsi.vempain.file.api.request.DataSetPagedRequest;
+import fi.poltsi.vempain.file.api.request.PublishAclRequest;
+import fi.poltsi.vempain.file.api.response.DataSetSummaryResponse;
+import fi.poltsi.vempain.file.api.response.PublishDataSetStatusResponse;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.feign.VempainAdminDataClient;
@@ -42,6 +51,10 @@ public class DataService {
      * Identifier used in the Admin data store for the music dataset.
      */
     static final String MUSIC_IDENTIFIER = "music_library";
+    /** Task payload key: whether the data set is also published to the website after it was created in the admin backend */
+    public static final String PUBLISH_TO_SITE = "publish_to_site";
+    /** Task payload key: the admin users and units granted privileges on the data set ({@code PublishAclRequest} entries) */
+    public static final String ACLS = "acls";
     /**
      * Identifier prefix used for GPS time-series datasets per directory.
      */
@@ -56,6 +69,7 @@ public class DataService {
     private final VempainAdminDataClient vempainAdminDataClient;
     private final LocationService locationService;
     private final TaskRunner taskRunner;
+    private final VempainAdminService vempainAdminService;
 
     // -----------------------------------------------------------------------
     // Music dataset
@@ -91,16 +105,112 @@ public class DataService {
      * {@link DataResponse} as result.
      */
     public TaskProgress publishMusicDatasetAsTask() {
+        return publishMusicDatasetAsTask(false);
+    }
+
+    /**
+     * @param publishToSite also start the admin backend's publishing of the data set to the website as the last step
+     */
+    public TaskProgress publishMusicDatasetAsTask(boolean publishToSite) {
+        return publishMusicDatasetAsTask(publishToSite, null);
+    }
+
+    /**
+     * @param acls the admin users and units granted privileges on the data set; null leaves the grantees of an existing set untouched
+     */
+    public TaskProgress publishMusicDatasetAsTask(boolean publishToSite, List<PublishAclRequest> acls) {
         var musicFiles = loadMusicFilesOrThrow();
-        return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_MUSIC_DATA.name(), "Publish music data set", 3, java.util.Map.of(),
-                progress -> publishMusic(musicFiles, progress));
+        return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_MUSIC_DATA.name(), "Publish music data set", stepsOf(publishToSite), payload(publishToSite, acls),
+                progress -> publishMusic(musicFiles, progress, publishToSite, acls));
     }
 
     /**
      * Reloads source rows on the worker that claimed the durable command.
      */
     public DataResponse publishMusicDatasetNow(TaskProgress progress) {
-        return publishMusic(loadMusicFilesOrThrow(), progress);
+        return publishMusicDatasetNow(progress, false);
+    }
+
+    public DataResponse publishMusicDatasetNow(TaskProgress progress, boolean publishToSite) {
+        return publishMusicDatasetNow(progress, publishToSite, null);
+    }
+
+    public DataResponse publishMusicDatasetNow(TaskProgress progress, boolean publishToSite, List<PublishAclRequest> acls) {
+        return publishMusic(loadMusicFilesOrThrow(), progress, publishToSite, acls);
+    }
+
+    /** The durable payload of a data set task: the website flag and the grantees, which the task needs again when it is re-run by a worker */
+    private static java.util.Map<String, Object> payload(boolean publishToSite, List<PublishAclRequest> acls) {
+        var payload = new java.util.HashMap<String, Object>();
+        payload.put(PUBLISH_TO_SITE, publishToSite);
+        if (acls != null) {
+            payload.put(ACLS, acls);
+        }
+        return payload;
+    }
+
+    /**
+     * A page of the data sets of the admin backend for the data set table of the SPA: the request is forwarded to the admin backend, which filters, sorts and
+     * pages the sets the service account may read, and its rows are reduced to what the table shows.
+     *
+     * @throws ResponseStatusException 502 when the admin backend does not answer
+     */
+    public PagedResponse<DataSetSummaryResponse> pagedDataSets(DataSetPagedRequest request) {
+        var adminRequest = new DataPagedRequest();
+        adminRequest.setPage(request.getPage());
+        adminRequest.setSize(request.getSize());
+        adminRequest.setSortBy(request.getSortBy());
+        adminRequest.setDirection(request.getDirection());
+        adminRequest.setSearch(request.getSearch());
+        adminRequest.setCaseSensitive(request.getCaseSensitive());
+        adminRequest.setType(request.getType());
+        adminRequest.setFilterColumn(request.getFilterColumn());
+        adminRequest.setModifiedAfterPublish(request.getModifiedAfterPublish());
+
+        var page = vempainAdminService.getPagedDataSets(adminRequest);
+        var rows = page.getContent() == null ? List.<DataSetSummaryResponse>of()
+                : page.getContent()
+                    .stream()
+                    .map(DataService::toSummary)
+                    .toList();
+        return PagedResponse.of(rows, page.getPage(), page.getSize(), page.getTotalElements(), page.getTotalPages(), page.isFirst(), page.isLast());
+    }
+
+    static DataSetSummaryResponse toSummary(DataSummaryResponse row) {
+        return DataSetSummaryResponse.builder()
+            .id(row.getId())
+            .aclId(row.getAclId())
+            .identifier(row.getIdentifier())
+            .type(row.getType())
+            .description(row.getDescription())
+            .generated(row.getGenerated())
+            .creator(row.getCreator())
+            .created(row.getCreated())
+            .modifier(row.getModifier())
+            .modified(row.getModified())
+            .published(row.getPublished())
+            .build();
+    }
+
+    /**
+     * Whether the admin backend holds the data set already and who was granted privileges on it, for the data set dialog of the SPA.
+     *
+     * @throws ResponseStatusException 502 when the admin backend does not answer
+     */
+    public PublishDataSetStatusResponse dataSetStatus(String identifier) {
+        var status = PublishDataSetStatusResponse.builder()
+            .identifier(identifier)
+            .published(false)
+            .acls(List.of());
+        vempainAdminService.getDataSetAcls(identifier)
+            .ifPresent(found -> status.published(true)
+                .acls(PublishService.toPublishedAcls(found.getAcls())));
+        return status.build();
+    }
+
+    /** Number of task steps: generate, prepare, create or update in the admin backend, and the website publishing when asked for */
+    private static int stepsOf(boolean publishToSite) {
+        return publishToSite ? 4 : 3;
     }
 
     private List<MusicFileEntity> loadMusicFilesOrThrow() {
@@ -115,15 +225,39 @@ public class DataService {
     }
 
     private DataResponse publishMusic(List<MusicFileEntity> musicFiles, TaskProgress progress) {
+        return publishMusic(musicFiles, progress, false, null);
+    }
+
+    private DataResponse publishMusic(List<MusicFileEntity> musicFiles, TaskProgress progress, boolean publishToSite, List<PublishAclRequest> acls) {
         checkpoint(progress);
         var csvData = buildMusicCsv(musicFiles);
         step(progress, "Generated CSV for " + musicFiles.size() + " music files");
         var request = buildMusicDataRequest(csvData);
+        request.setAcls(toDataSetAcls(acls));
         step(progress, "Prepared data set " + MUSIC_IDENTIFIER);
         checkpoint(progress);
         var response = createOrUpdate(request, progress);
         step(progress, "Published data set " + MUSIC_IDENTIFIER + " to the admin backend");
+        if (publishToSite) {
+            publishToSite(MUSIC_IDENTIFIER, progress);
+        }
         return response;
+    }
+
+    /**
+     * The optional last step of a data set task: asks the admin backend to publish the data set to the website. The admin backend runs that as a task of its
+     * own, which this task cannot follow, so the step only reports that it was started. There is no compensation: a website publishing cannot be taken back
+     * from here.
+     */
+    private void publishToSite(String identifier, TaskProgress progress) {
+        checkpoint(progress);
+        try {
+            var accepted = vempainAdminDataClient.publishDataSet(identifier)
+                .getBody();
+            step(progress, "Started the website publishing of data set " + identifier + (accepted == null ? "" : " (admin task " + accepted.getTaskId() + ")"));
+        } catch (FeignException e) {
+            throw mapAdminException(e, "publish to the website", identifier);
+        }
     }
 
     private static void step(TaskProgress progress, String message) {
@@ -283,16 +417,41 @@ public class DataService {
      * set. The finished task carries the admin {@link DataResponse} as result.
      */
     public TaskProgress publishGpsTimeSeriesByFileGroupAsTask(Long fileGroupId, String timeSeriesName) {
+        return publishGpsTimeSeriesByFileGroupAsTask(fileGroupId, timeSeriesName, false);
+    }
+
+    /**
+     * @param publishToSite also start the admin backend's publishing of the data set to the website as the last step
+     */
+    public TaskProgress publishGpsTimeSeriesByFileGroupAsTask(Long fileGroupId, String timeSeriesName, boolean publishToSite) {
+        return publishGpsTimeSeriesByFileGroupAsTask(fileGroupId, timeSeriesName, publishToSite, null);
+    }
+
+    /**
+     * @param acls the admin users and units granted privileges on the data set; null leaves the grantees of an existing set untouched
+     */
+    public TaskProgress publishGpsTimeSeriesByFileGroupAsTask(Long fileGroupId, String timeSeriesName, boolean publishToSite, List<PublishAclRequest> acls) {
         var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
         var images = loadGpsImagesOrThrow(fileGroupId);
-        return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_GPS_TIME_SERIES.name(), "Publish GPS time series " + identifier, 3,
-                java.util.Map.of("file_group_id", fileGroupId, "time_series_name", timeSeriesName),
-                progress -> publishGpsTimeSeries(identifier, fileGroupId, images, progress));
+        var payload = payload(publishToSite, acls);
+        payload.put("file_group_id", fileGroupId);
+        payload.put("time_series_name", timeSeriesName);
+        return taskRunner.submitDurable(TaskTypeEnum.PUBLISH_GPS_TIME_SERIES.name(), "Publish GPS time series " + identifier, stepsOf(publishToSite), payload,
+                progress -> publishGpsTimeSeries(identifier, fileGroupId, images, progress, publishToSite, acls));
     }
 
     public DataResponse publishGpsTimeSeriesNow(Long fileGroupId, String timeSeriesName, TaskProgress progress) {
+        return publishGpsTimeSeriesNow(fileGroupId, timeSeriesName, progress, false);
+    }
+
+    public DataResponse publishGpsTimeSeriesNow(Long fileGroupId, String timeSeriesName, TaskProgress progress, boolean publishToSite) {
+        return publishGpsTimeSeriesNow(fileGroupId, timeSeriesName, progress, publishToSite, null);
+    }
+
+    public DataResponse publishGpsTimeSeriesNow(Long fileGroupId, String timeSeriesName, TaskProgress progress, boolean publishToSite,
+            List<PublishAclRequest> acls) {
         var identifier = validateGpsIdentifier(fileGroupId, timeSeriesName);
-        return publishGpsTimeSeries(identifier, fileGroupId, loadGpsImagesOrThrow(fileGroupId), progress);
+        return publishGpsTimeSeries(identifier, fileGroupId, loadGpsImagesOrThrow(fileGroupId), progress, publishToSite, acls);
     }
 
     private String validateGpsIdentifier(Long fileGroupId, String timeSeriesName) {
@@ -327,15 +486,24 @@ public class DataService {
     }
 
     private DataResponse publishGpsTimeSeries(String identifier, Long fileGroupId, List<ImageFileEntity> images, TaskProgress progress) {
+        return publishGpsTimeSeries(identifier, fileGroupId, images, progress, false, null);
+    }
+
+    private DataResponse publishGpsTimeSeries(String identifier, Long fileGroupId, List<ImageFileEntity> images, TaskProgress progress, boolean publishToSite,
+            List<PublishAclRequest> acls) {
         log.info("Generating GPS time-series dataset for file group: {} with name: {}", fileGroupId, identifier);
         checkpoint(progress);
         var csvData = buildGpsCsv(images);
         step(progress, "Generated CSV for " + images.size() + " GPS-tagged images");
         var request = buildGpsDataRequest(identifier, "file group: " + fileGroupId, csvData);
+        request.setAcls(toDataSetAcls(acls));
         step(progress, "Prepared data set " + identifier);
         checkpoint(progress);
         var response = createOrUpdate(request, progress);
         step(progress, "Published data set " + identifier + " to the admin backend");
+        if (publishToSite) {
+            publishToSite(identifier, progress);
+        }
         return response;
     }
 
@@ -506,6 +674,10 @@ public class DataService {
         if (existing != null) {
             var previous = toRequest(existing);
             if (progress != null) {
+                // The undo puts back the content and, when the request changes the grantees, the previous grantees too (null keeps them)
+                if (request.getAcls() != null) {
+                    previous.setAcls(previousGrantees(request.getIdentifier()));
+                }
                 progress.registerCompensation("Restore the previous content of data set " + request.getIdentifier(),
                         () -> vempainAdminDataClient.updateDataSet(previous));
             }
@@ -527,6 +699,45 @@ public class DataService {
             progress.registerCompensation("Delete data set " + identifier + " from the admin backend", () -> vempainAdminDataClient.deleteDataSet(identifier));
         }
         return created;
+    }
+
+    /**
+     * The grantees of a data set request for the admin backend. Unlike the file ingest, where an empty list and no list mean the same, a data set update tells
+     * them apart: an empty list removes every additional grantee, null leaves them untouched, so the shape is kept.
+     */
+    static List<FileIngestAclRequest> toDataSetAcls(List<PublishAclRequest> acls) {
+        if (acls == null) {
+            return null;
+        }
+        var converted = PublishService.toIngestAcls(acls);
+        return converted == null ? List.of() : converted;
+    }
+
+    /** The grantees the data set has before this run changes them, for the compensation; an unanswered lookup keeps them (null) */
+    private List<FileIngestAclRequest> previousGrantees(String identifier) {
+        try {
+            return vempainAdminService.getDataSetAcls(identifier)
+                .map(acls -> acls.getAcls() == null ? List.<FileIngestAclRequest>of()
+                        : acls.getAcls()
+                            .stream()
+                            .map(DataService::toIngestAcl)
+                            .toList())
+                .orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Could not read the current grantees of data set '{}', a cancelled task will keep the new ones: {}", identifier, e.getMessage());
+            return null;
+        }
+    }
+
+    private static FileIngestAclRequest toIngestAcl(FileIngestAclResponse acl) {
+        return FileIngestAclRequest.builder()
+            .userId(acl.getUserId())
+            .unitId(acl.getUnitId())
+            .readPrivilege(acl.isReadPrivilege())
+            .createPrivilege(acl.isCreatePrivilege())
+            .modifyPrivilege(acl.isModifyPrivilege())
+            .deletePrivilege(acl.isDeletePrivilege())
+            .build();
     }
 
     private static DataRequest toRequest(DataResponse response) {

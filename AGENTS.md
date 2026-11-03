@@ -186,14 +186,43 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `PathCompletionServiceUTC`/`ITC` cover the non-ASCII ordering.
 - Refresh checkpoints are persisted in `scheduler_checkpoint`; per-file admin publication knowledge is stored in `files.site_file_published` and
   `files.site_file_id` (set by every publish, see the publish section)
+- The clustered map of the GPS-tagged files (`MapAPI` of `vempain-common-api` at `/map`, `MapController` -> `MapService`): the shared
+  `MapClusterQuery` of `vempain-common-core` runs over this backend's `files` + `gps_locations` (hemisphere-signed coordinates), `file_tags`/`tags`
+  and `thumb_files` (`MapService.SCHEMA`), restricted to the files whose ACL grants read to the caller (`FileAclService.mapPrincipal`). `POST
+  /map/clusters` groups the points of the viewport by `ROUND(coordinate, precision)` with the precision of the zoom level
+  (`MapClustering.precisionForZoom`: 0 decimals at world level, 5 = single files from zoom 16), `POST /map/files` lists the files of one cell
+  newest first with their thumbnail id (the thumb file the file SPA shows through `GET /files/{id}/content`). Location guards do not apply to
+  the map: it is the administrator's own view of the originals. Filters: `file_type`, `from`/`to` on `original_datetime`, `tags`, `search` on
+  the file name (escaped `LIKE`). Tested against the real schema in `MapControllerCTC`.
 - Data dataset publication flows:
-  - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows.
+  - `POST /api/data-publish/music` generates/publishes `music_library` from `MusicFileEntity` rows; the optional body `PublishMusicDatasetRequest`
+    (`publish_to_site`) and the same flag of `CreateGpsTimeSeriesRequest` add a fourth task step that asks the admin backend to publish the data set
+    to the website (`DataAPI.publishDataSet`, the admin's own task, reported but not followed; no compensation). The flag travels in the task payload
+    as `publish_to_site` (`DataService.PUBLISH_TO_SITE`); a payload without it only creates the data set. The file SPA offers "Create" and "Create and
+    publish" for both data sets, the CLI `--publish-to-site`.
   - `POST /api/data-publish/gps-timeseries` accepts `file_group_id` + `time_series_name`, normalizes the requested name to Admin-safe snake_case, and
     publishes that dataset for the selected file group.
+  - Data sets are ACL-bearing in the admin backend and their publishing follows the file publish pattern: both requests take `acls`
+    (`PublishAclRequest`, the admin users and units from `GET /publish/users|units`), forwarded as `DataRequest.acls` of the admin
+    `DataAPI` by `DataService.toDataSetAcls` (unlike the file ingest an empty list is kept: it removes every additional grantee of an
+    existing set, null leaves them untouched) and carried in the task payload as `acls` (`DataService.ACLS`, read back by
+    `FileTaskCommandExecutor`). `GET /api/data-publish/{identifier}/status` (`PublishDataSetStatusResponse`) tells the SPA's
+    `PublishDataSetModal` whether the admin backend holds the set and its current grantees (`VempainAdminService.getDataSetAcls` ->
+    admin `GET /content-management/data/{identifier}/acls`, 404 = not published). When an update replaces the grantees, the compensation
+    of the task restores the previous grantees together with the previous content. The CLI's `file publish-music|publish-gps` send no
+    list, so they keep the grantees. `POST /api/data-publish/paged` proxies the admin backend's paged data set listing
+    (`DataService.pagedDataSets`: the file API's `DataSetPagedRequest` becomes the admin `DataPagedRequest`, `VempainAdminService.getPagedDataSets`
+    -> `DataAPI.getPagedDataSets`, and the admin rows are reduced to `DataSetSummaryResponse`, identity, type, description, timestamps and
+    audit trail; the file API module stays free of admin API types) for the data set table of the file SPA. Tests: `DataPublishContractJTC`, `DataServiceUTC`,
+    `FileTaskCommandExecutorUTC`, `VempainAdminServiceUTC`, `DataPublishControllerCTC`.
 
 ## Operational details
 
-- Scanning processes leaf directories below the configured original/export roots. `DirectoryProcessorService` owns file, subtype, metadata, tag, GPS,
+- Scanning processes leaf directories below the configured original/export roots. As a task (`SCAN_DIRECTORIES`) its steps are the files:
+  `FileScannerService.countFiles` sets the total from the listings of every leaf directory before the scan starts (originals and exports
+  added up), `DirectoryProcessorService` reports every file through `ScanRecorder.fileScanned` whatever its outcome (imported, refreshed,
+  skipped as known, orphaned, or failed = a failed step that does not stop the scan), and the directory being scanned is only the message
+  (`"Scanning <dir>"`), never a step. Tested in `FileScannerServiceUTC`. `DirectoryProcessorService` owns file, subtype, metadata, tag, GPS,
   and export-file persistence. Export derivatives are linked through `originalDocumentId` and are skipped when their original entity is absent.
 - Calls to the admin backend authenticate with a service-to-service API token: `VempainAdminFeignConfig` sends
   `vempain.service.admin-backend-api-token` in the `X-Vempain-Api-Token` header (`Constants.API_TOKEN_HEADER` of the admin API) on every
@@ -221,6 +250,13 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `VempainAdminTokenProvider` caches the Admin JWT and retries authentication failures.
 - `UpdatedFileRefreshSchedule` persists its checkpoint in `scheduler_checkpoint`, verifies changed files with SHA-256, refreshes metadata and derivatives, and
   republishes only files whose `site_file_published` flag is true.
+- A published GPS time series is filtered on two levels, both in this service (the admin backend stores what it receives): the repository
+  queries `ImageFileRepository.findByFileGroupIdWithGpsOrderedByTime` / `findByFilePathWithGpsOrderedByTime` return only GPS-tagged images
+  that have an `export_files` row *and* `site_file_published = true`, so the coordinates of originals that never left this service, or of
+  exports that were never published to the admin backend, are never released; `DataService.loadGpsImagesOrThrow` (and the directory
+  variant) then drops every image whose location lies inside a location guard (`LocationService.isGuardedLocation`). A group left with no
+  publishable point answers 404. Tested against the real schema in `DataServiceGpsFilterITC`, by `DataServiceUTC` (guards) and
+  `DataPublishControllerCTC` (an exported but unpublished image answers 404).
 - GPS data publication is ephemeral. Music data is exposed at `/api/data-publish/music`; GPS series can be generated by directory path or by
   `file_group_id` plus `time_series_name`, with identifiers normalized to Admin-safe snake_case.
 - Runtime API traffic uses `/api` on port 8080; actuator and Swagger are exposed on port 8081. Local runs require PostgreSQL, valid `vempain.*`

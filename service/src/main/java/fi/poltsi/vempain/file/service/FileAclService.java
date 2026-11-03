@@ -21,6 +21,7 @@ import fi.poltsi.vempain.auth.entity.Unit;
 import fi.poltsi.vempain.auth.repository.AclRepository;
 import fi.poltsi.vempain.auth.security.AclAuthorizationService;
 import fi.poltsi.vempain.auth.service.UserDetailsImpl;
+import fi.poltsi.vempain.common.map.MapPrincipal;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import lombok.RequiredArgsConstructor;
 
@@ -191,6 +192,15 @@ public class FileAclService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
         return new AclAccess(user.getId(), unitIds);
+    }
+
+    /**
+     * The caller as the shared map query of {@code vempain-common-core} needs it: the user id and the ids of every unit the user belongs to, so that the
+     * clustering SQL can keep the files whose ACL grants the read privilege to one of them. An anonymous caller sees no files.
+     */
+    public MapPrincipal mapPrincipal() {
+        var access = currentAclAccess();
+        return new MapPrincipal(access.userId(), access.unitIds());
     }
 
     private record AclAccess(Long userId, Set<Long> unitIds) {}

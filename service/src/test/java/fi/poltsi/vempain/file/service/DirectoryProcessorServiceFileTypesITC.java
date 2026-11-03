@@ -117,6 +117,14 @@ class DirectoryProcessorServiceFileTypesITC {
                 }
             }
         }
+        jdbcTemplate.update("""
+                DELETE FROM gps_locations gps
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM files f
+                    WHERE f.gps_location_id = gps.id
+                )
+                """);
         jdbcTemplate.update("DELETE FROM tags WHERE tag_name LIKE ?", "itc-" + suffix + "%");
     }
 

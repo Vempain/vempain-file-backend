@@ -93,31 +93,67 @@ class FileScannerServiceUTC {
     }
 
     @Test
-    void scanAsTaskReportsALeafDirectoryPerStepAndReturnsTheScanResult(@TempDir Path root) throws Exception {
+    void scanAsTaskReportsAFilePerStepAndReturnsTheScanResult(@TempDir Path root) throws Exception {
+        // Two leaf directories with two files each, plus an export directory with one file: five steps, counted before the scan starts
         Files.createDirectories(root.resolve("photos/2024"));
         Files.createDirectories(root.resolve("photos/2025"));
+        Files.createDirectories(root.resolve("exports/2024"));
+        Files.writeString(root.resolve("photos/2024/a.jpg"), "a");
+        Files.writeString(root.resolve("photos/2024/b.jpg"), "b");
+        Files.writeString(root.resolve("photos/2025/c.jpg"), "c");
+        Files.writeString(root.resolve("photos/2025/d.jpg"), "d");
+        Files.writeString(root.resolve("exports/2024/a.jpg"), "a");
         var processor = mock(DirectoryProcessorService.class);
-        when(processor.processOriginalDirectory(any(), any(), any(), any(), any(ScanRecorder.class))).thenReturn(java.util.List.of(2L, 2L));
+        when(processor.processOriginalDirectory(any(), any(), any(), any(), any(ScanRecorder.class))).thenAnswer(invocation -> {
+            Path leafDir = invocation.getArgument(0);
+            ScanRecorder recorder = invocation.getArgument(4);
+            for (var file : java.util.Objects.requireNonNull(leafDir.toFile()
+                .listFiles())) {
+                recorder.fileScanned(leafDir.getFileName() + "/" + file.getName(), file.getName()
+                    .startsWith("d"));
+            }
+            return java.util.List.of(2L, 2L);
+        });
+        when(processor.processExportDirectory(any(), any(), any(), any(), any(ScanRecorder.class))).thenAnswer(invocation -> {
+            ScanRecorder recorder = invocation.getArgument(4);
+            recorder.fileScanned("2024/a.jpg", false);
+            return java.util.List.of(1L, 1L);
+        });
         var service = new FileScannerService(processor, mock(FileResponseEnricher.class), new TaskRunner(new TaskProgressStore(), Runnable::run),
                 mock(FileRepository.class), mock(ExportFileRepository.class), mock(FileGroupRepository.class), metrics());
         ReflectionTestUtils.setField(service, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(service, "exportRootDirectory", root.toString());
         var request = new ScanRequest();
         request.setOriginalDirectory("/photos");
+        request.setExportDirectory("/exports");
 
         var task = service.scanDirectoriesAsTask(request);
 
         assertThat(task.getType()).isEqualTo("SCAN_DIRECTORIES");
-        assertThat(task.getTitle()).isEqualTo("Scan /photos");
+        assertThat(task.getTitle()).isEqualTo("Scan /photos and /exports");
         assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
         assertThat(task.getTotalSteps()
-            .get()).isEqualTo(2);
+            .get()).isEqualTo(5);
         assertThat(task.getCompletedSteps()
-            .get()).isEqualTo(2);
-        assertThat(task.getMessage()).startsWith("Scanned ");
+            .get()).isEqualTo(5);
+        assertThat(task.getFailedSteps()
+            .get()).as("d.jpg failed, the scan went on")
+            .isEqualTo(1);
+        assertThat(task.getMessage()).isEqualTo("Scanned 2024/a.jpg");
         assertThat(task.getResult()).isInstanceOf(ScanResponses.class);
         assertThat(((ScanResponses) task.getResult()).getScanOriginalResponse()
             .getScannedFilesCount()).isEqualTo(4);
+    }
+
+    @Test
+    void theFilesOfTheLeafDirectoriesAreTheStepsOfTheScan(@TempDir Path root) throws Exception {
+        Files.createDirectories(root.resolve("photos/2024"));
+        Files.createDirectories(root.resolve("photos/empty"));
+        Files.writeString(root.resolve("photos/2024/a.jpg"), "a");
+        Files.writeString(root.resolve("photos/2024/b.jpg"), "b");
+
+        assertThat(FileScannerService.countFiles(java.util.List.of(root.resolve("photos/2024"), root.resolve("photos/empty")))).isEqualTo(2);
+        assertThat(FileScannerService.countFiles(java.util.List.of(root.resolve("photos/missing")))).isZero();
     }
 
     @Test

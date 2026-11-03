@@ -23,4 +23,12 @@ public interface ScanRecorder {
     default void fileCreated(FileEntity file) {}
 
     default void exportFileCreated(ExportFileEntity exportFile) {}
+
+    /**
+     * Called after every file of a directory, whatever its outcome (imported, refreshed, skipped as known, or failed): one file is one step of the scan task.
+     *
+     * @param displayPath the file relative to its root, shown to the user
+     * @param failed      true when the file could not be processed
+     */
+    default void fileScanned(String displayPath, boolean failed) {}
 }

@@ -13,8 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import feign.FeignException;
+import fi.poltsi.vempain.admin.api.request.DataPagedRequest;
 import fi.poltsi.vempain.admin.api.request.file.FileIngestRequest;
 import fi.poltsi.vempain.admin.api.request.file.SiteFilePagedRequest;
+import fi.poltsi.vempain.admin.api.response.DataSetAclResponse;
+import fi.poltsi.vempain.admin.api.response.DataSummaryResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestGalleryAclResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestResponse;
 import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
@@ -24,6 +27,7 @@ import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
 import fi.poltsi.vempain.auth.api.response.PagedResponse;
 import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
+import fi.poltsi.vempain.file.feign.VempainAdminDataClient;
 import fi.poltsi.vempain.file.feign.VempainAdminFileClient;
 import fi.poltsi.vempain.file.feign.VempainAdminFileIngestClient;
 import fi.poltsi.vempain.file.metrics.FileMetrics;
@@ -38,6 +42,7 @@ public class VempainAdminService {
 
     private final VempainAdminFileIngestClient vempainAdminFileIngestClient;
     private final VempainAdminFileClient vempainAdminFileClient;
+    private final VempainAdminDataClient vempainAdminDataClient;
     private final ObjectMapper objectMapper;
     private final FileMetrics fileMetrics;
 
@@ -133,6 +138,25 @@ public class VempainAdminService {
     public Optional<FileIngestGalleryAclResponse> getGalleryAcls(long galleryId) {
         log.debug("Fetching the grantees of gallery {} from Vempain Admin service", galleryId);
         return fetchOptional("gallery " + galleryId, () -> vempainAdminFileIngestClient.getGalleryAcls(galleryId));
+    }
+
+    /**
+     * The current additional grantees of a data set this backend created in the admin backend; empty when the admin backend holds no such data set. Errors as
+     * {@link #getSiteFileAcls}.
+     */
+    public Optional<DataSetAclResponse> getDataSetAcls(String identifier) {
+        log.debug("Fetching the grantees of data set {} from Vempain Admin service", identifier);
+        return fetchOptional("data set " + identifier, () -> vempainAdminDataClient.getDataSetAcls(identifier));
+    }
+
+    /**
+     * A page of the data sets the service account may read in the admin backend, filtered and sorted there. 401/403 of the token is a
+     * {@link VempainAuthenticationException}, any other failure a 502.
+     */
+    public PagedResponse<DataSummaryResponse> getPagedDataSets(DataPagedRequest request) {
+        log.debug("Fetching page {} of the data sets from Vempain Admin service", request.getPage());
+        return fetchOptional("the data set page", () -> vempainAdminDataClient.getPagedDataSets(request))
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Admin backend did not answer the data set listing"));
     }
 
     private <T> Optional<T> fetchOptional(String what, Supplier<ResponseEntity<T>> call) {

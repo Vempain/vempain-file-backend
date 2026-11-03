@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -123,6 +124,15 @@ public class FileScannerService {
                 var id = exportFile.getId();
                 progress.registerCompensation("Remove export file " + exportFile.getFilename(), () -> exportFileRepository.deleteById(id));
             }
+
+            @Override
+            public void fileScanned(String displayPath, boolean failed) {
+                if (failed) {
+                    progress.advanceFailed("Failed " + displayPath);
+                } else {
+                    progress.advance("Scanned " + displayPath);
+                }
+            }
         };
     }
 
@@ -138,12 +148,12 @@ public class FileScannerService {
         var timing = fileMetrics.scanStarted();
 
         success = populateLeafDirectory(leafDirectories, errorMessage, scanDirectory);
-        addSteps(progress, leafDirectories.size());
+        addSteps(progress, countFiles(leafDirectories));
 
         for (var leafDir : leafDirectories) {
-            // Each processDirectory call will run in its own transaction
+            scanning(progress, scanDirectory, leafDir);
+            // Each processDirectory call will run in its own transaction; the recorder counts every file as a step
             var results = directoryProcessorService.processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses, recorder);
-            step(progress, scanDirectory, leafDir);
             scannedFilesCount += results.get(0);
             newFilesCount += results.get(1);
             success = success
@@ -184,17 +194,17 @@ public class FileScannerService {
                 .build();
         }
 
-        addSteps(progress, leafDirectories.size());
+        addSteps(progress, countFiles(leafDirectories));
         // The response has always reported zero counts for the export scan (pinned by DirectoryProcessorServiceITC); only the metrics use the
         // processor's counts
         var exportsScanned = 0L;
         var exportsNew = 0L;
         for (Path leafDir : leafDirectories) {
+            scanning(progress, scanDirectory, leafDir);
             var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses, recorder);
             log.debug("Processed {} in export directory", processed);
             exportsScanned += processed.isEmpty() ? 0L : processed.get(0);
             exportsNew += processed.size() < 2 ? 0L : processed.get(1);
-            step(progress, scanDirectory, leafDir);
         }
         fileMetrics.scanned(SCAN_EXPORT, exportsScanned, exportsNew);
         fileMetrics.scanFinished(timing, SCAN_EXPORT, success);
@@ -209,16 +219,31 @@ public class FileScannerService {
             .build();
     }
 
-    private static void addSteps(TaskProgress progress, int steps) {
+    /**
+     * The files the processor will visit in the leaf directories, counted the way the processor lists them, so that the task's steps are the files of the scan
+     * (originals and exports alike) and the user sees how many are done and how many are left
+     */
+    static long countFiles(List<Path> leafDirectories) {
+        var count = 0L;
+        for (var leafDir : leafDirectories) {
+            var files = leafDir.toFile()
+                .listFiles();
+            count += files == null ? 0 : files.length;
+        }
+        return count;
+    }
+
+    private static void addSteps(TaskProgress progress, long steps) {
         if (progress != null) {
             progress.setTotalSteps(progress.getTotalSteps()
                 .get() + steps);
         }
     }
 
-    private static void step(TaskProgress progress, Path root, Path leafDirectory) {
+    /** Names the directory being scanned without counting a step; the files of the directory are the steps */
+    private static void scanning(TaskProgress progress, Path root, Path leafDirectory) {
         if (progress != null) {
-            progress.advance("Scanned " + root.relativize(leafDirectory));
+            progress.message("Scanning " + root.relativize(leafDirectory));
         }
     }
 

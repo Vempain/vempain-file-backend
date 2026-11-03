@@ -21,6 +21,8 @@ public class WebSecurityConfig extends fi.poltsi.vempain.auth.security.WebSecuri
     protected void configureApplicationAuthorization(ApplicationAuthorizationConfigurer authorization) {
         authorization.authenticated("/files/**", "/file-groups/**", "/tags/**", "/metadata/**", "/scan-files/**", "/publish/**", "/data-publish/**",
                 "/location/**", "/path-completion/**", "/statistics/**", "/tasks/**",
+                // The clustered map of the GPS-tagged files (MapAPI of vempain-common)
+                "/map/**",
                 // User, unit and ACL management hosted from vempain-auth-core (administrator ACL checked in the controllers)
                 "/content-management/**");
     }

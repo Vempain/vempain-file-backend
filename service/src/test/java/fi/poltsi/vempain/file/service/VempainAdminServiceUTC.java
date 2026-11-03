@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -38,8 +39,10 @@ import fi.poltsi.vempain.file.metrics.FileMetrics;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -56,6 +59,8 @@ class VempainAdminServiceUTC {
     private VempainAdminFileIngestClient vempainAdminFileIngestClient;
     @Mock
     private VempainAdminFileClient vempainAdminFileClient;
+    @Mock
+    private fi.poltsi.vempain.file.feign.VempainAdminDataClient vempainAdminDataClient;
     @Mock
     private ObjectMapper objectMapper;
 
@@ -399,5 +404,47 @@ class VempainAdminServiceUTC {
                     .value()).isEqualTo(502);
             }
         }
+    }
+
+    @Test
+    void getDataSetAclsAnswersTheGranteesAndTreatsAMissingDataSetAsEmpty() {
+        var grantees = fi.poltsi.vempain.admin.api.response.DataSetAclResponse.builder()
+            .identifier("music_library")
+            .aclId(42L)
+            .acls(List.of())
+            .build();
+        when(vempainAdminDataClient.getDataSetAcls("music_library")).thenReturn(ResponseEntity.ok(grantees));
+        when(vempainAdminDataClient.getDataSetAcls("gone")).thenThrow(fakeFeignException(404));
+        when(vempainAdminDataClient.getDataSetAcls("refused")).thenThrow(fakeFeignException(403));
+
+        assertEquals(Optional.of(grantees), vempainAdminService.getDataSetAcls("music_library"));
+        assertTrue(vempainAdminService.getDataSetAcls("gone")
+            .isEmpty());
+        assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.getDataSetAcls("refused"));
+    }
+
+    @Test
+    void getPagedDataSetsAnswersTheAdminPageAndMapsTheFailures() {
+        var request = new fi.poltsi.vempain.admin.api.request.DataPagedRequest();
+        request.setPage(0);
+        request.setSize(25);
+        var page = fi.poltsi.vempain.auth.api.response.PagedResponse.of(List.of(fi.poltsi.vempain.admin.api.response.DataSummaryResponse.builder()
+            .identifier("music_library")
+            .build()), 0, 25, 1, 1, true, true);
+        when(vempainAdminDataClient.getPagedDataSets(request)).thenReturn(ResponseEntity.ok(page));
+
+        assertEquals(page, vempainAdminService.getPagedDataSets(request));
+
+        // re-stubbing a throwing mock needs the doThrow form, a when(...) call would trigger the earlier throw
+        org.mockito.Mockito.doThrow(fakeFeignException(403))
+            .when(vempainAdminDataClient)
+            .getPagedDataSets(request);
+        assertThrows(VempainAuthenticationException.class, () -> vempainAdminService.getPagedDataSets(request));
+        org.mockito.Mockito.doThrow(fakeFeignException(500))
+            .when(vempainAdminDataClient)
+            .getPagedDataSets(request);
+        assertEquals(org.springframework.http.HttpStatus.BAD_GATEWAY,
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> vempainAdminService.getPagedDataSets(request))
+                    .getStatusCode());
     }
 }

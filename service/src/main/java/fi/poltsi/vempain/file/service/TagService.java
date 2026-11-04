@@ -39,7 +39,6 @@ import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.service.files.FileSearchHelper;
 import fi.poltsi.vempain.file.tools.LikePatterns;
 import lombok.RequiredArgsConstructor;
@@ -54,9 +53,8 @@ public class TagService {
     private final FileRepository fileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final ExportFileRepository exportFileRepository;
-    private final ThumbFileRepository thumbFileRepository;
     private final DirectoryProcessorService directoryProcessorService;
-    private final ThumbnailGenerationService thumbnailGenerationService;
+    private final ThumbnailService thumbnailService;
     private final FileAclService fileAclService;
     private final TaskRunner taskRunner;
     private final ApplicationContext applicationContext;
@@ -66,10 +64,6 @@ public class TagService {
     private String originalRootDirectory;
     @Value("${vempain.export-root-directory}")
     private String exportRootDirectory;
-    @Value("${vempain.generate-missing-thumbnails.thumb-image-size}")
-    private int thumbnailMinimumSize;
-    @Value("${vempain.generate-missing-thumbnails.thumb-image-quality}")
-    private float thumbnailQuality;
 
     public List<TagResponse> getAllTags() {
         return tagRepository.findAll()
@@ -404,22 +398,14 @@ public class TagService {
     }
 
     private void regenerateThumbnail(fi.poltsi.vempain.file.entity.ExportFileEntity export) throws IOException {
-        var thumbnailId = thumbFileRepository.findThumbnailIdByTargetFileId(export.getFile()
-            .getId());
-        if (thumbnailId.isPresent()) {
-            var thumbnail = thumbFileRepository.findById(thumbnailId.get())
-                .orElse(null);
-            if (thumbnail != null) {
-                var path = resolve(originalRootDirectory, thumbnail.getFilePath(), thumbnail.getFilename());
-                Files.deleteIfExists(path.toPath());
-                thumbFileRepository.delete(thumbnail);
-            }
-        }
-        try {
-            thumbnailGenerationService.generateThumbnail(export, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality);
-        } catch (Exception e) {
-            throw new IOException("Failed to regenerate thumbnail", e);
-        }
+        thumbnailService.regenerate(export);
+    }
+
+    private File resolve(String root, String path, String filename) {
+        return Path.of(root)
+            .resolve((path == null ? "" : path).replaceFirst("^/", ""))
+            .resolve(filename)
+            .toFile();
     }
 
     private List<Long> filesForTag(String tagName) {
@@ -469,13 +455,6 @@ public class TagService {
                 .isBlank()) {
             throw new IllegalArgumentException("Replacement tag name must be provided");
         }
-    }
-
-    private File resolve(String root, String path, String filename) {
-        return Path.of(root)
-            .resolve((path == null ? "" : path).replaceFirst("^/", ""))
-            .resolve(filename)
-            .toFile();
     }
 
     private TagEntity mapToEntity(TagRequest dto) {

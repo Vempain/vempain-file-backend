@@ -138,7 +138,7 @@ class FileMetricsUTC {
             .value()).as("no refresh has run yet")
             .isEqualTo(-1);
 
-        metrics.updateInventory(List.of(new FileMetrics.FileTypeCount("IMAGE", 100), new FileMetrics.FileTypeCount("VIDEO", 4)), 90, 12, 8);
+        metrics.updateInventory(List.of(new FileMetrics.FileTypeCount("IMAGE", 100), new FileMetrics.FileTypeCount("VIDEO", 4)), 90, 3, 12, 8);
 
         assertThat(registry.get(FileMetrics.INVENTORY_FILES)
             .tag("file_type", "IMAGE")

@@ -1,6 +1,7 @@
 package fi.poltsi.vempain.file.service;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,12 +45,10 @@ import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
-import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepository;
 import fi.poltsi.vempain.file.repository.MetadataRepositoryCustom.MetadataSummaryRow;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.TestExifTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,11 +78,9 @@ class MetadataServiceUTC {
     @Mock
     private ExportFileRepository exportFileRepository;
     @Mock
-    private ThumbFileRepository thumbFileRepository;
-    @Mock
     private DirectoryProcessorService directoryProcessorService;
     @Mock
-    private ThumbnailGenerationService thumbnailGenerationService;
+    private ThumbnailService thumbnailService;
     @Mock
     private FileAclService fileAclService;
     @Mock
@@ -99,13 +96,11 @@ class MetadataServiceUTC {
     @BeforeEach
     void setUp() {
         var taskRunner = new TaskRunner(new TaskProgressStore(), queued::add);
-        metadataService = new MetadataService(metadataRepository, fileRepository, fileResponseEnricher, exportFileRepository, thumbFileRepository,
-                directoryProcessorService, thumbnailGenerationService, fileAclService, taskRunner, applicationContext, TestExifTool.service());
+        metadataService = new MetadataService(metadataRepository, fileRepository, fileResponseEnricher, exportFileRepository, directoryProcessorService,
+                thumbnailService, fileAclService, taskRunner, applicationContext, TestExifTool.service());
         ReflectionTestUtils.setField(metadataService, "originalRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(metadataService, "exportRootDirectory", tempDir.resolve("export")
             .toString());
-        ReflectionTestUtils.setField(metadataService, "thumbnailMinimumSize", 100);
-        ReflectionTestUtils.setField(metadataService, "thumbnailQuality", 0.5f);
         lenient().when(applicationContext.getBean(MetadataService.class))
             .thenReturn(metadataService);
         var principal = new UserDetailsImpl(1L, "admin", "Admin", "admin@nohost.nodomain", "password", Set.of(), List.of());
@@ -436,14 +431,6 @@ class MetadataServiceUTC {
                 .sha256sum("stale")
                 .build();
             when(exportFileRepository.findByFileId(1L)).thenReturn(Optional.of(export));
-            var thumbnail = new ThumbFileEntity();
-            thumbnail.setFilePath("/thumb");
-            thumbnail.setFilename("exported.jpeg");
-            var thumbnailFile = Files.createDirectories(tempDir.resolve("thumb"))
-                .resolve("exported.jpeg");
-            Files.writeString(thumbnailFile, "thumb");
-            when(thumbFileRepository.findThumbnailIdByTargetFileId(1L)).thenReturn(Optional.of(9L));
-            when(thumbFileRepository.findById(9L)).thenReturn(Optional.of(thumbnail));
             var progress = TaskProgress.unmanaged("t", "METADATA_UPDATE_VALUE", "title", 1L, 1, "{}");
 
             metadataService.applyValueUpdate(request("XMP-dc", "Creator", "Jane", "Joe"), List.of(1L), progress);
@@ -454,10 +441,8 @@ class MetadataServiceUTC {
                 .getString("Creator")).isEqualTo("Joe");
             assertThat(export.getSha256sum()).isNotEqualTo("stale");
             assertThat(export.getFilesize()).isEqualTo(exported.length());
-            assertThat(thumbnailFile).doesNotExist();
-            verify(thumbFileRepository).delete(thumbnail);
             verify(exportFileRepository).save(export);
-            verify(thumbnailGenerationService).generateThumbnail(export, tempDir.toString(), exportDir.toString(), 100, 0.5f);
+            verify(thumbnailService).regenerate(export);
         }
 
         @Test
@@ -472,15 +457,14 @@ class MetadataServiceUTC {
                 .filePath("/")
                 .filename("failing.jpg")
                 .build()));
-            when(thumbFileRepository.findThumbnailIdByTargetFileId(1L)).thenReturn(Optional.empty());
-            doThrow(new IllegalStateException("no thumbnail")).when(thumbnailGenerationService)
-                .generateThumbnail(any(), any(), any(), any(Integer.class), any(Float.class));
+            doThrow(new IOException("no thumbnail")).when(thumbnailService)
+                .regenerate(any());
             var progress = TaskProgress.unmanaged("t", "METADATA_UPDATE_VALUE", "title", 1L, 1, "{}");
 
             var failure = assertThrows(IllegalStateException.class,
                     () -> metadataService.applyValueUpdate(request("XMP-dc", "Creator", "Jane", "Joe"), List.of(1L), progress));
             assertThat(failure).hasMessage("Failed to update metadata XMP-dc:Creator of file 1");
-            assertThat(failure.getCause()).hasMessage("Failed to regenerate thumbnail");
+            assertThat(failure.getCause()).hasMessage("no thumbnail");
         }
     }
 

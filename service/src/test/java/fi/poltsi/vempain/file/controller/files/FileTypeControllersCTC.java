@@ -63,8 +63,6 @@ class FileTypeControllersCTC extends AbstractControllerCTC {
                         "INSERT INTO image_files(id, width, height, color_depth, dpi, group_label) VALUES (9001, 1920, 1080, 24, 72, 'test-group')"),
                 Arguments.of("interactive", "INTERACTIVE", "text/html", "test-file.html", "/test/interactive",
                         "INSERT INTO interactive_files(id, technology) VALUES (9001, 'HTML5')"),
-                Arguments.of("thumb", "THUMB", "image/jpeg", "test-thumb.jpg", "/test/thumb",
-                        "INSERT INTO thumb_files(id, target_file_id, relation_type) VALUES (9001, NULL, 'thumbnail')"),
                 Arguments.of("vector", "VECTOR", "image/svg+xml", "test-file.svg", "/test/vector",
                         "INSERT INTO vector_files(id, width, height, layers_count) VALUES (9001, 800, 600, 3)"),
                 Arguments.of("video", "VIDEO", "video/mp4", "test-file.mp4", "/test/video",
@@ -105,15 +103,16 @@ class FileTypeControllersCTC extends AbstractControllerCTC {
         try {
             seedFileRow(9001L, fileType, mimeType, filename, filePath);
             jdbcTemplate.update(typeInsertSql);
-            seedFileRow(9002L, "THUMB", "image/jpeg", "test-thumb-9002.jpg", "/test/thumb-9002");
-            jdbcTemplate.update("INSERT INTO thumb_files(id, target_file_id, relation_type) VALUES (9002, 9001, 'thumbnail')");
+            jdbcTemplate.update("INSERT INTO file_thumbnails(file_id, filename, file_path, mimetype, filesize, sha256sum, created) "
+                    + "VALUES (9001, 'test-thumb-9002.jpg', '/test/thumb-9002', 'image/jpeg', 100, "
+                    + "'0000000000000000000000000000000000000000000000000000000000000000', CURRENT_TIMESTAMP)");
 
             doGet("/files/" + urlSegment + "/9001").andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9001))
                 .andExpect(jsonPath("$.file_type").value(fileType))
-                .andExpect(jsonPath("$.thumbnail_id").value(9002));
+                .andExpect(jsonPath("$.thumbnail.id").isNumber())
+                .andExpect(jsonPath("$.thumbnail.file_id").value(9001));
         } finally {
-            deleteFileRow(9002L);
             deleteFileRow(9001L);
         }
     }

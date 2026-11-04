@@ -44,14 +44,20 @@ Tests require `exiftool` installed on the host. GitHub Package Registry credenti
 
 ## File-Type Hierarchy
 
-14 typed file categories, each a JPA entity that extends `FileEntity` (JOINED table inheritance):
+13 typed file categories, each a JPA entity that extends `FileEntity` (JOINED table inheritance):
 
-`archive · audio · binary · data · document · executable · font · icon · image · interactive · music · thumb · vector · video`
+`archive · audio · binary · data · document · executable · font · icon · image · interactive · music · vector · video`
 
 - Base entity: `service/src/main/java/fi/poltsi/vempain/file/entity/FileEntity.java`
 - Music subtype: `service/src/main/java/fi/poltsi/vempain/file/entity/MusicFileEntity.java` (extends `AudioFileEntity`)
 - Common searchable fields: `filename`, `filePath`, `description`, `mimetype`
 - Entity → DTO: call `entity.toResponse()` (implemented in every typed entity)
+
+Thumbnails are derived sub-resources in `file_thumbnails`, not typed files. `ThumbnailService` exposes them through
+`GET|DELETE /files/{id}/thumbnail`, and `FileResponse.thumbnail` carries their metadata. They inherit the parent file's ACL for read/delete
+authorization and are never ACL-checked themselves; `GenerateMissingThumbnailsSchedule` generates them and file deletion removes their JPEG.
+The generated `/thumb` directory is excluded from original-root scans and path completion. The migration's `legacy_thumbnail_orphans` table is
+cleaned at startup by `LegacyThumbnailCleanup` and is retired by a later migration.
 
 ## Paged List Pattern (canonical)
 
@@ -83,7 +89,7 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
 - Snake_case is mandatory for all API JSON contracts; never add camelCase JSON field names in DTO annotations, request/response payloads, or docs/examples.
 - Prefer Lombok annotations for applicable Java boilerplate such as constructors, accessors, builders, and logging, unless they obscure behavior or conflict
   with framework requirements.
-- Vempain authorization is resource-based ACL authorization, not role-based access control. `FileEntity` (all 14 typed files) is the only
+- Vempain authorization is resource-based ACL authorization, not role-based access control. `FileEntity` (all 13 typed files) is the only
   ACL-linked resource here: it extends `AbstractVempainEntity` and carries an `acl_id`. Tags, file groups, locations, location guards,
   metadata, export files, queues and checkpoints have no ACL and must never be ACL-checked; checks on tag operations apply to the *files*
   being tagged, not to the tag.
@@ -188,7 +194,7 @@ For complex native-SQL search (e.g. across joined tables), follow `FileGroupRepo
   `files.site_file_id` (set by every publish, see the publish section)
 - The clustered map of the GPS-tagged files (`MapAPI` of `vempain-common-api` at `/map`, `MapController` -> `MapService`): the shared
   `MapClusterQuery` of `vempain-common-core` runs over this backend's `files` + `gps_locations` (hemisphere-signed coordinates), `file_tags`/`tags`
-  and `thumb_files` (`MapService.SCHEMA`), restricted to the files whose ACL grants read to the caller (`FileAclService.mapPrincipal`). `POST
+  and `file_thumbnails` (`MapService.SCHEMA`), restricted to the files whose ACL grants read to the caller (`FileAclService.mapPrincipal`). `POST
   /map/clusters` groups the points of the viewport by `ROUND(coordinate, precision)` with the precision of the zoom level
   (`MapClustering.precisionForZoom`: 0 decimals at world level, 5 = single files from zoom 16), `POST /map/files` lists the files of one cell
   newest first with their thumbnail id (the thumb file the file SPA shows through `GET /files/{id}/content`). Location guards do not apply to

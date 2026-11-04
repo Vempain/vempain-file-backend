@@ -30,8 +30,8 @@ public class FileResponse extends AbstractResponse {
     @Schema(description = "Path of the file, relative to the root directory", example = "/some/path")
     private String filePath;
 
-    @Schema(description = "Thumbnail file ID", example = "123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private Long thumbnailId;
+    @Schema(description = "Thumbnail of this file, null while none has been generated", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private FileThumbnailResponse thumbnail;
 
     @Schema(description = "Whether the file is known to be published as a site file in the admin backend; null when not yet determined", example = "true",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)

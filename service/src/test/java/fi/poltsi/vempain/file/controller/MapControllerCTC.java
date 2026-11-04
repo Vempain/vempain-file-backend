@@ -32,8 +32,11 @@ class MapControllerCTC extends AbstractControllerCTC {
         seedGpsFile(new GpsFile(HELSINKI_DENIED, "IMAGE", "image/jpeg", "secret.jpg", 60.17000, 24.94000, "2026-06-15 12:00:00", false));
         seedGpsFile(new GpsFile(TAMPERE, "IMAGE", "image/jpeg", "tampere.jpg", 61.49800, 23.76100, "2025-12-24 12:00:00", true));
         // a thumbnail of the first image, and a tag on the second
-        seedFileRow(THUMB_OF_A, "THUMB", "image/jpeg", "helsinki_a_thumb.jpg", "/ctc-map/thumbs");
-        jdbcTemplate.update("INSERT INTO thumb_files(id, target_file_id, relation_type) VALUES (?, ?, 'thumbnail')", THUMB_OF_A, HELSINKI_A);
+        jdbcTemplate.update(
+                "INSERT INTO file_thumbnails(id, file_id, filename, file_path, mimetype, filesize, sha256sum, created) "
+                        + "OVERRIDING SYSTEM VALUE VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                THUMB_OF_A, HELSINKI_A, "helsinki_a_thumb.jpg", "/ctc-map/thumbs", "image/jpeg", 100L,
+                "0000000000000000000000000000000000000000000000000000000000000000");
         jdbcTemplate.update("INSERT INTO tags(tag_name) VALUES ('ctc-summer')");
         tagId = jdbcTemplate.queryForObject("SELECT id FROM tags WHERE tag_name = 'ctc-summer'", Long.class);
         jdbcTemplate.update("INSERT INTO file_tags(file_id, tag_id) VALUES (?, ?)", HELSINKI_B, tagId);
@@ -43,7 +46,8 @@ class MapControllerCTC extends AbstractControllerCTC {
     void clean() {
         jdbcTemplate.update("DELETE FROM file_tags WHERE tag_id = ?", tagId);
         jdbcTemplate.update("DELETE FROM tags WHERE id = ?", tagId);
-        for (var id : new long[]{ THUMB_OF_A, HELSINKI_A, HELSINKI_B, HELSINKI_VIDEO, HELSINKI_DENIED, TAMPERE }) {
+        jdbcTemplate.update("DELETE FROM file_thumbnails WHERE id = ?", THUMB_OF_A);
+        for (var id : new long[]{ HELSINKI_A, HELSINKI_B, HELSINKI_VIDEO, HELSINKI_DENIED, TAMPERE }) {
             deleteFileRow(id);
         }
         jdbcTemplate.update("DELETE FROM gps_locations WHERE id IN (SELECT id FROM gps_locations WHERE country = 'ctc-map')");

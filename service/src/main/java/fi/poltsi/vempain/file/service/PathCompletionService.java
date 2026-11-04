@@ -72,6 +72,13 @@ public class PathCompletionService {
 
         var completions = new ArrayList<String>();
 
+        if (request.getType()
+            .equals(ORIGINAL)
+            && (requestPath.equals("/thumb")
+                || requestPath.startsWith("/thumb/"))) {
+            return new PathCompletionResponse(List.of());
+        }
+
         var rootDirectory = request.getType()
             .equals(ORIGINAL) ? originalRootDirectory : exportedRootDirectory;
 
@@ -97,6 +104,12 @@ public class PathCompletionService {
                     for (var entry : stream) {
                         if (Files.isDirectory(entry)
                             && !Files.isSymbolicLink(entry)
+                            && !(request.getType()
+                                .equals(ORIGINAL)
+                                 && fullPath.equals(rootPath)
+                                 && entry.getFileName()
+                                     .toString()
+                                     .equals("thumb"))
                             && !entry.getFileName()
                                 .toString()
                                 .startsWith(".")) {
@@ -128,6 +141,11 @@ public class PathCompletionService {
                         for (var entry : stream) {
                             if (Files.isDirectory(entry)
                                 && !Files.isSymbolicLink(entry)
+                                && !(request.getType()
+                                    .equals(ORIGINAL)
+                                     && entry.getFileName()
+                                         .toString()
+                                         .equals("thumb"))
                                 && entry.getFileName()
                                     .toString()
                                     .startsWith(prefix)) {

@@ -40,8 +40,6 @@ class FileTypeServicesITC {
     @Autowired
     private InteractiveFileService interactiveFileService;
     @Autowired
-    private ThumbFileService thumbFileService;
-    @Autowired
     private VectorFileService vectorFileService;
     @Autowired
     private VideoFileService videoFileService;
@@ -66,7 +64,6 @@ class FileTypeServicesITC {
         assertThat(iconFileService.findAll(req)).isNotNull();
         assertThat(imageFileService.findAll(req)).isNotNull();
         assertThat(interactiveFileService.findAll(req)).isNotNull();
-        assertThat(thumbFileService.findAll(req)).isNotNull();
         assertThat(vectorFileService.findAll(req)).isNotNull();
         assertThat(videoFileService.findAll(req)).isNotNull();
     }

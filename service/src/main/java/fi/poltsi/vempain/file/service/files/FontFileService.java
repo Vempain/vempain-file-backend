@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.FontFileEntity;
 import fi.poltsi.vempain.file.repository.files.FontFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class FontFileService {
     private final FontFileRepository fontFileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<FontFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class FontFileService {
             log.warn("Font file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(fontFileRepository.findById(id)
-            .orElseThrow());
+        fontFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         fontFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

@@ -104,6 +104,8 @@ logging:
       poltsi: INFO
 
 vempain:
+  legacy-thumbnail-cleanup:
+    enabled: true
   name: @projectName@
   exiftool:
     # The shared metadata runner of vempain-common: exiftool executable (name on the PATH or absolute path), persistent -stay_open processes

@@ -17,21 +17,19 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import fi.poltsi.vempain.auth.entity.Acl;
-import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
+import fi.poltsi.vempain.file.entity.FileThumbnailEntity;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.metrics.FileMetrics;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,11 +38,9 @@ import static org.mockito.Mockito.when;
 class ThumbnailGenerationServiceUTC {
 
     @Mock
-    private ThumbFileRepository thumbFileRepository;
+    private FileThumbnailRepository thumbnailRepository;
     @Mock
     private ImageTool imageTool;
-    @Mock
-    private AclService aclService;
     @Mock
     private FileMetrics fileMetrics;
     @InjectMocks
@@ -58,12 +54,12 @@ class ThumbnailGenerationServiceUTC {
             .file(target)
             .filename("image.jpg")
             .build();
-        when(thumbFileRepository.existsByTargetFileId(48111L)).thenReturn(true);
+        when(thumbnailRepository.existsByFileId(48111L)).thenReturn(true);
 
         thumbnailGenerationService.generateThumbnail(export, "/tmp", "/tmp", 250, 0.7f);
 
         verify(imageTool, never()).resizeImage(any(), any(), any(Integer.class), any(Float.class), any());
-        verify(thumbFileRepository, never()).saveAndFlush(any());
+        verify(thumbnailRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -82,10 +78,7 @@ class ThumbnailGenerationServiceUTC {
             .filename("image.jpg")
             .filePath("/image")
             .build();
-        var acl = mock(Acl.class);
-        when(thumbFileRepository.existsByTargetFileId(48111L)).thenReturn(false);
-        when(aclService.createUniqueAcl(eq(7L), eq(null), eq(true), eq(true), eq(true), eq(true))).thenReturn(acl);
-        when(acl.getAclId()).thenReturn(99L);
+        when(thumbnailRepository.existsByFileId(48111L)).thenReturn(false);
         when(imageTool.resizeImage(eq(source), any(), eq(250), eq(0.7f), eq(null))).thenAnswer(invocation -> {
             Files.writeString(invocation.getArgument(1, Path.class), "thumbnail");
             return new Dimension(300, 200);
@@ -93,15 +86,10 @@ class ThumbnailGenerationServiceUTC {
 
         thumbnailGenerationService.generateThumbnail(export, originalDir.toString(), exportDir.toString(), 250, 0.7f);
 
-        var captor = ArgumentCaptor.forClass(fi.poltsi.vempain.file.entity.ThumbFileEntity.class);
-        verify(thumbFileRepository).saveAndFlush(captor.capture());
+        var captor = ArgumentCaptor.forClass(FileThumbnailEntity.class);
+        verify(thumbnailRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue()
-            .getTargetFile()).isSameAs(target);
-        assertThat(captor.getValue()
-            .getFileType()).isEqualTo(FileTypeEnum.THUMB);
-        assertThat(captor.getValue()
-            .getDescription()).as("the thumbnail carries the described file's description, not its pixel size")
-            .isEqualTo("Sunset over the harbour");
+            .getFile()).isSameAs(target);
         assertThat(Files.readString(originalDir.resolve("thumb/image/image.jpeg"))).isEqualTo("thumbnail");
     }
 
@@ -121,10 +109,7 @@ class ThumbnailGenerationServiceUTC {
             .filename("sample.mp4")
             .filePath("/video")
             .build();
-        var acl = mock(Acl.class);
-        when(thumbFileRepository.existsByTargetFileId(48112L)).thenReturn(false);
-        when(aclService.createUniqueAcl(eq(7L), eq(null), eq(true), eq(true), eq(true), eq(true))).thenReturn(acl);
-        when(acl.getAclId()).thenReturn(99L);
+        when(thumbnailRepository.existsByFileId(48112L)).thenReturn(false);
         when(imageTool.resizeImage(any(), any(), eq(250), eq(0.7f), eq(null))).thenAnswer(invocation -> {
             var input = ImageIO.read(invocation.getArgument(0, Path.class)
                 .toFile());
@@ -137,7 +122,7 @@ class ThumbnailGenerationServiceUTC {
 
         var thumbnail = originalDir.resolve("thumb/video/sample.jpeg");
         assertThat(ImageIO.read(thumbnail.toFile())).isNotNull();
-        verify(thumbFileRepository).saveAndFlush(any());
+        verify(thumbnailRepository).saveAndFlush(any());
     }
 
     private void createSampleVideo(Path target) throws Exception {
@@ -168,12 +153,12 @@ class ThumbnailGenerationServiceUTC {
             .filename("gone.jpg")
             .filePath("/image")
             .build();
-        when(thumbFileRepository.existsByTargetFileId(48113L)).thenReturn(false);
+        when(thumbnailRepository.existsByFileId(48113L)).thenReturn(false);
 
         thumbnailGenerationService.generateThumbnail(export, exportDir.toString(), exportDir.toString(), 250, 0.7f);
 
         verify(imageTool, never()).resizeImage(any(), any(), any(Integer.class), any(Float.class), any());
-        verify(thumbFileRepository, never()).saveAndFlush(any());
+        verify(thumbnailRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -190,7 +175,7 @@ class ThumbnailGenerationServiceUTC {
             .filename("sample.mp4")
             .filePath("/")
             .build();
-        when(thumbFileRepository.existsByTargetFileId(48114L)).thenReturn(false);
+        when(thumbnailRepository.existsByFileId(48114L)).thenReturn(false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> thumbnailGenerationService.generateThumbnail(export, originalDir.toString(), exportDir.toString(), 250, 0.7f, 1.5f));
@@ -199,6 +184,6 @@ class ThumbnailGenerationServiceUTC {
             assertThat(leftovers.toList()).as("the temporary thumbnail is removed again")
                 .isEmpty();
         }
-        verify(thumbFileRepository, never()).saveAndFlush(any());
+        verify(thumbnailRepository, never()).saveAndFlush(any());
     }
 }

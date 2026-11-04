@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.DataFileEntity;
 import fi.poltsi.vempain.file.repository.files.DataFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class DataFileService {
     private final DataFileRepository repository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<DataFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class DataFileService {
             log.warn("Data file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(repository.findById(id)
-            .orElseThrow());
+        repository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         repository.deleteById(id);
         return HttpStatus.OK;
     }

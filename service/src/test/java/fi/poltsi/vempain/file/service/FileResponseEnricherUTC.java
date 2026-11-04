@@ -10,7 +10,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.FileEntity;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.entity.FileThumbnailEntity;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.when;
 class FileResponseEnricherUTC {
 
     @Mock
-    private ThumbFileRepository thumbFileRepository;
+    private FileThumbnailRepository thumbnailRepository;
 
     @Mock
     private FileEntity fileEntity;
@@ -30,12 +31,17 @@ class FileResponseEnricherUTC {
         var response = new FileResponse();
         response.setId(42L);
         when(fileEntity.toResponse()).thenReturn(response);
-        when(thumbFileRepository.findThumbnailIdByTargetFileId(42L)).thenReturn(Optional.of(99L));
+        var thumbnail = FileThumbnailEntity.builder()
+            .id(99L)
+            .file(fileEntity)
+            .build();
+        when(thumbnailRepository.findByFileId(42L)).thenReturn(Optional.of(thumbnail));
 
-        var result = new FileResponseEnricher(thumbFileRepository).toResponse(fileEntity);
+        var result = new FileResponseEnricher(thumbnailRepository).toResponse(fileEntity);
 
-        assertThat(result.getThumbnailId()).isEqualTo(99L);
-        verify(thumbFileRepository).findThumbnailIdByTargetFileId(42L);
+        assertThat(result.getThumbnail()
+            .getId()).isEqualTo(99L);
+        verify(thumbnailRepository).findByFileId(42L);
     }
 
     @Test
@@ -43,25 +49,38 @@ class FileResponseEnricherUTC {
         var response = new FileResponse();
         response.setId(42L);
         when(fileEntity.toResponse()).thenReturn(response);
-        when(thumbFileRepository.findThumbnailIdByTargetFileId(42L)).thenReturn(Optional.empty());
+        when(thumbnailRepository.findByFileId(42L)).thenReturn(Optional.empty());
 
-        assertThat(new FileResponseEnricher(thumbFileRepository).toResponse(fileEntity)
-            .getThumbnailId()).isNull();
+        assertThat(new FileResponseEnricher(thumbnailRepository).toResponse(fileEntity)
+            .getThumbnail()).isNull();
     }
 
     @Test
     void enrichAllUsesOneBatchAndDeterministicRepositoryResults() {
+        when(fileEntity.getId()).thenReturn(42L);
         var first = new FileResponse();
         first.setId(42L);
         var second = new FileResponse();
         second.setId(43L);
-        when(thumbFileRepository.findThumbnailIdsByTargetFileIds(List.of(42L, 43L))).thenReturn(List.of(new Object[]{ 42L, 99L }, new Object[]{ 43L, 100L }));
+        var firstThumbnail = FileThumbnailEntity.builder()
+            .id(99L)
+            .file(fileEntity)
+            .build();
+        var secondFile = new fi.poltsi.vempain.file.entity.ImageFileEntity();
+        secondFile.setId(43L);
+        var secondThumbnail = FileThumbnailEntity.builder()
+            .id(100L)
+            .file(secondFile)
+            .build();
+        when(thumbnailRepository.findByFileIdIn(List.of(42L, 43L))).thenReturn(List.of(firstThumbnail, secondThumbnail));
 
         var responses = List.of(first, second);
-        new FileResponseEnricher(thumbFileRepository).enrichAll(responses);
+        new FileResponseEnricher(thumbnailRepository).enrichAll(responses);
 
-        assertThat(first.getThumbnailId()).isEqualTo(99L);
-        assertThat(second.getThumbnailId()).isEqualTo(100L);
-        verify(thumbFileRepository).findThumbnailIdsByTargetFileIds(List.of(42L, 43L));
+        assertThat(first.getThumbnail()
+            .getId()).isEqualTo(99L);
+        assertThat(second.getThumbnail()
+            .getId()).isEqualTo(100L);
+        verify(thumbnailRepository).findByFileIdIn(List.of(42L, 43L));
     }
 }

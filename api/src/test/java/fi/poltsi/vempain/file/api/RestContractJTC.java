@@ -12,6 +12,7 @@ import fi.poltsi.vempain.file.rest.DataPublishAPI;
 import fi.poltsi.vempain.file.rest.FileContentAPI;
 import fi.poltsi.vempain.file.rest.FileGroupAPI;
 import fi.poltsi.vempain.file.rest.FileScannerAPI;
+import fi.poltsi.vempain.file.rest.FileThumbnailAPI;
 import fi.poltsi.vempain.file.rest.LocationAPI;
 import fi.poltsi.vempain.file.rest.MetadataAPI;
 import fi.poltsi.vempain.file.rest.PathCompletionAPI;
@@ -29,7 +30,6 @@ import fi.poltsi.vempain.file.rest.files.IconFileAPI;
 import fi.poltsi.vempain.file.rest.files.ImageFileAPI;
 import fi.poltsi.vempain.file.rest.files.InteractiveFileAPI;
 import fi.poltsi.vempain.file.rest.files.MusicFileAPI;
-import fi.poltsi.vempain.file.rest.files.ThumbFileAPI;
 import fi.poltsi.vempain.file.rest.files.VectorFileAPI;
 import fi.poltsi.vempain.file.rest.files.VideoFileAPI;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
@@ -72,7 +72,7 @@ class RestContractJTC {
         assertEquals("/files/image", ImageFileAPI.BASE_PATH);
         assertEquals("/files/interactive", InteractiveFileAPI.BASE_PATH);
         assertEquals("/files/music", MusicFileAPI.BASE_PATH);
-        assertEquals("/files/thumb", ThumbFileAPI.BASE_PATH);
+        assertEquals("/files", FileThumbnailAPI.BASE_PATH);
         assertEquals("/files/vector", VectorFileAPI.BASE_PATH);
         assertEquals("/files/video", VideoFileAPI.BASE_PATH);
     }

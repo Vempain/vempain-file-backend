@@ -1,21 +1,19 @@
 package fi.poltsi.vempain.file.service;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
 import fi.poltsi.vempain.file.api.response.files.FileResponse;
 import fi.poltsi.vempain.file.entity.FileEntity;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class FileResponseEnricher {
 
-    private final ThumbFileRepository thumbFileRepository;
+    private final FileThumbnailRepository thumbnailRepository;
 
     @SuppressWarnings("unchecked")
     public <T extends FileResponse> T toResponse(FileEntity entity) {
@@ -33,7 +31,8 @@ public class FileResponseEnricher {
 
     public FileResponse enrich(FileResponse response) {
         if (response.getId() != null) {
-            response.setThumbnailId(thumbFileRepository.findThumbnailIdByTargetFileId(response.getId())
+            response.setThumbnail(thumbnailRepository.findByFileId(response.getId())
+                .map(thumbnail -> thumbnail.toResponse())
                 .orElse(null));
         }
         return response;
@@ -52,10 +51,12 @@ public class FileResponseEnricher {
         if (targetIds.isEmpty()) {
             return;
         }
-        Map<Long, Long> thumbnailIds = new HashMap<>();
-        for (Object[] row : thumbFileRepository.findThumbnailIdsByTargetFileIds(targetIds)) {
-            thumbnailIds.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
-        }
-        responses.forEach(response -> response.setThumbnailId(thumbnailIds.get(response.getId())));
+        var thumbnailsByFileId = thumbnailRepository.findByFileIdIn(targetIds)
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(thumbnail -> thumbnail.getFile()
+                .getId(), thumbnail -> thumbnail));
+        responses.forEach(response -> response.setThumbnail(java.util.Optional.ofNullable(thumbnailsByFileId.get(response.getId()))
+            .map(thumbnail -> thumbnail.toResponse())
+            .orElse(null)));
     }
 }

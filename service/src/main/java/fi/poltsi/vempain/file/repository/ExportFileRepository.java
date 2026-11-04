@@ -25,8 +25,8 @@ public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Lo
             WHERE (e.mimetype LIKE 'image/%' OR e.mimetype LIKE 'video/%')
               AND NOT EXISTS (
                   SELECT 1
-                  FROM thumb_files t
-                  WHERE t.target_file_id = e.file_id
+                  FROM file_thumbnails t
+                  WHERE t.file_id = e.file_id
               )
             ORDER BY RANDOM()
             """, nativeQuery = true)
@@ -41,8 +41,8 @@ public interface ExportFileRepository extends JpaRepository<ExportFileEntity, Lo
             WHERE (e.mimetype LIKE 'image/%' OR e.mimetype LIKE 'video/%')
               AND NOT EXISTS (
                   SELECT 1
-                  FROM thumb_files t
-                  WHERE t.target_file_id = e.file_id
+                  FROM file_thumbnails t
+                  WHERE t.file_id = e.file_id
               )
             """, nativeQuery = true)
     long countImagesMissingThumbnails();

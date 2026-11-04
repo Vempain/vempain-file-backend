@@ -39,6 +39,7 @@ public class FileMetrics {
     public static final String REFRESH_CHECKPOINT_AGE = "vempain.refresh.checkpoint.age.seconds";
     public static final String INVENTORY_FILES = "vempain.inventory.files";
     public static final String INVENTORY_EXPORT_FILES = "vempain.inventory.export_files";
+    public static final String INVENTORY_THUMBNAILS = "vempain.inventory.thumbnails";
     public static final String INVENTORY_FILE_GROUPS = "vempain.inventory.file_groups";
     public static final String INVENTORY_FILE_GROUPS_PUBLISHED = "vempain.inventory.file_groups.published";
 
@@ -68,6 +69,7 @@ public class FileMetrics {
     private final AtomicLong thumbnailsMissing = new AtomicLong();
     private final AtomicLong refreshCheckpointAgeSeconds = new AtomicLong(-1);
     private final AtomicLong exportFiles = new AtomicLong();
+    private final AtomicLong thumbnails = new AtomicLong();
     private final AtomicLong fileGroups = new AtomicLong();
     private final AtomicLong fileGroupsPublished = new AtomicLong();
 
@@ -87,6 +89,9 @@ public class FileMetrics {
             .register(registry);
         Gauge.builder(INVENTORY_EXPORT_FILES, exportFiles, AtomicLong::get)
             .description("Exported files known to the file backend")
+            .register(registry);
+        Gauge.builder(INVENTORY_THUMBNAILS, thumbnails, AtomicLong::get)
+            .description("Generated file thumbnails")
             .register(registry);
         Gauge.builder(INVENTORY_FILE_GROUPS, fileGroups, AtomicLong::get)
             .description("File groups")
@@ -151,6 +156,10 @@ public class FileMetrics {
         thumbnailsMissing.set(count);
     }
 
+    public void legacyCleanup(boolean success) {
+        counter("vempain.thumbnails.legacy_cleanup", "result", success ? ToolMetrics.RESULT_SUCCESS : ToolMetrics.RESULT_FAILURE).increment();
+    }
+
     // Publishing ------------------------------------------------------------------------------------------------------------------------------------
 
     public void published(PublishResult result) {
@@ -185,11 +194,12 @@ public class FileMetrics {
 
     // Inventory -------------------------------------------------------------------------------------------------------------------------------------
 
-    public void updateInventory(List<FileTypeCount> filesByType, long exportFileCount, long fileGroupCount, long publishedFileGroupCount) {
+    public void updateInventory(List<FileTypeCount> filesByType, long exportFileCount, long thumbnailCount, long fileGroupCount, long publishedFileGroupCount) {
         inventoryFilesGauge.register(filesByType.stream()
             .map(row -> MultiGauge.Row.of(Tags.of("file_type", row.fileType()), row.count()))
             .toList(), true);
         exportFiles.set(exportFileCount);
+        thumbnails.set(thumbnailCount);
         fileGroups.set(fileGroupCount);
         fileGroupsPublished.set(publishedFileGroupCount);
     }

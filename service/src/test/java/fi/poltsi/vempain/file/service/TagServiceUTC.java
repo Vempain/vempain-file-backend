@@ -44,12 +44,10 @@ import fi.poltsi.vempain.file.entity.FileEntity;
 import fi.poltsi.vempain.file.entity.FileTag;
 import fi.poltsi.vempain.file.entity.ImageFileEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
-import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileTagRepository;
 import fi.poltsi.vempain.file.repository.TagRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
 import fi.poltsi.vempain.file.tools.SampleFiles;
 import fi.poltsi.vempain.file.tools.TestExifTool;
 
@@ -81,11 +79,9 @@ class TagServiceUTC {
     @Mock
     private ExportFileRepository exportFileRepository;
     @Mock
-    private ThumbFileRepository thumbFileRepository;
-    @Mock
     private DirectoryProcessorService directoryProcessorService;
     @Mock
-    private ThumbnailGenerationService thumbnailGenerationService;
+    private ThumbnailService thumbnailService;
     @Mock
     private FileAclService fileAclService;
     @Mock
@@ -100,14 +96,11 @@ class TagServiceUTC {
 
     @BeforeEach
     void setUp() throws Exception {
-        tagService = new TagService(tagRepository, fileTagRepository, fileRepository, fileResponseEnricher, exportFileRepository, thumbFileRepository,
-                directoryProcessorService, thumbnailGenerationService, fileAclService, new TaskRunner(new TaskProgressStore(), Runnable::run),
-                applicationContext, TestExifTool.service());
+        tagService = new TagService(tagRepository, fileTagRepository, fileRepository, fileResponseEnricher, exportFileRepository, directoryProcessorService,
+                thumbnailService, fileAclService, new TaskRunner(new TaskProgressStore(), Runnable::run), applicationContext, TestExifTool.service());
         ReflectionTestUtils.setField(tagService, "originalRootDirectory", tempDir.toString());
         ReflectionTestUtils.setField(tagService, "exportRootDirectory", tempDir.resolve("export")
             .toString());
-        ReflectionTestUtils.setField(tagService, "thumbnailMinimumSize", 100);
-        ReflectionTestUtils.setField(tagService, "thumbnailQuality", 0.5f);
         when(applicationContext.getBean(TagService.class)).thenReturn(tagService);
         var principal = new UserDetailsImpl(1L, "admin", "Admin", "admin@nohost.nodomain", "Disabled", Set.of(), List.of());
         SecurityContextHolder.getContext()
@@ -314,25 +307,13 @@ class TagServiceUTC {
                 .sha256sum("stale")
                 .build();
             when(exportFileRepository.findByFileId(1L)).thenReturn(Optional.of(export));
-            var thumbnail = new ThumbFileEntity();
-            thumbnail.setFilePath("/thumb");
-            thumbnail.setFilename("a.jpeg");
-            var thumbnailFile = Files.createDirectories(tempDir.resolve("thumb"))
-                .resolve("a.jpeg");
-            Files.writeString(thumbnailFile, "thumb");
-            when(thumbFileRepository.findThumbnailIdByTargetFileId(1L)).thenReturn(Optional.of(9L));
-            when(thumbFileRepository.findById(9L)).thenReturn(Optional.of(thumbnail));
-
             tagService.addTag(request("fresh", null, List.of(1L)));
 
             assertThat(subjectsOf(exported)).containsExactly("old", "keep", "fresh");
             assertThat(export.getSha256sum()).isNotEqualTo("stale");
             assertThat(export.getFilesize()).isEqualTo(exported.length());
-            assertThat(thumbnailFile).doesNotExist();
-            verify(thumbFileRepository).delete(thumbnail);
             verify(exportFileRepository).save(export);
-            verify(thumbnailGenerationService).generateThumbnail(export, tempDir.toString(), tempDir.resolve("export")
-                .toString(), 100, 0.5f);
+            verify(thumbnailService).regenerate(export);
         }
 
         @Test
@@ -349,11 +330,8 @@ class TagServiceUTC {
 
             var exportDir = Files.createDirectories(tempDir.resolve("export"));
             SampleFiles.jpeg(exportDir.resolve("gone.jpg"));
-            when(thumbFileRepository.findThumbnailIdByTargetFileId(1L)).thenReturn(Optional.of(9L));
-            when(thumbFileRepository.findById(9L)).thenReturn(Optional.empty());
             tagService.addTag(request("second", null, List.of(1L)));
-            verify(thumbFileRepository, never()).delete(any(ThumbFileEntity.class));
-            verify(thumbnailGenerationService).generateThumbnail(any(), any(), any(), any(Integer.class), any(Float.class));
+            verify(thumbnailService).regenerate(any());
         }
 
         @Test
@@ -367,9 +345,8 @@ class TagServiceUTC {
                 .filename("a.jpg")
                 .build();
             when(exportFileRepository.findByFileId(1L)).thenReturn(Optional.of(export));
-            when(thumbFileRepository.findThumbnailIdByTargetFileId(1L)).thenReturn(Optional.empty());
-            doThrow(new IllegalStateException("no thumbnail")).when(thumbnailGenerationService)
-                .generateThumbnail(any(), any(), any(), any(Integer.class), any(Float.class));
+            doThrow(new IOException("no thumbnail")).when(thumbnailService)
+                .regenerate(any());
 
             assertThatThrownBy(() -> tagService.addTag(request("fresh", null, List.of(1L)))).isInstanceOf(IllegalStateException.class)
                 .hasMessage("Failed to update tags for file 1")

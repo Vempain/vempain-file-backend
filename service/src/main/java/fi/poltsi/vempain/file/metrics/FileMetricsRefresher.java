@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileProcessingQueueRepository;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class FileMetricsRefresher {
     private final FileProcessingQueueRepository queueRepository;
     private final FileRepository fileRepository;
     private final ExportFileRepository exportFileRepository;
+    private final FileThumbnailRepository thumbnailRepository;
     private final FileGroupRepository fileGroupRepository;
     private final SchedulerCheckpointRepository schedulerCheckpointRepository;
 
@@ -44,7 +46,8 @@ public class FileMetricsRefresher {
             fileMetrics.updateInventory(fileRepository.countFilesByType()
                 .stream()
                 .map(row -> new FileMetrics.FileTypeCount(row.getFileType(), row.getFileCount()))
-                .toList(), exportFileRepository.count(), fileGroupRepository.count(), fileGroupRepository.countByGalleryIdIsNotNull());
+                .toList(), exportFileRepository.count(), thumbnailRepository.count(), fileGroupRepository.count(),
+                    fileGroupRepository.countByGalleryIdIsNotNull());
             fileMetrics.setThumbnailsMissing(exportFileRepository.countImagesMissingThumbnails());
             fileMetrics.setRefreshCheckpointAgeSeconds(schedulerCheckpointRepository.findById(REFRESH_TASK_NAME)
                 .map(checkpoint -> Duration.between(checkpoint.getLastChecked(), Instant.now())

@@ -55,7 +55,6 @@ import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
-import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
@@ -471,36 +470,6 @@ class DirectoryProcessorServiceExtendedUTC {
                 .get(0)).getTechnology()).isEqualTo("SHOCKWAVE");
             assertThat(((InteractiveFileEntity) captor.getAllValues()
                 .get(1)).getTechnology()).isEqualTo("FLASH");
-        }
-
-        @Test
-        void thumbLinksToTheOriginalThroughTheDocumentId() throws Exception {
-            var target = new ImageFileEntity();
-            target.setId(9L);
-            when(fileRepository.findByOriginalDocumentId("doc-9")).thenReturn(null, target);
-            var json = metadataJson("image/x-thumbnail", group("XMP-xmpMM", new JSONObject().put("DerivedFromOriginalDocumentID", "doc-9")));
-
-            var entity = processed(write("a.thumb"), json);
-
-            assertThat(entity).isInstanceOf(ThumbFileEntity.class);
-            var thumb = (ThumbFileEntity) entity;
-            assertThat(thumb.getRelationType()).isEqualTo("thumbnail");
-            assertThat(thumb.getTargetFile()).isSameAs(target);
-            assertThat(thumb.getOriginalDocumentId()).isEqualTo("doc-9");
-        }
-
-        @Test
-        void thumbWithoutDocumentIdOrTargetStaysUnlinked() throws Exception {
-            try (var ignored = mockTool(metadataJson("image/x-thumbnail"))) {
-                service.processOriginalFile(write("b.thumb"), group);
-            }
-            when(fileRepository.findByOriginalDocumentId("doc-x")).thenReturn(null);
-            try (var ignored = mockTool(metadataJson("image/x-thumbnail", group("XMP-xmpMM", new JSONObject().put("InstanceID", "doc-x"))))) {
-                service.processOriginalFile(write("c.thumb"), group);
-            }
-            var captor = ArgumentCaptor.forClass(FileEntity.class);
-            verify(fileRepository, org.mockito.Mockito.times(2)).save(captor.capture());
-            assertThat(captor.getAllValues()).allSatisfy(entity -> assertThat(((ThumbFileEntity) entity).getTargetFile()).isNull());
         }
 
         @Test
@@ -926,12 +895,8 @@ class DirectoryProcessorServiceExtendedUTC {
                     new Case(new FontFileEntity(), FileTypeEnum.FONT, "r.ttf", null, new JSONObject[0]),
                     new Case(new IconFileEntity(), FileTypeEnum.ICON, "r.ico", null, new JSONObject[0]),
                     new Case(new InteractiveFileEntity(), FileTypeEnum.INTERACTIVE, "r.dir", null, new JSONObject[0]),
-                    new Case(new ThumbFileEntity(), FileTypeEnum.THUMB, "r.thumb", "image/x-thumbnail",
-                            new JSONObject[]{ group("XMP-xmpMM", new JSONObject().put("OriginalDocumentID", "doc-t")) }),
                     new Case(new VectorFileEntity(), FileTypeEnum.VECTOR, "r.svg", null, new JSONObject[0]),
                     new Case(new VideoFileEntity(), FileTypeEnum.VIDEO, "r.mp4", null, new JSONObject[0]));
-            var target = new ImageFileEntity();
-            when(fileRepository.findByOriginalDocumentId("doc-t")).thenReturn(target);
 
             for (var testCase : cases) {
                 var entity = stored(testCase.entity(), testCase.type(), testCase.name());
@@ -960,11 +925,9 @@ class DirectoryProcessorServiceExtendedUTC {
                 .entity()).getIsScalable()).isTrue();
             assertThat(((InteractiveFileEntity) cases.get(8)
                 .entity()).getTechnology()).isEqualTo("SHOCKWAVE");
-            assertThat(((ThumbFileEntity) cases.get(9)
-                .entity()).getTargetFile()).isSameAs(target);
-            assertThat(((VectorFileEntity) cases.get(10)
+            assertThat(((VectorFileEntity) cases.get(9)
                 .entity()).getLayersCount()).isEqualTo(4);
-            assertThat(((VideoFileEntity) cases.get(11)
+            assertThat(((VideoFileEntity) cases.get(10)
                 .entity()).getCodec()).isEqualTo("h264");
             verify(fileRepository, org.mockito.Mockito.times(cases.size())).save(any(FileEntity.class));
         }

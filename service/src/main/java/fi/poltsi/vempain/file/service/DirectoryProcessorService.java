@@ -48,7 +48,6 @@ import fi.poltsi.vempain.file.entity.InteractiveFileEntity;
 import fi.poltsi.vempain.file.entity.MetadataEntity;
 import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.entity.TagEntity;
-import fi.poltsi.vempain.file.entity.ThumbFileEntity;
 import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
@@ -373,10 +372,9 @@ public class DirectoryProcessorService {
             case IMAGE -> new ImageFileEntity();
             case INTERACTIVE -> new InteractiveFileEntity();
             case MUSIC -> new MusicFileEntity();
-            case THUMB -> new ThumbFileEntity();
+            case THUMB, UNKNOWN -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
             case VECTOR -> new VectorFileEntity();
             case VIDEO -> new VideoFileEntity();
-            case UNKNOWN -> throw new IllegalArgumentException("Unsupported file type for file: " + file.getName());
         };
 
         // Preserve original externalFileId logic (IMAGE had a dash, others not)
@@ -506,6 +504,11 @@ public class DirectoryProcessorService {
             fileTypeEnum = FileTypeEnum.MUSIC;
         }
 
+        if (fileTypeEnum == FileTypeEnum.THUMB) {
+            log.debug("Remapping generated thumbnail MIME type to IMAGE: {}", file.getName());
+            fileTypeEnum = FileTypeEnum.IMAGE;
+        }
+
         if (fileTypeEnum == FileTypeEnum.UNKNOWN) {
             log.warn("Unsupported file type: {}", file.getName());
             return Boolean.FALSE;
@@ -625,19 +628,6 @@ public class DirectoryProcessorService {
                 inter.setTechnology(determineInteractiveTechnology(mimetype));
                 fileRepository.save(inter);
                 linkFileToGroup(inter, fileGroup);
-            }
-            case THUMB -> {
-                var thumb = (ThumbFileEntity) fileEntity;
-                thumb.setRelationType("thumbnail");
-                // Try to link to original file via originalDocumentId if present
-                if (fileEntity.getOriginalDocumentId() != null) {
-                    var target = fileRepository.findByOriginalDocumentId(fileEntity.getOriginalDocumentId());
-                    if (target != null) {
-                        thumb.setTargetFile(target);
-                    }
-                }
-                fileRepository.save(thumb);
-                linkFileToGroup(thumb, fileGroup);
             }
             case VECTOR -> {
                 var vectorFile = (VectorFileEntity) fileEntity;
@@ -893,14 +883,6 @@ public class DirectoryProcessorService {
                 imageFile.setGroupLabel(extractLabel(jsonObject));
             }
             case INTERACTIVE -> ((InteractiveFileEntity) existingFile).setTechnology(determineInteractiveTechnology(mimetype));
-            case THUMB -> {
-                var thumb = (ThumbFileEntity) existingFile;
-                thumb.setRelationType("thumbnail");
-                if (existingFile.getOriginalDocumentId() != null) {
-                    var target = fileRepository.findByOriginalDocumentId(existingFile.getOriginalDocumentId());
-                    thumb.setTargetFile(target);
-                }
-            }
             case VECTOR -> {
                 var vectorFile = (VectorFileEntity) existingFile;
                 var res = extractXYResolution(jsonObject);

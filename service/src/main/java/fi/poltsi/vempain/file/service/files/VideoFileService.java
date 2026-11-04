@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.VideoFileEntity;
 import fi.poltsi.vempain.file.repository.files.VideoFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class VideoFileService {
     private final VideoFileRepository videoFileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<VideoFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class VideoFileService {
             log.warn("Video file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(videoFileRepository.findById(id)
-            .orElseThrow());
+        videoFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         videoFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

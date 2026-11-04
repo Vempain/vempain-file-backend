@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.ArchiveFileEntity;
 import fi.poltsi.vempain.file.repository.files.ArchiveFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,10 +26,12 @@ public class ArchiveFileService {
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
 
+    private final ThumbnailService thumbnailService;
+
     @Transactional(readOnly = true)
     public PagedResponse<ArchiveFileResponse> findAll(PagedRequest pagedRequest) {
         var safePage = Math.max(0, pagedRequest.getPage());
-        var safeSize = Math.min(Math.max(pagedRequest.getSize(), 1), 200);
+        var safeSize = Math.clamp(pagedRequest.getSize(), 1, 200);
         var sort = FileSearchHelper.buildSort(pagedRequest.getSortBy(), pagedRequest.getDirection());
         Specification<ArchiveFileEntity> spec = fileAclService
             .readableFiles(FileSearchHelper.buildSpecification(pagedRequest.getSearch(), Boolean.TRUE.equals(pagedRequest.getCaseSensitive())));
@@ -54,8 +57,11 @@ public class ArchiveFileService {
             log.warn("Archive file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(archiveFileRepository.findById(id)
-            .orElseThrow());
+        archiveFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         archiveFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

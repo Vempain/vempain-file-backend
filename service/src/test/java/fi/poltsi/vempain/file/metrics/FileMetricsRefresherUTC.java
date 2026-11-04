@@ -15,6 +15,7 @@ import fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity;
 import fi.poltsi.vempain.file.repository.ExportFileRepository;
 import fi.poltsi.vempain.file.repository.FileGroupRepository;
 import fi.poltsi.vempain.file.repository.FileProcessingQueueRepository;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 import fi.poltsi.vempain.file.repository.SchedulerCheckpointRepository;
 import fi.poltsi.vempain.file.repository.files.FileRepository;
 import fi.poltsi.vempain.file.repository.files.FileTypeCountProjection;
@@ -37,6 +38,8 @@ class FileMetricsRefresherUTC {
     @Mock
     private ExportFileRepository exportFileRepository;
     @Mock
+    private FileThumbnailRepository thumbnailRepository;
+    @Mock
     private FileGroupRepository fileGroupRepository;
     @Mock
     private SchedulerCheckpointRepository schedulerCheckpointRepository;
@@ -45,11 +48,12 @@ class FileMetricsRefresherUTC {
     void refreshFeedsEveryGauge() {
         var registry = new SimpleMeterRegistry();
         var metrics = new FileMetrics(registry);
-        var refresher = new FileMetricsRefresher(metrics, queueRepository, fileRepository, exportFileRepository, fileGroupRepository,
+        var refresher = new FileMetricsRefresher(metrics, queueRepository, fileRepository, exportFileRepository, thumbnailRepository, fileGroupRepository,
                 schedulerCheckpointRepository);
         when(queueRepository.countByStatusAndFileType()).thenReturn(List.of(queueRow(FileProcessingStatus.QUEUED, FileTypeEnum.VIDEO, 3)));
         when(fileRepository.countFilesByType()).thenReturn(List.of(typeRow("IMAGE", 10)));
         when(exportFileRepository.count()).thenReturn(9L);
+        when(thumbnailRepository.count()).thenReturn(8L);
         when(exportFileRepository.countImagesMissingThumbnails()).thenReturn(2L);
         when(fileGroupRepository.count()).thenReturn(4L);
         when(fileGroupRepository.countByGalleryIdIsNotNull()).thenReturn(1L);
@@ -90,11 +94,12 @@ class FileMetricsRefresherUTC {
     void refreshWithoutCheckpointReportsMinusOneAndAFailingQueryKeepsTheOldValues() {
         var registry = new SimpleMeterRegistry();
         var metrics = new FileMetrics(registry);
-        var refresher = new FileMetricsRefresher(metrics, queueRepository, fileRepository, exportFileRepository, fileGroupRepository,
+        var refresher = new FileMetricsRefresher(metrics, queueRepository, fileRepository, exportFileRepository, thumbnailRepository, fileGroupRepository,
                 schedulerCheckpointRepository);
         when(queueRepository.countByStatusAndFileType()).thenReturn(List.of());
         when(fileRepository.countFilesByType()).thenReturn(List.of());
         when(exportFileRepository.count()).thenReturn(5L);
+        when(thumbnailRepository.count()).thenReturn(0L);
         when(exportFileRepository.countImagesMissingThumbnails()).thenReturn(0L);
         when(fileGroupRepository.count()).thenReturn(0L);
         when(fileGroupRepository.countByGalleryIdIsNotNull()).thenReturn(0L);

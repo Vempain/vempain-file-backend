@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.VectorFileEntity;
 import fi.poltsi.vempain.file.repository.files.VectorFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class VectorFileService {
     private final VectorFileRepository vectorFileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<VectorFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class VectorFileService {
             log.warn("Vector file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(vectorFileRepository.findById(id)
-            .orElseThrow());
+        vectorFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         vectorFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

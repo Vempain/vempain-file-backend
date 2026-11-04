@@ -18,8 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * The map of the original files with GPS coordinates: the shared clustering query of {@code vempain-common-core} over this backend's {@code files} and
- * {@code gps_locations} tables, the tags of the files and their thumbnails ({@code thumb_files}), filtered to the files the caller may read. Location guards do
- * not apply: the map is the file administrator's own view of the originals, the guards only decide what is published.
+ * {@code gps_locations} tables, the tags of the files and their thumbnails ({@code file_thumbnails}), filtered to the files the caller may read. Location
+ * guards do not apply: the map is the file administrator's own view of the originals, the guards only decide what is published.
  */
 @Slf4j
 @Service
@@ -42,8 +42,8 @@ public class MapService {
         .tagLinkTagColumn("tag_id")
         .tagTable("tags")
         .tagNameColumn("tag_name")
-        // the thumbnail of a file is the thumb file whose target it is; the file SPA shows it through the file content endpoint
-        .thumbnailSubquery("(SELECT MIN(t.id) FROM thumb_files t WHERE t.target_file_id = p.id AND t.relation_type = 'thumbnail')")
+        // the thumbnail is a sub-resource of the parent file; the file SPA shows it through the thumbnail content endpoint
+        .thumbnailSubquery("(SELECT MIN(t.id) FROM file_thumbnails t WHERE t.file_id = p.id)")
         .build();
 
     private final MapClusterQuery query;

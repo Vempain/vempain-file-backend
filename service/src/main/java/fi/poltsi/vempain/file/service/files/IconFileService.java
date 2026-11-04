@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.IconFileEntity;
 import fi.poltsi.vempain.file.repository.files.IconFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class IconFileService {
     private final IconFileRepository iconFileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<IconFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class IconFileService {
             log.warn("Icon file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(iconFileRepository.findById(id)
-            .orElseThrow());
+        iconFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         iconFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

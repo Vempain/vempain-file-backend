@@ -271,6 +271,12 @@ public class FileScannerService {
             return root;
         }
         var relativePath = selectedDirectory.startsWith("/") ? selectedDirectory.substring(1) : selectedDirectory;
+        if (isOriginalRoot(configuredRoot)
+            && (relativePath.equals("thumb")
+                || relativePath.startsWith("thumb/"))) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "The thumbnail directory is generated and cannot be scanned");
+        }
         var resolved = root.resolve(relativePath)
             .normalize();
         final Path realResolved;
@@ -293,6 +299,7 @@ public class FileScannerService {
             leafDirectories.addAll(Files.walk(scanDirectory)
                 .filter(Files::isDirectory)
                 .filter(path -> !Files.isSymbolicLink(path))
+                .filter(path -> !isGeneratedThumbnailDirectory(scanDirectory, path))
                 .filter(path -> !path.getFileName()
                     .toString()
                     .startsWith("."))
@@ -305,5 +312,25 @@ public class FileScannerService {
         }
 
         return true;
+    }
+
+    private boolean isOriginalRoot(String configuredRoot) {
+        return Path.of(configuredRoot)
+            .toAbsolutePath()
+            .normalize()
+            .equals(Path.of(originalRootDirectory)
+                .toAbsolutePath()
+                .normalize());
+    }
+
+    private boolean isGeneratedThumbnailDirectory(Path scanDirectory, Path path) {
+        if (!isOriginalRoot(originalRootDirectory)) {
+            return false;
+        }
+        var root = Path.of(originalRootDirectory)
+            .toAbsolutePath()
+            .normalize();
+        return scanDirectory.equals(root)
+               && path.startsWith(root.resolve("thumb"));
     }
 }

@@ -13,6 +13,7 @@ import fi.poltsi.vempain.file.entity.BinaryFileEntity;
 import fi.poltsi.vempain.file.repository.files.BinaryFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,8 @@ public class BinaryFileService {
     private final BinaryFileRepository repository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<BinaryFileResponse> findAll(PagedRequest pagedRequest) {
@@ -54,8 +57,11 @@ public class BinaryFileService {
             log.warn("Binary file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(repository.findById(id)
-            .orElseThrow());
+        repository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         repository.deleteById(id);
         return HttpStatus.OK;
     }

@@ -15,6 +15,7 @@ import fi.poltsi.vempain.file.entity.MusicFileEntity;
 import fi.poltsi.vempain.file.repository.files.MusicFileRepository;
 import fi.poltsi.vempain.file.service.FileAclService;
 import fi.poltsi.vempain.file.service.FileResponseEnricher;
+import fi.poltsi.vempain.file.service.ThumbnailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,6 +27,8 @@ public class MusicFileService {
     private final MusicFileRepository musicFileRepository;
     private final FileResponseEnricher fileResponseEnricher;
     private final FileAclService fileAclService;
+
+    private final ThumbnailService thumbnailService;
 
     @Transactional(readOnly = true)
     public PagedResponse<MusicFileResponse> findAll(PagedRequest pagedRequest) {
@@ -56,8 +59,11 @@ public class MusicFileService {
             log.warn("Music file with id {} not found", id);
             return HttpStatus.NOT_FOUND;
         }
-        fileAclService.requireDelete(musicFileRepository.findById(id)
-            .orElseThrow());
+        musicFileRepository.findById(id)
+            .ifPresent(file -> {
+                fileAclService.requireDelete(file);
+                thumbnailService.deleteForFile(file);
+            });
         musicFileRepository.deleteById(id);
         return HttpStatus.OK;
     }

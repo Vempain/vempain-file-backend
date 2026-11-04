@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 
 import javax.imageio.ImageIO;
 
@@ -14,16 +13,13 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import fi.poltsi.vempain.auth.entity.Acl;
-import fi.poltsi.vempain.auth.exception.VempainAclException;
-import fi.poltsi.vempain.auth.service.AclService;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
 import fi.poltsi.vempain.file.entity.FileEntity;
-import fi.poltsi.vempain.file.entity.ThumbFileEntity;
+import fi.poltsi.vempain.file.entity.FileThumbnailEntity;
 import fi.poltsi.vempain.file.metrics.FileMetrics;
 import fi.poltsi.vempain.file.metrics.ToolMetrics;
-import fi.poltsi.vempain.file.repository.files.ThumbFileRepository;
+import fi.poltsi.vempain.file.repository.FileThumbnailRepository;
 import fi.poltsi.vempain.file.tools.ImageTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,22 +31,21 @@ import static fi.poltsi.vempain.file.tools.FileTool.computeSha256;
 @RequiredArgsConstructor
 public class ThumbnailGenerationService {
 
-    private final ThumbFileRepository thumbFileRepository;
+    private final FileThumbnailRepository thumbnailRepository;
     private final ImageTool imageTool;
-    private final AclService aclService;
     private final FileMetrics fileMetrics;
 
     @Transactional
     public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory, int thumbnailMinimumSize,
-            float thumbnailQuality) throws IOException, VempainAclException {
+            float thumbnailQuality) throws IOException {
         generateThumbnail(exportFile, originalRootDirectory, exportRootDirectory, thumbnailMinimumSize, thumbnailQuality, 0.3f);
     }
 
     @Transactional
     public void generateThumbnail(ExportFileEntity exportFile, String originalRootDirectory, String exportRootDirectory, int thumbnailMinimumSize,
-            float thumbnailQuality, float videoCapturePercentage) throws IOException, VempainAclException {
+            float thumbnailQuality, float videoCapturePercentage) throws IOException {
         var targetFile = exportFile.getFile();
-        if (thumbFileRepository.existsByTargetFileId(targetFile.getId())) {
+        if (thumbnailRepository.existsByFileId(targetFile.getId())) {
             return;
         }
 
@@ -76,9 +71,8 @@ public class ThumbnailGenerationService {
             imageTool.resizeImage(sourcePath, temporaryPath, thumbnailMinimumSize, thumbnailQuality, null);
             Files.move(temporaryPath, thumbnail.destinationPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
-            var acl = aclService.createUniqueAcl(targetFile.getCreator(), null, true, true, true, true);
-            var thumbnailFile = createThumbnailEntity(targetFile, acl, thumbnail);
-            thumbFileRepository.saveAndFlush(thumbnailFile);
+            var thumbnailFile = createThumbnailEntity(targetFile, thumbnail);
+            thumbnailRepository.saveAndFlush(thumbnailFile);
             generated = true;
             log.info("Generated thumbnail for file id={} at {}", targetFile.getId(), thumbnail.relativePath());
         } finally {
@@ -123,19 +117,16 @@ public class ThumbnailGenerationService {
         }
     }
 
-    private ThumbFileEntity createThumbnailEntity(FileEntity targetFile, Acl acl, ThumbnailPath thumbnail) {
-        var thumbnailFile = new ThumbFileEntity();
-        thumbnailFile.setAclId(acl.getAclId());
-        thumbnailFile.setCreated(Instant.now());
-        thumbnailFile.setCreator(targetFile.getCreator());
-        thumbnailFile.setExternalFileId("THUMB-" + targetFile.getId());
+    private FileThumbnailEntity createThumbnailEntity(FileEntity targetFile, ThumbnailPath thumbnail) throws IOException {
+        var image = ImageIO.read(thumbnail.destinationPath()
+            .toFile());
+        var thumbnailFile = new FileThumbnailEntity();
+        thumbnailFile.setCreated(java.time.Instant.now());
         thumbnailFile.setFilename(thumbnail.filename());
-        thumbnailFile.setFilePath(thumbnail.filePath());
-        thumbnailFile.setFileType(FileTypeEnum.THUMB);
+        thumbnailFile.setFilePath(thumbnail.relativePath());
         thumbnailFile.setFilesize(thumbnail.destinationPath()
             .toFile()
             .length());
-        thumbnailFile.setMetadataRaw("{}");
         thumbnailFile.setMimetype("image/jpeg");
         var sha256sum = computeSha256(thumbnail.destinationPath()
             .toFile());
@@ -143,10 +134,11 @@ public class ThumbnailGenerationService {
             throw new IllegalStateException("Failed to calculate thumbnail checksum: " + thumbnail.destinationPath());
         }
         thumbnailFile.setSha256sum(sha256sum);
-        thumbnailFile.setTargetFile(targetFile);
-        thumbnailFile.setRelationType("thumbnail");
-        // The thumbnail describes the same content as the file it was made from; its pixel size is derived data, not a description
-        thumbnailFile.setDescription(targetFile.getDescription());
+        thumbnailFile.setFile(targetFile);
+        if (image != null) {
+            thumbnailFile.setWidth(image.getWidth());
+            thumbnailFile.setHeight(image.getHeight());
+        }
         return thumbnailFile;
     }
 

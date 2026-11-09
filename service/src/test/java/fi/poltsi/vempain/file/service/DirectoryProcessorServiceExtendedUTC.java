@@ -387,9 +387,9 @@ class DirectoryProcessorServiceExtendedUTC {
                 .stream()
                 .map(entity -> (ExecutableFileEntity) entity)
                 .toList();
-            assertThat(executables.get(0)
+            assertThat(executables.getFirst()
                 .getOperatingSystems()).containsExactly("OTHER");
-            assertThat(executables.get(0)
+            assertThat(executables.getFirst()
                 .isScript()).isTrue();
             assertThat(executables.get(1)
                 .getOperatingSystems()).containsExactly("JVM");
@@ -467,7 +467,7 @@ class DirectoryProcessorServiceExtendedUTC {
             var captor = ArgumentCaptor.forClass(FileEntity.class);
             verify(fileRepository, org.mockito.Mockito.times(2)).save(captor.capture());
             assertThat(((InteractiveFileEntity) captor.getAllValues()
-                .get(0)).getTechnology()).isEqualTo("SHOCKWAVE");
+                .getFirst()).getTechnology()).isEqualTo("SHOCKWAVE");
             assertThat(((InteractiveFileEntity) captor.getAllValues()
                 .get(1)).getTechnology()).isEqualTo("FLASH");
         }
@@ -907,7 +907,7 @@ class DirectoryProcessorServiceExtendedUTC {
                 assertThat(entity.getFileType()).isEqualTo(testCase.type());
             }
 
-            assertThat(((ArchiveFileEntity) cases.get(0)
+            assertThat(((ArchiveFileEntity) cases.getFirst()
                 .entity()).getUncompressedSize()).isEqualTo(600L);
             assertThat(((AudioFileEntity) cases.get(1)
                 .entity()).getChannels()).isEqualTo(2);

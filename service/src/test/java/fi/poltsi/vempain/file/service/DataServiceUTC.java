@@ -583,7 +583,7 @@ class DataServiceUTC {
         var captor = ArgumentCaptor.forClass(DataRequest.class);
         verify(vempainAdminDataClient, org.mockito.Mockito.times(2)).updateDataSet(captor.capture());
         assertThat(captor.getAllValues()
-            .get(0)
+            .getFirst()
             .getCsvData()).contains("Miles Davis");
         assertThat(captor.getAllValues()
             .get(1)
@@ -783,9 +783,9 @@ class DataServiceUTC {
         var sent = captor.getValue()
             .getAcls();
         assertThat(sent).hasSize(1);
-        assertThat(sent.get(0)
+        assertThat(sent.getFirst()
             .getUserId()).isEqualTo(12L);
-        assertThat(sent.get(0)
+        assertThat(sent.getFirst()
             .isModifyPrivilege()).isTrue();
 
         // without grantees nothing is sent, so the admin backend keeps the current ones
@@ -831,14 +831,14 @@ class DataServiceUTC {
         var requests = org.mockito.ArgumentCaptor.forClass(DataRequest.class);
         verify(vempainAdminDataClient, org.mockito.Mockito.times(2)).updateDataSet(requests.capture());
         assertThat(requests.getAllValues()
-            .get(0)
+            .getFirst()
             .getAcls()).isEmpty();
         var restored = requests.getAllValues()
             .get(1);
         assertThat(restored.getCsvData()).isEqualTo("old");
         assertThat(restored.getAcls()).hasSize(1);
         assertThat(restored.getAcls()
-            .get(0)
+            .getFirst()
             .getUnitId()).isEqualTo(3L);
     }
 
@@ -859,10 +859,10 @@ class DataServiceUTC {
         assertThat(published.isPublished()).isTrue();
         assertThat(published.getAcls()).hasSize(1);
         assertThat(published.getAcls()
-            .get(0)
+            .getFirst()
             .getUserId()).isEqualTo(12L);
         assertThat(published.getAcls()
-            .get(0)
+            .getFirst()
             .isDeletePrivilege()).isTrue();
 
         var fresh = dataService.dataSetStatus("gps_timeseries_new");
@@ -913,7 +913,7 @@ class DataServiceUTC {
         assertThat(page.getTotalPages()).isEqualTo(2);
         assertThat(page.isLast()).isTrue();
         var row = page.getContent()
-            .get(0);
+            .getFirst();
         assertThat(row.getIdentifier()).isEqualTo("gps_timeseries_trip");
         assertThat(row.getAclId()).isEqualTo(42L);
         assertThat(row.getCreator()).isEqualTo(1L);

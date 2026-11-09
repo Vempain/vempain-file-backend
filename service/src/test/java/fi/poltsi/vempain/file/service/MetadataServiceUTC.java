@@ -485,7 +485,7 @@ class MetadataServiceUTC {
             .build());
 
         assertThat(pageable.getAllValues()
-            .get(0)
+            .getFirst()
             .getSort()
             .getOrderFor("metadata_group")).isNotNull();
         assertThat(pageable.getAllValues()

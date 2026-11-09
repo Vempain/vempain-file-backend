@@ -38,7 +38,7 @@ class FileGroupRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains("LOWER(fg.path) LIKE :term0 ESCAPE '\\'")
+            .getFirst()).contains("LOWER(fg.path) LIKE :term0 ESCAPE '\\'")
             .doesNotContain("50%");
         verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%50\\%%");
         verify(query, org.mockito.Mockito.times(2)).setParameter("term1", "%a\\_b%");
@@ -52,7 +52,7 @@ class FileGroupRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains("fg.path LIKE :term0 ESCAPE '\\'");
+            .getFirst()).contains("fg.path LIKE :term0 ESCAPE '\\'");
         verify(query, org.mockito.Mockito.times(2)).setParameter("term0", "%Trip\\_\\%%");
     }
 
@@ -65,7 +65,7 @@ class FileGroupRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains("COUNT(f.id) AS file_count, COUNT(e.id) AS exported_file_count")
+            .getFirst()).contains("COUNT(f.id) AS file_count, COUNT(e.id) AS exported_file_count")
             .contains("LEFT JOIN export_files e ON e.file_id = f.id");
         var row = page.getContent()
             .getFirst();
@@ -83,7 +83,7 @@ class FileGroupRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, exported_file_count ASC, fg.path ASC")
+            .getFirst()).contains(" ORDER BY fg.id DESC, fg.description ASC, fg.group_name ASC, file_count DESC, exported_file_count ASC, fg.path ASC")
             .doesNotContain("DROP TABLE")
             .doesNotContain(" WHERE ");
     }

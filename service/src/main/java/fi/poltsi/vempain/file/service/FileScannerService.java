@@ -154,7 +154,7 @@ public class FileScannerService {
             scanning(progress, scanDirectory, leafDir);
             // Each processDirectory call will run in its own transaction; the recorder counts every file as a step
             var results = directoryProcessorService.processOriginalDirectory(leafDir, errorMessage, failedFiles, successfulFileResponses, recorder);
-            scannedFilesCount += results.get(0);
+            scannedFilesCount += results.getFirst();
             newFilesCount += results.get(1);
             success = success
                       && scannedFilesCount == newFilesCount;
@@ -203,7 +203,7 @@ public class FileScannerService {
             scanning(progress, scanDirectory, leafDir);
             var processed = directoryProcessorService.processExportDirectory(leafDir, errorMessage, orphanedFiles, successfulFileResponses, recorder);
             log.debug("Processed {} in export directory", processed);
-            exportsScanned += processed.isEmpty() ? 0L : processed.get(0);
+            exportsScanned += processed.isEmpty() ? 0L : processed.getFirst();
             exportsNew += processed.size() < 2 ? 0L : processed.get(1);
         }
         fileMetrics.scanned(SCAN_EXPORT, exportsScanned, exportsNew);

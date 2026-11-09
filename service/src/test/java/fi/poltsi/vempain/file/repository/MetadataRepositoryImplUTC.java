@@ -40,7 +40,7 @@ class MetadataRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains("LOWER(m.metadata_group) LIKE :metadata_group ESCAPE '\\'")
+            .getFirst()).contains("LOWER(m.metadata_group) LIKE :metadata_group ESCAPE '\\'")
             .contains(" AND LOWER(m.metadata_value) LIKE :metadata_value ESCAPE '\\'")
             .doesNotContain("metadata_key LIKE")
             .contains(" ORDER BY m.metadata_group ASC, m.metadata_key ASC, m.metadata_value ASC")
@@ -72,7 +72,7 @@ class MetadataRepositoryImplUTC {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(entityManager, org.mockito.Mockito.times(2)).createNativeQuery(sql.capture());
         assertThat(sql.getAllValues()
-            .get(0)).contains("WHERE m.metadata_group LIKE :metadata_group ESCAPE '\\'")
+            .getFirst()).contains("WHERE m.metadata_group LIKE :metadata_group ESCAPE '\\'")
             .contains(" ORDER BY m.metadata_group DESC, m.metadata_group ASC, m.metadata_key ASC, m.metadata_value ASC");
         verify(query, org.mockito.Mockito.times(2)).setParameter("metadata_group", "%XMP%");
         assertThat(sql.getAllValues()

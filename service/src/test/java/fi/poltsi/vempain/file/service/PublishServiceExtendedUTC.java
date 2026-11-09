@@ -210,7 +210,7 @@ class PublishServiceExtendedUTC {
         var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
         verify(vempainAdminService, times(2)).uploadAsSiteFile(any(), captor.capture());
         var videoIngest = captor.getAllValues()
-            .get(0);
+            .getFirst();
         assertThat(videoIngest.getFileId()).isEqualTo(3L);
         assertThat(videoIngest.getLength()).isEqualTo(Duration.ofSeconds(90));
         assertThat(videoIngest.getLocation()).isNull();

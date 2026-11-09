@@ -218,7 +218,7 @@ class TagServiceExtendedUTC {
             var result = tagService.getTagRequestsByFileId(100L);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0)
+            assertThat(result.getFirst()
                 .getTagName()).isEqualTo("sunset");
         }
 

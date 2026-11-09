@@ -670,7 +670,7 @@ class PublishServiceUTC {
 
             var task = publishService.publishAllFileGroups();
             runner.cancel(task);
-            queued.get(0)
+            queued.getFirst()
                 .run();
 
             assertThat(task.getStatus()).isEqualTo(fi.poltsi.vempain.common.api.TaskStatusEnum.CANCELLED);
@@ -746,15 +746,15 @@ class PublishServiceUTC {
             var mapped = PublishService.toIngestAcls(List.of(acl(5L, true, true), acl(6L, true, false)));
 
             assertEquals(2, mapped.size());
-            assertEquals(5L, mapped.get(0)
+            assertEquals(5L, mapped.getFirst()
                 .getUserId());
-            assertTrue(mapped.get(0)
+            assertTrue(mapped.getFirst()
                 .isReadPrivilege());
-            assertTrue(mapped.get(0)
+            assertTrue(mapped.getFirst()
                 .isModifyPrivilege());
-            assertFalse(mapped.get(0)
+            assertFalse(mapped.getFirst()
                 .isCreatePrivilege());
-            assertFalse(mapped.get(0)
+            assertFalse(mapped.getFirst()
                 .isDeletePrivilege());
             assertEquals(6L, mapped.get(1)
                 .getUserId());
@@ -1076,7 +1076,7 @@ class PublishServiceUTC {
             var task = publishService.publishFile(PublishFileRequest.builder()
                 .fileId(55L)
                 .build());
-            queued.get(0)
+            queued.getFirst()
                 .run();
             assertThat(task.getStatus()).isEqualTo(TaskStatusEnum.COMPLETED);
 

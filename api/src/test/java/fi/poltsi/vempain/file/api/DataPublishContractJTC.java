@@ -57,7 +57,7 @@ class DataPublishContractJTC {
         assertEquals(1, music.getAcls()
             .size());
         var acl = music.getAcls()
-            .get(0);
+            .getFirst();
         assertEquals(12L, acl.getUserId());
         assertNull(acl.getUnitId());
         assertTrue(acl.isReadPrivilege());

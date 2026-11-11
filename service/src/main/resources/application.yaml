@@ -159,6 +159,14 @@ vempain:
     admin-backend-url: override-me
     # Service-to-service API token created in the admin UI (Administration > API tokens); sent as X-Vempain-Api-Token
     admin-backend-api-token: override-me
+  file:
+    api-token:
+      # Read-only MCP_READ API tokens (Administration > API tokens of the file UI) presented by vempain-mcp in X-Vempain-Api-Token.
+      # true when the services share a private Docker/Swarm network: the network of a new token is then pre-filled with the private
+      # network the file backend is attached to (set from ENV_VEMPAIN_PRIVATE_NETWORK in compose/swarm, like the admin backend)
+      private-network: false
+      # Explicit default network (CIDR) for deployments spanning hosts; empty = none
+      default-network: ""
   site-image-size: 1400
   site-video-size: 720p
   refresh-updated-files:

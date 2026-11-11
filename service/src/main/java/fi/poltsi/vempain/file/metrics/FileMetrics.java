@@ -42,6 +42,8 @@ public class FileMetrics {
     public static final String INVENTORY_THUMBNAILS = "vempain.inventory.thumbnails";
     public static final String INVENTORY_FILE_GROUPS = "vempain.inventory.file_groups";
     public static final String INVENTORY_FILE_GROUPS_PUBLISHED = "vempain.inventory.file_groups.published";
+    /** Same name as the token counter of the admin backend; the {@code application} common tag tells them apart. */
+    public static final String API_TOKEN_REQUESTS = "vempain.api_token.requests";
 
     /** Publish outcomes, the {@code result} tag of {@link #PUBLISH_FILES}. */
     public enum PublishResult {
@@ -190,6 +192,21 @@ public class FileMetrics {
 
     public void setRefreshCheckpointAgeSeconds(long seconds) {
         refreshCheckpointAgeSeconds.set(seconds);
+    }
+
+    // API tokens ------------------------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * One request that carried an API token, or a {@code /mcp} request without one.
+     *
+     * @param result accepted, unknown, expired, wrong_network, forbidden_endpoint or missing_user
+     */
+    public void apiTokenRequest(String result) {
+        Counter.builder(API_TOKEN_REQUESTS)
+            .description("Requests authenticated with an API token, by outcome")
+            .tag("result", result)
+            .register(registry)
+            .increment();
     }
 
     // Inventory -------------------------------------------------------------------------------------------------------------------------------------

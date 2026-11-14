@@ -3,16 +3,15 @@ package fi.poltsi.vempain.file.schedule;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-import fi.poltsi.vempain.auth.api.response.PagedResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
+import fi.poltsi.vempain.auth.exception.VempainAuthenticationException;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
@@ -55,9 +54,6 @@ public class UpdatedFileRefreshSchedule {
     @Value("${vempain.export-root-directory}")
     private String exportRootDirectory;
 
-    @Value("${vempain.export-file-type:jpeg}")
-    private String exportFileType;
-
     @Value("${vempain.scheduling.enabled:true}")
     private boolean schedulingEnabled = true;
 
@@ -97,6 +93,9 @@ public class UpdatedFileRefreshSchedule {
             return;
         }
 
+        repairSiteFilePublication(fileEntity);
+        var sitePublished = fileEntity.getSiteFilePublished();
+
         try {
             var modifiedAt = Files.getLastModifiedTime(sourcePath)
                 .toInstant();
@@ -107,13 +106,6 @@ public class UpdatedFileRefreshSchedule {
         } catch (Exception e) {
             log.warn("Unable to read last-modified time for file {}", sourcePath, e);
             return;
-        }
-
-        var sitePublished = fileEntity.getSiteFilePublished();
-        if (sitePublished == null) {
-            sitePublished = detectSiteFilePublication(fileEntity);
-            fileEntity.setSiteFilePublished(sitePublished);
-            fileRepository.save(fileEntity);
         }
 
         fileMetrics.refreshVerified();
@@ -142,34 +134,37 @@ public class UpdatedFileRefreshSchedule {
         }
     }
 
-    private boolean detectSiteFilePublication(FileEntity fileEntity) {
+    private void repairSiteFilePublication(FileEntity fileEntity) {
         if (fileEntity.getFileType() == FileTypeEnum.UNKNOWN) {
-            return false;
-        }
-
-        for (String filenameCandidate : resolveSiteFileNameCandidates(fileEntity)) {
-            for (String filterColumn : List.of("file_name", "filename")) {
-                PagedResponse<fi.poltsi.vempain.admin.api.response.file.SiteFileResponse> response = vempainAdminService
-                    .getPageableSiteFiles(fileEntity.getFileType(), 0, 50, "id", Sort.Direction.ASC, filenameCandidate, filterColumn);
-                if (response == null
-                    || response.getContent() == null
-                    || response.getContent()
-                        .isEmpty()) {
-                    continue;
-                }
-
-                var expectedPath = normalizePath(fileEntity.getFilePath());
-                boolean match = response.getContent()
-                    .stream()
-                    .anyMatch(siteFile -> Objects.equals(normalizePath(siteFile.getFilePath()), expectedPath)
-                                          && Objects.equals(siteFile.getFileName(), filenameCandidate));
-                if (match) {
-                    return true;
-                }
+            if (fileEntity.getSiteFilePublished() == null) {
+                fileEntity.setSiteFilePublished(false);
+                fileRepository.save(fileEntity);
             }
+            return;
         }
 
-        return false;
+        if (Boolean.TRUE.equals(fileEntity.getSiteFilePublished())
+            && fileEntity.getSiteFileId() != null) {
+            return;
+        }
+
+        try {
+            var siteFile = vempainAdminService.getSiteFileAclsByFileId(fileEntity.getId());
+            if (siteFile.isPresent()) {
+                updateSiteFilePublication(fileEntity, siteFile.get());
+            } else if (fileEntity.getSiteFilePublished() == null) {
+                fileEntity.setSiteFilePublished(false);
+                fileRepository.save(fileEntity);
+            }
+        } catch (VempainAuthenticationException | ResponseStatusException e) {
+            log.warn("Unable to verify site publication for file id {}", fileEntity.getId(), e);
+        }
+    }
+
+    private void updateSiteFilePublication(FileEntity fileEntity, FileIngestSiteFileAclResponse siteFile) {
+        fileEntity.setSiteFileId(siteFile.getSiteFileId());
+        fileEntity.setSiteFilePublished(true);
+        fileRepository.save(fileEntity);
     }
 
     private void refreshLinkedExport(Long fileId) {
@@ -227,30 +222,5 @@ public class UpdatedFileRefreshSchedule {
             return "";
         }
         return value.startsWith("/") ? value.substring(1) : value;
-    }
-
-    private List<String> resolveSiteFileNameCandidates(FileEntity fileEntity) {
-        var candidates = new ArrayList<String>();
-        exportFileRepository.findByFileId(fileEntity.getId())
-            .map(ExportFileEntity::getFilename)
-            .ifPresent(candidates::add);
-        candidates.add(fileEntity.getFilename());
-
-        if (fileEntity.getFileType() == FileTypeEnum.IMAGE
-            && fileEntity.getFilename() != null) {
-            int suffixIndex = fileEntity.getFilename()
-                .lastIndexOf('.');
-            if (suffixIndex > 0) {
-                candidates.add(fileEntity.getFilename()
-                    .substring(0, suffixIndex)
-                        + "."
-                        + exportFileType);
-            }
-        }
-
-        return candidates.stream()
-            .filter(Objects::nonNull)
-            .distinct()
-            .toList();
     }
 }

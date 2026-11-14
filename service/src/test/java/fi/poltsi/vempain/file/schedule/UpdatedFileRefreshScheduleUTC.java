@@ -11,11 +11,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import fi.poltsi.vempain.admin.api.response.file.SiteFileResponse;
-import fi.poltsi.vempain.auth.api.response.PagedResponse;
+import fi.poltsi.vempain.admin.api.response.file.FileIngestSiteFileAclResponse;
 import fi.poltsi.vempain.common.api.FileTypeEnum;
 import fi.poltsi.vempain.common.metadata.ExifToolService;
 import fi.poltsi.vempain.file.entity.ExportFileEntity;
@@ -73,6 +71,7 @@ class UpdatedFileRefreshScheduleUTC {
         fileEntity.setFileType(FileTypeEnum.IMAGE);
         fileEntity.setSha256sum("old-sha");
         fileEntity.setSiteFilePublished(true);
+        fileEntity.setSiteFileId(500L);
 
         when(fileRepository.findAll()).thenReturn(List.of(fileEntity));
         when(fileRepository.findById(1L)).thenReturn(Optional.of(fileEntity));
@@ -82,8 +81,6 @@ class UpdatedFileRefreshScheduleUTC {
 
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportRootDirectory", root.toString());
-        ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportFileType", "jpeg");
-
         updatedFileRefreshSchedule.runRefresh();
 
         verify(directoryProcessorService).refreshExistingOriginalFile(eq(fileEntity), eq(filePath.toFile()));
@@ -105,35 +102,24 @@ class UpdatedFileRefreshScheduleUTC {
         fileEntity.setSha256sum(computeSha256(filePath.toFile()));
         fileEntity.setSiteFilePublished(null);
 
-        var siteFileResponse = SiteFileResponse.builder()
-            .fileName("known.jpg")
-            .filePath("")
-            .build();
-        var pagedResponse = new PagedResponse<SiteFileResponse>();
-        pagedResponse.setContent(List.of(siteFileResponse));
-        pagedResponse.setPage(0);
-        pagedResponse.setSize(50);
-        pagedResponse.setTotalElements(1);
-        pagedResponse.setTotalPages(1);
-        pagedResponse.setFirst(true);
-        pagedResponse.setLast(true);
-
         when(fileRepository.findAll()).thenReturn(List.of(fileEntity));
         when(schedulerCheckpointRepository.findById("updated_file_refresh"))
             .thenReturn(Optional.of(fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity.builder()
                 .taskName("updated_file_refresh")
                 .lastChecked(Instant.EPOCH)
                 .build()));
-        when(vempainAdminService.getPageableSiteFiles(eq(FileTypeEnum.IMAGE), eq(0), eq(50), eq("id"), eq(Sort.Direction.ASC), eq("known.jpg"), any()))
-            .thenReturn(pagedResponse);
+        when(vempainAdminService.getSiteFileAclsByFileId(2L)).thenReturn(Optional.of(FileIngestSiteFileAclResponse.builder()
+            .siteFileId(600L)
+            .fileId(2L)
+            .build()));
 
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root.toString());
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportRootDirectory", root.toString());
-        ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportFileType", "jpeg");
-
         updatedFileRefreshSchedule.runRefresh();
 
         verify(fileRepository).save(fileEntity);
+        assertThat(fileEntity.getSiteFileId()).isEqualTo(600L);
+        assertThat(fileEntity.getSiteFilePublished()).isTrue();
         verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());
         verify(publishService, never()).republishSiteFile(any());
     }
@@ -154,13 +140,16 @@ class UpdatedFileRefreshScheduleUTC {
         missing.setFilePath("/");
         missing.setFilename("missing.jpg");
         var old = new ImageFileEntity();
+        old.setId(11L);
         old.setFilePath("/");
         old.setFilename("old.jpg");
+        old.setFileType(FileTypeEnum.IMAGE);
         var oldPath = root.resolve("old.jpg");
         Files.writeString(oldPath, "old");
         old.setSha256sum("different");
 
         when(fileRepository.findAll()).thenReturn(List.of(missing, old));
+        when(vempainAdminService.getSiteFileAclsByFileId(11L)).thenReturn(Optional.empty());
         when(schedulerCheckpointRepository.findById("updated_file_refresh"))
             .thenReturn(Optional.of(fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity.builder()
                 .taskName("updated_file_refresh")
@@ -189,7 +178,6 @@ class UpdatedFileRefreshScheduleUTC {
     private void configureRoots(String root) {
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "originalRootDirectory", root);
         ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportRootDirectory", root);
-        ReflectionTestUtils.setField(updatedFileRefreshSchedule, "exportFileType", "jpeg");
     }
 
     @Test
@@ -225,7 +213,7 @@ class UpdatedFileRefreshScheduleUTC {
     }
 
     @Test
-    void sitePublicationDetectionHandlesUnknownTypesEmptyAnswersAndMismatches() throws Exception {
+    void sitePublicationRepairHandlesUnknownTypesEmptyAnswersAndMismatches() throws Exception {
         var root = Files.createTempDirectory("refresh-root-detect");
         var unknown = image(3L, "unknown.bin", null, null);
         var empty = image(4L, "empty.jpg", null, null);
@@ -236,18 +224,8 @@ class UpdatedFileRefreshScheduleUTC {
             entity.setSha256sum(computeSha256(path.toFile()));
         }
         unknown.setFileType(FileTypeEnum.UNKNOWN);
-        var elsewhere = new PagedResponse<SiteFileResponse>();
-        elsewhere.setContent(List.of(SiteFileResponse.builder()
-            .fileName("mismatch.jpg")
-            .filePath("/elsewhere")
-            .build()));
-        org.mockito.Mockito.lenient()
-            .when(vempainAdminService.getPageableSiteFiles(any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(), any(), any(),
-                    any(), any()))
-            .thenReturn(null);
-        org.mockito.Mockito.lenient()
-            .when(vempainAdminService.getPageableSiteFiles(eq(FileTypeEnum.IMAGE), eq(0), eq(50), eq("id"), eq(Sort.Direction.ASC), eq("mismatch.jpg"), any()))
-            .thenReturn(elsewhere);
+        when(vempainAdminService.getSiteFileAclsByFileId(4L)).thenReturn(Optional.empty());
+        when(vempainAdminService.getSiteFileAclsByFileId(5L)).thenReturn(Optional.empty());
         when(fileRepository.findAll()).thenReturn(List.of(unknown, empty, mismatch));
         when(schedulerCheckpointRepository.findById("updated_file_refresh")).thenReturn(Optional.empty());
         configureRoots(root.toString());
@@ -258,6 +236,32 @@ class UpdatedFileRefreshScheduleUTC {
         assertThat(empty.getSiteFilePublished()).isFalse();
         assertThat(mismatch.getSiteFilePublished()).isFalse();
         verify(fileRepository, org.mockito.Mockito.times(3)).save(any());
+        verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());
+    }
+
+    @Test
+    void sitePublicationRepairPromotesExistingFalseFlagAndRecordsSiteFileId() throws Exception {
+        var root = Files.createTempDirectory("refresh-root-promote");
+        var filePath = root.resolve("published.jpg");
+        Files.writeString(filePath, "published");
+        var fileEntity = image(10L, "published.jpg", false, computeSha256(filePath.toFile()));
+        when(fileRepository.findAll()).thenReturn(List.of(fileEntity));
+        when(schedulerCheckpointRepository.findById("updated_file_refresh"))
+            .thenReturn(Optional.of(fi.poltsi.vempain.file.entity.SchedulerCheckpointEntity.builder()
+                .taskName("updated_file_refresh")
+                .lastChecked(Instant.now())
+                .build()));
+        when(vempainAdminService.getSiteFileAclsByFileId(10L)).thenReturn(Optional.of(FileIngestSiteFileAclResponse.builder()
+            .siteFileId(710L)
+            .fileId(10L)
+            .build()));
+        configureRoots(root.toString());
+
+        updatedFileRefreshSchedule.runRefresh();
+
+        assertThat(fileEntity.getSiteFileId()).isEqualTo(710L);
+        assertThat(fileEntity.getSiteFilePublished()).isTrue();
+        verify(fileRepository).save(fileEntity);
         verify(directoryProcessorService, never()).refreshExistingOriginalFile(any(), any());
     }
 

@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
@@ -595,7 +597,7 @@ public class PublishService {
     private FileIngestResponse uploadFile(FileEntity fileEntity, Path exportFilePath, FileIngestRequest.FileIngestRequestBuilder builder, String tempPrefix)
             throws IOException {
         var metadataEntries = metadataService.getFileMetadata(fileEntity.getId());
-        var metadataJson = resolveMetadataJson(collectStandardMetadataAsJson(metadataEntries, fileEntity));
+        var metadataJson = resolveMetadataJson(collectStandardMetadataAsJson(metadataEntries, fileEntity), fileEntity.getMetadataRaw());
 
         var siteFileName = fileEntity.getFilename();
         var uploadPath = exportFilePath;
@@ -681,12 +683,35 @@ public class PublishService {
         return mimetype;
     }
 
+    private static String resolveMetadataJson(String metadataJson, String metadataRaw) {
+        if (!hasMetadata(metadataJson)
+            && hasMetadata(metadataRaw)) {
+            return metadataRaw;
+        }
+        return resolveMetadataJson(metadataJson);
+    }
+
     private static String resolveMetadataJson(String metadataJson) {
         if (metadataJson == null
             || metadataJson.isBlank()) {
             return "[]";
         }
         return metadataJson;
+    }
+
+    private static boolean hasMetadata(String metadataJson) {
+        if (metadataJson == null
+            || metadataJson.isBlank()) {
+            return false;
+        }
+        try {
+            var metadata = new JSONArray(metadataJson);
+            return !metadata.isEmpty()
+                   && !metadata.getJSONObject(0)
+                       .isEmpty();
+        } catch (JSONException e) {
+            return false;
+        }
     }
 
     /**

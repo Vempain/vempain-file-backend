@@ -823,6 +823,50 @@ class PublishServiceUTC {
         }
 
         @Test
+        void publishFileGroupFallsBackToRawMetadataWhenNormalizedMetadataIsEmpty(@TempDir Path exportDir) throws IOException {
+            ReflectionTestUtils.setField(publishService, "exportRootDirectory", exportDir.toString());
+            var subDir = exportDir.resolve("docs");
+            Files.createDirectories(subDir);
+            Files.write(subDir.resolve("doc.pdf"), "%PDF-1.4\n".getBytes());
+            when(exportFileRepository.findByFileId(55L)).thenReturn(Optional.of(ExportFileEntity.builder()
+                .id(2L)
+                .filePath("/docs")
+                .filename("doc.pdf")
+                .build()));
+            var rawMetadata = "[{\"EXIF\":{\"Make\":\"Canon\",\"Model\":\"EOS\"}}]";
+            var mockDocEntity = mock(DocumentFileEntity.class);
+            when(mockDocEntity.getId()).thenReturn(55L);
+            when(mockDocEntity.getFileType()).thenReturn(FileTypeEnum.DOCUMENT);
+            when(mockDocEntity.getFilePath()).thenReturn("/docs");
+            when(mockDocEntity.getFilename()).thenReturn("doc.pdf");
+            when(mockDocEntity.getDescription()).thenReturn(null);
+            when(mockDocEntity.getGpsLocation()).thenReturn(null);
+            when(mockDocEntity.getPageCount()).thenReturn(5);
+            when(mockDocEntity.getMetadataRaw()).thenReturn(rawMetadata);
+            when(metadataService.getFileMetadata(55L)).thenReturn(List.of());
+            when(tagService.getTagRequestsByFileId(55L)).thenReturn(List.of());
+            var group = FileGroupEntity.builder()
+                .id(9L)
+                .files(List.<FileEntity>of(mockDocEntity))
+                .build();
+            when(fileGroupRepository.findById(9L)).thenReturn(Optional.of(group));
+            when(vempainAdminService.uploadAsSiteFile(any(), any())).thenReturn(FileIngestResponse.builder()
+                .siteFileId(500L)
+                .galleryId(77L)
+                .build());
+
+            publishService.publishFileGroupNow(PublishFileGroupRequest.builder()
+                .fileGroupId(9L)
+                .galleryName("Docs")
+                .build(), null, false);
+
+            var captor = ArgumentCaptor.forClass(FileIngestRequest.class);
+            verify(vempainAdminService).uploadAsSiteFile(any(), captor.capture());
+            assertEquals(rawMetadata, captor.getValue()
+                .getMetadata());
+        }
+
+        @Test
         void publishAllFileGroupsCarriesTheAclsIntoEveryGroupRequest() {
             var projection = new FileGroupSummaryRow(7L, "/photos", "Photos", "A gallery", 2, 2, null);
             var group = FileGroupEntity.builder()

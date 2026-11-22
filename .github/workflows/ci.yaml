@@ -20,6 +20,7 @@ jobs:
     uses: Vempain/vempain-workflows/.github/workflows/spring-boot-service.yaml@main
     with:
       install_exiftool: true
+      publish_api: true
     secrets:
       VEMPAIN_ACTION_TOKEN: ${{ secrets.VEMPAIN_ACTION_TOKEN }}
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
